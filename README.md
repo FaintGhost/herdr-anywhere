@@ -109,7 +109,7 @@ go build -o ~/.local/bin/herdr-anywhere ./cmd/herdr-anywhere    # needs Go 1.27.
 |---|---|---|
 | Android | `app/android/build.sh` (needs a JDK, the Android SDK and NDK, and Go) | `app/android/build/Herdr.apk` |
 | iOS simulator | `app/ios/build.sh App.tsx simulator` (needs Xcode, xcodegen and Go) | `app/ios/build/Herdr.app` |
-| iPhone (not yet tried) | `app/ios/build.sh App.tsx device` | `app/ios/build/Herdr.app` |
+| iPhone, under your Apple account (not yet tried on a phone) | [app/ios/README.md](app/ios/README.md) | `app/ios/build/Herdr.app` |
 | Web | `cd app && nsh package --target web -o dist/web` | `app/dist/web/Herdr Anywhere` |
 | The release's companion | `cd companion && CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' -o herdr-anywhere-macos-arm64 ./cmd/herdr-anywhere` | `companion/herdr-anywhere-macos-arm64` |
 

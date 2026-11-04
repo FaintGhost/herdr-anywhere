@@ -3,7 +3,7 @@
 // these (nsh.json): sidebar = chrome (bars), sidebar-primary = canvas (behind cards), sidebar-accent = hover,
 // sidebar-foreground = dim text, accent = selected, secondary = raised; chart-1..4 = working, blocked, done,
 // idle; chart-5 = herdr's accent.
-import { cleanup, Image, Scroll, signal, Text, View, type Accessor } from 'nsh'
+import { cleanup, Image, openUrl, Scroll, signal, Text, View, type Accessor } from 'nsh'
 import type { Store } from '../store.ts'
 import type { Shown } from '../model/model.ts'
 import { duration } from '../model/agents.ts'
@@ -86,11 +86,14 @@ export function IconButton(props: { name: keyof typeof GLYPHS; label: string; te
   )
 }
 
-export function Button(props: { label: string; testID?: string; onPress: () => void; kind?: 'primary' | 'plain' | 'danger'; disabled?: boolean }) {
+const PRIVACY_URL = 'https://herdr-anywhere.jingtao.io/privacy/'
+export const openPrivacy = () => void openUrl(PRIVACY_URL).catch(() => {})
+
+export function Button(props: { label: string; testID?: string; onPress: () => void; kind?: 'primary' | 'plain' | 'outline' | 'danger'; disabled?: boolean }) {
   const k = () => props.kind ?? 'primary'
   return (
     <View role="button" testID={props.testID} disabled={props.disabled} onPress={props.onPress}
-      class={`rounded-(--radius) px-4 py-3 items-center ${k() === 'primary' ? 'bg-primary active:opacity-80' : 'active:bg-accent'} ${props.disabled ? 'opacity-50' : ''}`}>
+      class={`rounded-(--radius) px-4 py-3 items-center ${k() === 'primary' ? 'bg-primary active:opacity-80' : k() === 'outline' ? 'border border-input active:bg-accent' : 'active:bg-accent'} ${props.disabled ? 'opacity-50' : ''}`}>
       <Text class={`text-[15px] font-medium ${k() === 'primary' ? 'text-primary-foreground' : k() === 'danger' ? 'text-destructive' : 'text-foreground'}`}>{props.label}</Text>
     </View>
   )

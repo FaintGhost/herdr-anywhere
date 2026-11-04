@@ -21,6 +21,8 @@ export const es: Table = {
   startCompanion: '1. Inicia el programa complementario:',
   showQr: '2. Muestra un código QR de emparejamiento y escanéalo:',
   makeLink: '2. Crea un enlace de emparejamiento y pégalo abajo:',
+  // Try it, and the privacy policy
+  tryIt: "Probar", tryItHint: "¿No tienes la computadora a mano? Mira la app con datos de ejemplo.", demoNotice: "Datos de ejemplo, solo en este teléfono.", demoLeave: "Salir", demoLeaveFull: "Salir de los datos de ejemplo", demoComputer: "Computadora de ejemplo", demoConnection: "Ninguna, todo queda en este teléfono", privacy: "Privacidad",
   scanQr: 'Escanear código QR', linkOrCode: 'Enlace o código', pair: 'Emparejar', pairing: 'Emparejando…',
   pasteTunnel: 'Escanea el código QR que muestra herdr-anywhere pair, o pega su invitación herdr1: o su enlace.',
   pasteOrigin: 'Pega el enlace o el código que imprimió herdr-anywhere pair.',

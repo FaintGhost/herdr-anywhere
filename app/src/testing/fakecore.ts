@@ -7,6 +7,11 @@ const enc = new TextEncoder()
 const dec = new TextDecoder()
 
 export type FakeTerm = Record<string, any> & { address: string }
+export type FakeTab = { id: string; name?: string; argv: string[]; status?: string; title?: string; kind?: string; msg?: string; screen?: string; foreground?: boolean }
+
+/** Claude Code's permission menu as it draws it (2.1.314), for the choices the phone reads off the screen. */
+export const CLAUDE_EDIT_MENU = [' Edit file', ' src/api/login.ts', '', ' Do you want to make this edit to login.ts?', ' ❯ 1. Yes',
+  '   2. Yes, allow all edits during this session (shift+tab)', '   3. No, and tell Claude what to do differently (esc)', ''].join('\n')
 
 export class FakeCore implements Pipe {
   onBytes?: (b: Uint8Array) => void
@@ -85,6 +90,21 @@ export class FakeCore implements Pipe {
     this.terms.set(address, t)
     this.emit('created', address, t)
     return t
+  }
+
+  /** A space of `doc`, the `herdr-app` document, with a live terminal for each tab. */
+  addSpace(doc: { spaces: any[] }, space: string, folder: string, name: string, tabs: FakeTab[]) {
+    const s = { id: space, name, folder, tabs: [] as any[] }
+    for (const t of tabs) {
+      const term = this.run({ argv: t.argv, cwd: folder, labels: { 'herdr.space': space, 'herdr.tab': t.id } })
+      // What herdr-core answers for each (hc get, 2026-11-03): Codex is its node launcher in the foreground.
+      if (t.foreground) term.foreground = t.argv[0] === 'codex' ? { name: 'node', argv: ['node', '/usr/local/bin/codex'], cwd: folder } : { name: t.argv[0], argv: t.argv, cwd: folder }
+      if (t.screen) this.screens.set(term.address, t.screen)
+      if (t.status) this.setStatus(term.address, t.status, t.argv[0] === 'codex' ? 'codex' : 'claude-code', { kind: t.kind, msg: t.msg })
+      if (t.title) term.title = t.title
+      s.tabs.push({ id: t.id, name: t.name ?? '', root: { id: t.id, type: 'row', children: [{ id: `p-${t.id}`, type: 'block', content: { terminal: term.address } }] } })
+    }
+    doc.spaces.push(s)
   }
 
   /** Methods whose answers wait for `release()`: herdr-core reports a new terminal (`created`) before `terminal.run`

@@ -23,6 +23,8 @@ export const en = {
   startCompanion: '1. Start the companion:',
   showQr: '2. Show a pairing QR code, then scan it:',
   makeLink: '2. Make a pairing link, then paste it below:',
+  // Try it, and the privacy policy
+  tryIt: "Try it", tryItHint: "No computer at hand? See the app with sample data.", demoNotice: "Sample data, on this phone only.", demoLeave: "Leave", demoLeaveFull: "Leave the sample data", demoComputer: "Sample computer", demoConnection: "None, it stays on this phone", privacy: "Privacy",
   scanQr: 'Scan QR code', linkOrCode: 'Link or code', pair: 'Pair', pairing: 'Pairing…',
   pasteTunnel: 'Scan the QR code that herdr-anywhere pair shows, or paste its herdr1: invite or its link.',
   pasteOrigin: 'Paste the link or the code that herdr-anywhere pair printed.',

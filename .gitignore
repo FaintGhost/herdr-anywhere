@@ -14,3 +14,5 @@ app/e2e/shots/
 # Built by app/scripts/tailpocket.sh and app/ios/build.sh
 third_party/tailpocket-8ae23dd/sdk/apple/NSH/NativeShell.xcframework
 .dev/
+
+__pycache__/

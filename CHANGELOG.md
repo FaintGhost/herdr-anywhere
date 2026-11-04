@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.1.4
+
+The README's Try it goes straight to the steps. `INSTALL.md` checks the Mac and Herdr for you.
+
+Build the app for your own iPhone under your own Apple account: `app/ios/README.md`. Try it on the pairing screen opens the app on sample data, with no computer. Settings and the pairing screen link to the privacy page.
+
+No new app or companion: the download links still give the v0.1.3 files.
+
 ## v0.1.3
 
 Herdr Anywhere has its own icon: a ram drawn for this app, with a curled horn, the prompt on its face and signal arcs above its head. It replaces the previous icon.

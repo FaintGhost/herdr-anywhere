@@ -3,3 +3,4 @@ nsh/
 build/
 Herdr.xcodeproj/
 Info.plist
+Signing.local.xcconfig

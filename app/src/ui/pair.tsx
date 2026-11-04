@@ -2,13 +2,13 @@
 import { Scroll, signal, Text, View } from 'nsh'
 import { Input } from 'nsh/base'
 import { pairThrough, parseInvite, parsePairLink, pairWith, tunnelCode, type Link, type Tunnel } from '../link.ts'
-import { Button } from './kit.tsx'
+import { Button, openPrivacy } from './kit.tsx'
 import { t } from '../strings/index.ts'
 import { keyboardGone } from './keyboard.ts'
 
 /** `origin`: on the web, the computer that serves the page, where a `#pair=` link opens and the code alone is enough.
  *  `tunnel`: in the phone apps, TailPocket, which pairs by the invite `serve --tailcat` shows, scanned or pasted. */
-export function PairScreen(props: { onPaired: (l: Link) => void; device: string; fetcher?: typeof fetch; initial?: string; message?: string; origin?: string; tunnel?: Tunnel }) {
+export function PairScreen(props: { onPaired: (l: Link) => void; device: string; fetcher?: typeof fetch; initial?: string; message?: string; origin?: string; tunnel?: Tunnel; onTry?: () => void }) {
   const text = signal(props.initial ?? '')
   const busy = signal(false)
   const error = signal(props.message ?? '')
@@ -68,6 +68,15 @@ export function PairScreen(props: { onPaired: (l: Link) => void; device: string;
         class="mt-2 rounded-(--radius) border border-input bg-card px-3 py-3 text-[14px] font-mono text-foreground placeholder:text-sidebar-foreground" />
       <Button label={busy() ? t('pairing') : t('pair')} testID="pair" disabled={busy()} onPress={() => void pair()} />
       <If when={error()}><Text testID="pair-error" class="text-[14px] leading-5 text-destructive">{error()}</Text></If>
+      <If when={props.onTry}>
+        <View class="mt-3 gap-2 border-t border-border pt-4">
+          <Text class="text-[13px] leading-[18px] text-muted-foreground">{t('tryItHint')}</Text>
+          <Button label={t('tryIt')} testID="try-it" kind="outline" disabled={busy()} onPress={() => props.onTry!()} />
+        </View>
+      </If>
+      <View role="button" testID="pair-privacy" onPress={openPrivacy} class="self-center px-3 py-2 active:opacity-60">
+        <Text class="text-[13px] text-muted-foreground">{t('privacy')}</Text>
+      </View>
     </Scroll>
   )
 }

@@ -21,6 +21,8 @@ export type HomeActions = {
   peek: (address: string) => void
   newMenu: () => void
   settings: () => void
+  /** In Try it: says the data is made up, and leaves it. */
+  leaveDemo?: () => void
   rename: (kind: 'space', id: string, current: string) => void
 }
 
@@ -271,6 +273,14 @@ export function HomeScreen(props: { store: Store; actions: HomeActions }) {
       </View>
       <ConnBanner store={props.store} />
       <Scroll class="flex-1" contentClass="pb-6">
+        <If when={props.actions.leaveDemo}>
+          <View testID="demo-notice" class="mx-3 mt-1 mb-1 flex-row items-center gap-3 rounded-(--radius) bg-muted pl-3 pr-1 py-1">
+            <Text class="flex-1 text-[13px] leading-[18px] text-muted-foreground">{t('demoNotice')}</Text>
+            <View role="button" testID="demo-leave" onPress={() => props.actions.leaveDemo!()} class="px-3 py-2 rounded-[6px] active:bg-accent">
+              <Text class="text-[13px] font-medium text-foreground">{t('demoLeave')}</Text>
+            </View>
+          </View>
+        </If>
         <NeedsYouSection store={props.store} actions={props.actions} />
         <SpacesSection store={props.store} actions={props.actions} />
       </Scroll>

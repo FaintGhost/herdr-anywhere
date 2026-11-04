@@ -1,0 +1,83 @@
+// Try it on the pairing screen: the whole app over sample data on the phone, for anyone without a computer at hand (App
+// Review too). Privacy: the policy opens from the pairing screen and from Settings.
+import { expect, open, test } from 'nsh/test'
+
+const PRIVACY = 'https://herdr-anywhere.jingtao.io/privacy/'
+const phone = () => open('./App.tsx', { platform: 'ios', host: { handlers: {} }, network: { '*': { error: 'offline' } } })
+const tunnelCalls = (app: any) => app.host.calls().filter((c: any) => c.name.startsWith('tailPocket.'))
+
+test('Try it opens the app on sample agents without pairing, the network or the tunnel, and saves no link', async () => {
+  const app = await phone()
+  await app.waitFor('id:try-it')
+  await app.press('id:try-it')
+  await app.waitFor('id:needs-t1')
+  await app.waitFor('id:demo-notice')
+  const words = app.texts()
+  for (const s of ['Needs you', 'Spaces', 'api › fix login']) expect(words).toContain(s)
+  // It answers as the computer would: a choice reaches the agent, which goes on working, then finishes.
+  await app.press('id:needs-t1-choice-1')
+  await app.waitUntil(() => app.count('id:needs-t1') === 0)
+  expect(app.requests()).toEqual([])
+  expect(tunnelCalls(app)).toEqual([])
+  expect('link' in app.storage()).toBe(false)
+})
+
+test('in Try it a terminal takes typing, and the folder picker starts a new agent that works and finishes', async () => {
+  const app = await phone()
+  await app.press('id:try-it')
+  await app.waitFor('id:needs-t1-choice-3')
+  await app.press('id:needs-t1-choice-3')
+  await app.waitFor('id:compose-input')
+  await app.type('id:compose-input', 'npm test')
+  await app.press('id:compose-send')
+  await app.waitUntil(() => app.value('id:compose-input') === '')
+  await app.press('id:back')
+  await app.waitFor('id:new')
+  await app.press('id:new')
+  await app.waitFor('id:folder-use')
+  await app.press('id:folder-use')
+  await app.waitFor('id:new-claude')
+  await app.press('id:new-claude')
+  await app.type('id:task', 'fix the login bug')
+  await app.press('id:start')
+  await app.waitFor('id:pane-header')
+  expect(app.requests()).toEqual([])
+  expect(tunnelCalls(app)).toEqual([])
+})
+
+test('leaving Try it comes back to pairing with nothing kept, from the notice and from Settings', async () => {
+  const app = await phone()
+  await app.press('id:try-it')
+  await app.waitFor('id:demo-leave')
+  await app.press('id:demo-leave')
+  await app.waitFor('id:pair-link')
+  expect('link' in app.storage()).toBe(false)
+  await app.press('id:try-it')
+  await app.waitFor('id:settings')
+  await app.press('id:settings')
+  await app.waitFor('id:settings-demo-leave')
+  expect(app.count('id:forget')).toBe(0)
+  await app.press('id:settings-demo-leave')
+  await app.waitFor('id:pair-link')
+})
+
+test('a paired phone shows no demo notice', async () => {
+  const app = await open('./fixtures/fake.tsx', { host: { params: { scene: 'busy' } } })
+  await app.waitFor('id:needs-t1')
+  expect(app.count('id:demo-notice')).toBe(0)
+})
+
+test('the privacy policy opens from the pairing screen and from Settings', async () => {
+  const app = await phone()
+  await app.waitFor('id:pair-privacy')
+  await app.press('id:pair-privacy')
+  await app.waitUntil(() => app.openedUrls().length === 1)
+  expect(app.openedUrls()).toEqual([PRIVACY])
+  await app.press('id:try-it')
+  await app.waitFor('id:settings')
+  await app.press('id:settings')
+  await app.waitFor('id:settings-privacy')
+  await app.press('id:settings-privacy')
+  await app.waitUntil(() => app.openedUrls().length === 2)
+  expect(app.openedUrls()).toEqual([PRIVACY, PRIVACY])
+})

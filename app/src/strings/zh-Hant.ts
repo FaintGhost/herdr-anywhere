@@ -21,6 +21,8 @@ export const zhHant: Table = {
   startCompanion: '1. 啟動配套程式：',
   showQr: '2. 顯示配對 QR 碼，然後掃描：',
   makeLink: '2. 產生配對連結，然後貼到下面：',
+  // Try it, and the privacy policy
+  tryIt: "試一試", tryItHint: "手邊沒有電腦？用範例資料看看這個 App。", demoNotice: "範例資料，只在這支手機上。", demoLeave: "離開", demoLeaveFull: "離開範例資料", demoComputer: "範例電腦", demoConnection: "無，資料只在這支手機上", privacy: "隱私權",
   scanQr: '掃描 QR 碼', linkOrCode: '連結或配對碼', pair: '配對', pairing: '正在配對…',
   pasteTunnel: '掃描 herdr-anywhere pair 顯示的 QR 碼，或貼上它的 herdr1: 邀請或連結。',
   pasteOrigin: '貼上 herdr-anywhere pair 輸出的連結或配對碼。',

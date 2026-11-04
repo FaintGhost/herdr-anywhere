@@ -21,6 +21,8 @@ export const ru: Table = {
   startCompanion: '1. Запустите компаньон:',
   showQr: '2. Покажите QR-код для сопряжения и отсканируйте его:',
   makeLink: '2. Создайте ссылку для сопряжения и вставьте её ниже:',
+  // Try it, and the privacy policy
+  tryIt: "Попробовать", tryItHint: "Компьютера нет под рукой? Посмотрите приложение на примере.", demoNotice: "Пример данных, только на этом телефоне.", demoLeave: "Выйти", demoLeaveFull: "Выйти из примера", demoComputer: "Компьютер из примера", demoConnection: "Нет, всё остаётся на этом телефоне", privacy: "Конфиденциальность",
   scanQr: 'Сканировать QR-код', linkOrCode: 'Ссылка или код', pair: 'Подключить', pairing: 'Подключение…',
   pasteTunnel: 'Отсканируйте QR-код, который показывает herdr-anywhere pair, или вставьте его приглашение herdr1: либо ссылку.',
   pasteOrigin: 'Вставьте ссылку или код, которые вывела команда herdr-anywhere pair.',

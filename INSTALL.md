@@ -43,8 +43,8 @@ yourself if that one is taken). If it says to open Herdr once, do that and run i
 ## 4. Pair the phone
 
 Tell the user to install the app on their Android phone from https://github.com/jt-wang/herdr-anywhere/releases/latest/download/Herdr-Anywhere.apk, press the
-dialog's key in Herdr, press Start, and scan the QR code with the app. An iPhone has no ready-made app yet: the user has
-to build it (see the README's Build from source).
+dialog's key in Herdr, press Start, and scan the QR code with the app. An iPhone has no ready-made app yet: build it for the
+user with [app/ios/README.md](app/ios/README.md), which needs their Apple account and their phone on a cable.
 
 Check:
 

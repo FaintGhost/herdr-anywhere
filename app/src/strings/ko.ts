@@ -21,6 +21,8 @@ export const ko: Table = {
   startCompanion: '1. 컴패니언을 실행하세요:',
   showQr: '2. 페어링 QR 코드를 띄운 다음 스캔하세요:',
   makeLink: '2. 페어링 링크를 만든 다음 아래에 붙여 넣으세요:',
+  // Try it, and the privacy policy
+  tryIt: "체험하기", tryItHint: "컴퓨터가 곁에 없나요? 샘플 데이터로 앱을 둘러보세요.", demoNotice: "샘플 데이터이며 이 휴대폰에만 있어요.", demoLeave: "나가기", demoLeaveFull: "샘플 데이터 나가기", demoComputer: "샘플 컴퓨터", demoConnection: "없음, 모두 이 휴대폰 안에 있어요", privacy: "개인정보 보호",
   scanQr: 'QR 코드 스캔', linkOrCode: '링크 또는 코드', pair: '페어링', pairing: '페어링 중…',
   pasteTunnel: 'herdr-anywhere pair가 보여 주는 QR 코드를 스캔하거나, herdr1: 초대 또는 링크를 붙여 넣으세요.',
   pasteOrigin: 'herdr-anywhere pair가 출력한 링크나 코드를 붙여 넣으세요.',

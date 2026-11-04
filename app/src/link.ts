@@ -7,8 +7,9 @@ import { Signal } from './store.ts'
 import type { FolderApi, Listing, Missing } from './model/folders.ts'
 import { t as tr, type Key } from './strings/index.ts'
 
-/** `via: 'tailpocket'`: the computer is reached through TailPocket, which keeps its own link (with the phone's key). */
-export type Link = { url: string; token: string; device: string; name: string; enc: Enc; via?: 'tailpocket' }
+/** `via: 'tailpocket'`: the computer is reached through TailPocket, which keeps its own link (with the phone's key).
+ *  `via: 'demo'`: Try it's made-up computer (demo.ts). */
+export type Link = { url: string; token: string; device: string; name: string; enc: Enc; via?: 'tailpocket' | 'demo' }
 export type PairLink = { url: string; code: string }
 
 export function parsePairLink(text: string): PairLink | null {

@@ -13,6 +13,7 @@ import { SettingsScreen } from './settings.tsx'
 import { PairScreen } from './pair.tsx'
 import { NewSheet, RenameSheet, type NewTarget, type RenameTarget } from './sheets.tsx'
 import { PeekSheet } from './peek.tsx'
+import { makeDemo, type Demo } from '../demo.ts'
 import { useSignal } from './kit.tsx'
 import { t } from '../strings/index.ts'
 
@@ -73,7 +74,7 @@ function AlertSounds(props: { alerts: Alerts }) {
   )
 }
 
-function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: () => void }) {
+function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: () => void; leaveDemo?: () => void }) {
   const { store, deps } = props
   const nav = createNavStack<Route>(props.deps.opensSettings ? [{ name: 'home' }, { name: 'settings' }] : [{ name: 'home' }])
   const newTarget = signal<NewTarget | null>(null)
@@ -113,13 +114,13 @@ function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: 
         </NavPage>
       : r.name === 'settings'
       ? <NavPage headerVisible={false} class="bg-sidebar">
-          <SettingsScreen store={store} prefs={deps.prefs} link={props.link} linker={deps.linker} fetcher={deps.fetcher} back={() => nav.pop()} forget={() => { deps.linker.forget() }} />
+          <SettingsScreen store={store} prefs={deps.prefs} link={props.link} linker={deps.linker} fetcher={deps.fetcher} back={() => nav.pop()} forget={() => { if (props.leaveDemo) props.leaveDemo(); else deps.linker.forget() }} />
         </NavPage>
       : <NavPage headerVisible={false} class="bg-sidebar">
           <HomeScreen store={store} actions={{
             openSpace, openAgent: (a) => openTerminal(a.address), peek: (addr) => peeking.set(addr),
             newMenu: () => newTarget.set({ kind: 'space' }), settings: () => nav.push({ name: 'settings' }),
-            rename: (kind, id, current) => renaming.set({ kind, id, current }),
+            rename: (kind, id, current) => renaming.set({ kind, id, current }), leaveDemo: props.leaveDemo,
           }} />
         </NavPage>
   return (
@@ -140,6 +141,8 @@ export function Root(props: { deps: RootDeps }) {
   const link = useSignal(deps.linker.link)
   const prefs = useSignal(deps.prefs.prefs)
   const unpairedMessage = signal('')
+  const demo = signal<Demo | null>(null)
+  const leaveDemo = () => { demo()?.stop(); demo.set(null) }
   effect(() => setColorScheme(prefs().appearance))
   Promise.all([deps.linker.load(), deps.prefs.load()]).finally(() => loaded.set(true))
   // A store per link: pairing again with another computer starts over.
@@ -156,8 +159,13 @@ export function Root(props: { deps: RootDeps }) {
   const pairInitial = signal(opened && (opened.includes('#pair=') || parseInvite(opened)) ? opened : undefined)
   return (
     <If when={loaded()} else={<View class="flex-1 bg-background" />}>
+      <If when={!demo()} else={
+        <Each of={demo() ? [demo()!] : []}>{(d) => (
+          <Connected deps={{ ...deps, linker: d().linker, fetcher: d().fetcher, opensSettings: false }} store={d().store} link={d().link} unpaired={leaveDemo} leaveDemo={leaveDemo} />
+        )}</Each>
+      }>
       <If when={link() && !unpairedMessage()} else={
-        <PairScreen device={deps.device} fetcher={deps.fetcher} origin={deps.origin} tunnel={deps.tunnel} message={unpairedMessage()} initial={pairInitial()}
+        <PairScreen device={deps.device} fetcher={deps.fetcher} origin={deps.origin} tunnel={deps.tunnel} message={unpairedMessage()} initial={pairInitial()} onTry={() => demo.set(makeDemo())}
           onPaired={(l) => {
             if (pairInitial()) { pairInitial.set(undefined); deps.pairLinkUsed?.() }
             unpairedMessage.set('')
@@ -167,6 +175,7 @@ export function Root(props: { deps: RootDeps }) {
         <Each of={store() ? [store()!] : []}>{(s) => (
           <Connected deps={deps} store={s()} link={link()!} unpaired={() => unpairedMessage.set(t('forgotten'))} />
         )}</Each>
+      </If>
       </If>
     </If>
   )

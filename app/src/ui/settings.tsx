@@ -5,7 +5,7 @@ import type { Store } from '../store.ts'
 import { companionVersion, type Link, type Linker, type Route } from '../link.ts'
 import { FONT_MAX, FONT_MIN, type Appearance, type PrefStore } from '../prefs.ts'
 import { allowNotifications, notifications, type Permission } from '../page.ts'
-import { IconButton, SectionLabel, useRev, useSignal } from './kit.tsx'
+import { IconButton, openPrivacy, SectionLabel, useRev, useSignal } from './kit.tsx'
 import { t, type Key } from '../strings/index.ts'
 
 function Row(props: { label: string; detail?: string; children?: any; testID?: string; onPress?: () => void }) {
@@ -76,8 +76,9 @@ export function SettingsScreen(props: { store: Store; prefs: PrefStore; link: Li
   }
   const address = () => props.link.url.replace(/^https?:\/\//, '')
   // Only TailPocket's tunnel is end-to-end (Tailcat v0.6.0's README: "encrypted end-to-end with WireGuard"); the companion serves plain HTTP.
-  const how = () => (props.link.via === 'tailpocket' ? t('tunnelE2E') : props.link.url.startsWith('https:') ? t('httpsEncrypted') : maybeTailnet(address()) ? t('notEncryptedByApp') : t('notEncrypted'))
+  const how = () => (props.link.via === 'demo' ? t('demoConnection') : props.link.via === 'tailpocket' ? t('tunnelE2E') : props.link.url.startsWith('https:') ? t('httpsEncrypted') : maybeTailnet(address()) ? t('notEncryptedByApp') : t('notEncrypted'))
   const under = () => {
+    if (props.link.via === 'demo') return ''
     if (props.link.via !== 'tailpocket') return props.link.url.startsWith('https:') ? t('httpsDetail', { host: address() }) : maybeTailnet(address()) ? t('tailnetDetail', { host: address() }) : t('notEncryptedDetail', { host: address() })
     if (conn() !== 'ready') return ''
     const r = route()
@@ -137,10 +138,19 @@ export function SettingsScreen(props: { store: Store; prefs: PrefStore; link: Li
         <Fact label={t('connection')} value={how()} under={under()} testID="connection" />
         <If when={(rev(), props.store.hello)}><Fact label={t('coreVersion')} value={props.store.hello?.version ?? ''} /></If>
         <If when={companion()}><Fact label={t('companionVersion')} value={companion()} /></If>
-        <Row label={t('forgetComputer')} testID="forget" onPress={() => void forget()}>
-          <Text class="text-[13px] text-destructive">{t('forget')}</Text>
-        </Row>
-        <Text class="px-4 pt-2 text-[12px] text-sidebar-foreground">{t('forgetHint')}</Text>
+        <If when={props.link.via === 'demo'} else={
+          <View>
+            <Row label={t('forgetComputer')} testID="forget" onPress={() => void forget()}>
+              <Text class="text-[13px] text-destructive">{t('forget')}</Text>
+            </Row>
+            <Text class="px-4 pt-2 text-[12px] text-sidebar-foreground">{t('forgetHint')}</Text>
+          </View>
+        }>
+          <Row label={t('demoLeaveFull')} testID="settings-demo-leave" onPress={props.forget} />
+        </If>
+        <View class="mt-5 border-t border-border">
+          <Row label={t('privacy')} testID="settings-privacy" onPress={openPrivacy} />
+        </View>
       </Scroll>
     </View>
   )

@@ -21,6 +21,8 @@ export const ja: Table = {
   startCompanion: '1. コンパニオンを起動します:',
   showQr: '2. ペアリング用の QR コードを表示してスキャンします:',
   makeLink: '2. ペアリング用のリンクを作り、下に貼り付けます:',
+  // Try it, and the privacy policy
+  tryIt: "試してみる", tryItHint: "パソコンが手元にありませんか？サンプルデータでアプリを見てみましょう。", demoNotice: "サンプルデータです。このスマホの中だけで動きます。", demoLeave: "終了", demoLeaveFull: "サンプルデータを終了", demoComputer: "サンプルのパソコン", demoConnection: "なし。すべてこのスマホの中です", privacy: "プライバシー",
   scanQr: 'QR コードをスキャン', linkOrCode: 'リンクまたはコード', pair: 'ペアリング', pairing: 'ペアリング中…',
   pasteTunnel: 'herdr-anywhere pair が表示する QR コードをスキャンするか、herdr1: の招待またはリンクを貼り付けてください。',
   pasteOrigin: 'herdr-anywhere pair が出力したリンクまたはコードを貼り付けてください。',

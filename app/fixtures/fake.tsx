@@ -10,7 +10,7 @@ import { Linker, type Route, type Tunnel } from '../src/link.ts'
 import { PrefStore } from '../src/prefs.ts'
 import { Store } from '../src/store.ts'
 import { Root } from '../src/ui/root.tsx'
-import { FakeCore } from '../src/testing/fakecore.ts'
+import { CLAUDE_EDIT_MENU, FakeCore, type FakeTab } from '../src/testing/fakecore.ts'
 import { FakeFolders } from '../src/testing/fake-folders.ts'
 
 const scene = String((host.params as any)?.scene ?? 'busy')
@@ -23,24 +23,11 @@ const io = { load: async (k: string) => memory.get(k) ?? null, save: (k: string,
 export const core = new FakeCore()
 core.echo = true
 ;(globalThis as any).__core = core
-// Claude Code's permission menu as it draws it (2.1.314), for the choices the phone reads off the screen.
-const EDIT_MENU = [' Edit file', ' src/api/login.ts', '', ' Do you want to make this edit to login.ts?', ' ❯ 1. Yes',
-  '   2. Yes, allow all edits during this session (shift+tab)', '   3. No, and tell Claude what to do differently (esc)', ''].join('\n')
+const EDIT_MENU = CLAUDE_EDIT_MENU
 if (scene === 'busy' || scene === 'single') {
   const doc = { spaces: [] as any[] }
-  const add = (space: string, folder: string, name: string, tabs: { id: string; name?: string; argv: string[]; status?: string; title?: string; kind?: string; msg?: string; screen?: string }[]) => {
-    const s = { id: space, name, folder, tabs: [] as any[] }
-    for (const t of tabs) {
-      const term = core.run({ argv: t.argv, cwd: folder, labels: { 'herdr.space': space, 'herdr.tab': t.id } })
-      // What herdr-core answers for each (hc get, 2026-11-03): Codex is its node launcher in the foreground.
-      if (scene === 'single') term.foreground = t.argv[0] === 'codex' ? { name: 'node', argv: ['node', '/usr/local/bin/codex'], cwd: folder } : { name: t.argv[0], argv: t.argv, cwd: folder }
-      if (t.screen) core.screens.set(term.address, t.screen)
-      if (t.status) core.setStatus(term.address, t.status, t.argv[0] === 'codex' ? 'codex' : 'claude-code', { kind: t.kind, msg: t.msg })
-      if (t.title) term.title = t.title
-      s.tabs.push({ id: t.id, name: t.name ?? '', root: { id: t.id, type: 'row', children: [{ id: `p-${t.id}`, type: 'block', content: { terminal: term.address } }] } })
-    }
-    doc.spaces.push(s)
-  }
+  const add = (space: string, folder: string, name: string, tabs: FakeTab[]) =>
+    core.addSpace(doc, space, folder, name, tabs.map((t) => ({ ...t, foreground: scene === 'single' })))
   // `scene: "single"`: one terminal running `params.argv`, silent unless `params.status` says otherwise.
   if (scene === 'single') add('sp1', '/Users/sam/src/api', '', [{ id: 'tb1', argv: [params.argv ?? 'zsh'], status: params.status }])
   else add('sp1', '/Users/sam/src/api', '', [

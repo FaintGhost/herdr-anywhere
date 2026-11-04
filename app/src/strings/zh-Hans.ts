@@ -21,6 +21,8 @@ export const zhHans: Table = {
   startCompanion: '1. 启动配套程序：',
   showQr: '2. 显示配对二维码，然后扫描：',
   makeLink: '2. 生成配对链接，然后粘贴到下面：',
+  // Try it, and the privacy policy
+  tryIt: "试一试", tryItHint: "手边没有电脑？用示例数据看看这个 app。", demoNotice: "示例数据，只在这台手机上。", demoLeave: "退出", demoLeaveFull: "退出示例数据", demoComputer: "示例电脑", demoConnection: "无，数据只在这台手机上", privacy: "隐私",
   scanQr: '扫描二维码', linkOrCode: '链接或配对码', pair: '配对', pairing: '正在配对…',
   pasteTunnel: '扫描 herdr-anywhere pair 显示的二维码，或粘贴它的 herdr1: 邀请或链接。',
   pasteOrigin: '粘贴 herdr-anywhere pair 输出的链接或配对码。',
