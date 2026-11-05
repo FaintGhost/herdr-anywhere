@@ -13,6 +13,38 @@ for (const scheme of ['dark', 'light'] as const) {
   }, 60000)
 }
 
+for (const scheme of ['dark', 'light'] as const) {
+  test(`settings and panes side by side on a phone, ${scheme}`, async () => {
+    const app = await open('../fixtures/fake.tsx', { host: { params: { scene: 'busy' } }, colorScheme: scheme })
+    await app.waitFor('text:Needs you')
+    await app.press('id:settings')
+    await app.waitFor('id:back')
+    await app.wait(500)
+    await app.screenshot(`e2e/shots/settings-${scheme}.png`)
+    await app.scroll('id:forget', 3000).catch(() => {})
+    await app.wait(300)
+    await app.screenshot(`e2e/shots/settings-end-${scheme}.png`)
+    await app.press('id:back')
+    await app.waitFor('text:Needs you')
+    await app.press('id:space-sp2')
+    await app.waitFor('id:terminal-t3')
+    app.onDialog((d) => (d.buttons.includes('Split right') ? 'Split right' : d.buttons.includes('Split anyway') ? 'Split anyway' : null))
+    await app.press('id:space-more')
+    await app.waitFor('id:close-p-tb3')
+    await app.wait(1500)
+    await app.screenshot(`e2e/shots/split-${scheme}.png`)
+  }, 90000)
+}
+
+test('wide: a pane header says what its agent is doing', async () => {
+  const app = await open('../fixtures/fake.tsx', { width: 1100, height: 760, host: { params: { scene: 'busy' } } })
+  await app.waitFor('text:Needs you')
+  await app.press('id:space-sp1')
+  await app.waitFor('id:terminal-t1')
+  await app.wait(1500)
+  await app.screenshot('e2e/shots/space-wide.png')
+}, 60000)
+
 test('pairing', async () => {
   const app = await open('../fixtures/fake.tsx', { host: { params: { scene: 'unpaired' } } })
   await app.waitFor('id:pair-link')

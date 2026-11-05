@@ -57,6 +57,8 @@ export function makeDemo(): Demo {
   const disk = new FakeFolders(home, ['src/api', 'src/web', 'src/notes', 'Documents'], ['src/api', 'src/web'])
   const answer = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body })
   const fetcher = (async (url: string, init?: RequestInit) => {
+    const file = /\/api\/files\?name=([^&]*)/.exec(url)
+    if (file) return answer(200, { path: `~/.cache/herdr-anywhere/uploads/demo/${decodeURIComponent(file[1])}` })
     if (!url.includes('/api/folders')) return answer(200, {})
     if (init?.method === 'POST') return answer(200, { path: await disk.create(JSON.parse(String(init.body)).path), created: true })
     const query = url.split('?')[1] ?? ''

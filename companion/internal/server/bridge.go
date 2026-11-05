@@ -26,8 +26,12 @@ const (
 	statusRevoked = 4401
 	// Close code when hc is missing on the computer.
 	statusNoCore = 4503
-	pingEvery    = 30 * time.Second
 )
+
+// How often a phone is asked to answer; a var so a test need not wait.
+var pingEvery = 30 * time.Second
+
+const slowLine = 300 * time.Millisecond
 
 // session is one phone socket and the `hc connect` behind it.
 type session struct {
@@ -186,17 +190,26 @@ func (s *Server) hc(w http.ResponseWriter, r *http.Request) {
 		defer wg.Done()
 		t := time.NewTicker(pingEvery)
 		defer t.Stop()
+		timed := false
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-t.C:
 				pctx, pcancel := context.WithTimeout(ctx, 15*time.Second)
+				start := time.Now()
 				err := conn.Ping(pctx)
 				pcancel()
 				if err != nil {
+					s.log.Printf("device %s no answer to a ping for %s", d.ID, time.Since(start).Round(time.Second))
 					sess.finish(websocket.StatusGoingAway, "no pong")
 					return
+				}
+				// The real line, for a report of lag: there and back through the tunnel and the phone's network. The first
+				// answer and the slow ones, since a phone stays connected for days.
+				if took := time.Since(start); !timed || took >= slowLine {
+					timed = true
+					s.log.Printf("device %s line %s", d.ID, took.Round(time.Millisecond))
 				}
 			}
 		}

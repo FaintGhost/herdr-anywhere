@@ -401,6 +401,37 @@ test('text from the composer goes out with terminal.send; typed while the line i
   expect(store.pending.get()).toEqual([])
 })
 
+test('a waiting line whose answer is lost is not sent again, and the person is told', async () => {
+  const cores = [new FakeCore(), new FakeCore(), new FakeCore()]
+  let n = 0
+  const timers: (() => void)[] = []
+  const store = new Store({ pipe: () => cores[n++], setInterval: (() => 0) as any, clearInterval: (() => {}) as any,
+    setTimeout: ((f: () => void) => { timers.push(f); return 0 }) as any })
+  const toasts: string[] = []
+  const toast = store.toast.bind(store)
+  store.toast = (t) => { toasts.push(t.title); return toast(t) }
+  await store.connect()
+  const r = await store.newSpace({})
+  for (const c of cores.slice(1)) { c.terms.set(r.terminal, { ...cores[0].terms.get(r.terminal)! }); c.docs = cores[0].docs }
+  cores[0].drop('network')
+  await settle()
+  await store.compose(r.terminal, 'pwd')
+  // It reaches the computer, and the line goes before the answer comes back.
+  cores[1].onSend = () => cores[1].drop('network')
+  timers.shift()!()
+  await settle(30)
+  store.sync()
+  await settle()
+  expect(cores[1].calls.filter((c) => c.method === 'terminal.send').map((c) => c.params.text)).toEqual(['pwd'])
+  expect(store.pending.get()).toEqual([])
+  expect(toasts.some((t) => t.includes('pwd'))).toBe(true)
+  while (timers.length) timers.shift()!()
+  await settle(30)
+  store.sync()
+  await settle()
+  expect(cores[2].calls.filter((c) => c.method === 'terminal.send')).toEqual([])
+})
+
 test("a blocked agent's menu is read off its screen once; a screen without one is read again, then left to the keys", async () => {
   const { core, store, timers } = setup()
   await store.connect()
@@ -422,4 +453,61 @@ test("a blocked agent's menu is read off its screen once; a screen without one i
   expect(core.calls.filter((c) => c.method === 'terminal.read').length).toBe(4)
   expect(store.menuFor(r.terminal)).toBe(undefined)
   expect(store.menuRead(r.terminal)).toBe(true)
+})
+
+// A line that went quiet without closing: the computer gave up on the phone, and the close never reached it.
+function quietSetup() {
+  const core = new FakeCore()
+  let now = 1_000_000
+  const ticks: (() => void)[] = []
+  const timers: (() => void)[] = []
+  const store = new Store({
+    pipe: () => core,
+    setInterval: ((f: () => void) => { ticks.push(f); return ticks.length }) as any,
+    clearInterval: (() => {}) as any,
+    setTimeout: ((f: () => void) => { timers.push(f); return 0 }) as any,
+    now: () => now,
+  })
+  /** Time passes with the app running: every second, its timers fire. */
+  const run = async (seconds: number) => {
+    for (let i = 0; i < seconds; i++) { now += 1000; for (const t of [...ticks]) t(); await settle() }
+  }
+  return { core, store, timers, run, sleep: (ms: number) => { now += ms } }
+}
+
+test('a line that goes quiet without closing is dropped and connected again', async () => {
+  const { core, store, run, timers } = quietSetup()
+  await store.connect()
+  await run(10)
+  expect(store.conn.get()).toBe('ready')
+  core.mute = true
+  await run(10)
+  expect(store.conn.get()).toBe('ready')
+  await run(10)
+  expect(store.conn.get()).toBe('reconnecting')
+  expect(timers.length > 0).toBe(true)
+})
+
+test('the app being suspended is not a quiet line: it gets the full time again when it wakes', async () => {
+  const { store, run, sleep, core } = quietSetup()
+  await store.connect()
+  await run(2)
+  sleep(600_000)
+  core.mute = false
+  await run(2)
+  expect(store.conn.get()).toBe('ready')
+})
+
+test("an agent's activity follows its reports: its title while it works, what it says it did when done; a shell has none", async () => {
+  const core = new FakeCore()
+  const store = new Store({ pipe: () => core })
+  await store.connect()
+  const r = await store.newSpace({ argv: ['claude'] })
+  expect(store.activityOf(r.terminal)).toBe('')
+  core.setStatus(r.terminal, 'done', 'claude-code', { msg: 'ran the tests' })
+  await settle()
+  expect(store.activityOf(r.terminal)).toBe('ran the tests')
+  const sh = await store.newSpace({})
+  expect(store.activityOf(sh.terminal)).toBe('')
+  store.disconnect()
 })

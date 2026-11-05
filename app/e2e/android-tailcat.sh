@@ -40,6 +40,8 @@ trap cleanup EXIT INT TERM
 # Install first: Tailcat's pairing window lasts 2 minutes.
 "$adb" install -r "$apk" >/dev/null
 "$adb" shell pm clear "$id" >/dev/null
+# Android 13 and later post nothing until this is allowed, and the app asks on its first connection.
+"$adb" shell pm grant "$id" android.permission.POST_NOTIFICATIONS >/dev/null 2>&1 || true
 
 [ "${HM_E2E_ROUTE:-direct}" = relay ] && export TS_DEBUG_ALWAYS_USE_DERP=1
 "$work/herdr-anywhere" serve --tailcat --listen "127.0.0.1:$port" --hc "$hc" --state "$state" > "$work/serve.log" 2>&1 &

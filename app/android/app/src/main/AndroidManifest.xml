@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <application android:label="${appName}"
         android:icon="@mipmap/app_icon"
         android:allowBackup="false"
@@ -20,5 +22,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Swiping the app away ends it, as it ended the app before. -->
+        <service android:name=".KeepAlive" android:exported="false" android:stopWithTask="true"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the encrypted connection to the person's own computer open, so the agents' alerts reach the phone without a server in between." />
+        </service>
     </application>
 </manifest>

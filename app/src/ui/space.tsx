@@ -2,7 +2,7 @@
 // defaults/mods/tabs, mods/pane, mods/workspace-status). A phone gives the screen to the focused pane: a two-line
 // header (the agent, where it is, Needs you), its terminal edge to edge, and one row under it (ui/pane-bar.tsx); the
 // title opens the switcher, and a flick across the terminal goes to the next or previous tab.
-import { cleanup, computed, keyboardFrame, safeAreaInsets, Scroll, signal, Text, View, windowSize } from 'nsh'
+import { cleanup, computed, effect, keyboardFrame, safeAreaInsets, Scroll, signal, Text, View, windowSize } from 'nsh'
 import { AlertDialog, Sheet } from 'nsh/base'
 import type { Store } from '../store.ts'
 import { layoutRects } from '../store.ts'
@@ -11,7 +11,7 @@ import { focusedPaneOf, shownNode, spaceActiveTab, type Tab } from '../model/mod
 import { gitTail } from '../model/marks.ts'
 import { ConnBanner, Glyph, IconButton, ProgramIcon, SpaceBadge, StatusDot, StatusMark, shortPath, useRev } from './kit.tsx'
 import { t } from '../strings/index.ts'
-import { TerminalView } from './terminal.tsx'
+import { TerminalView, WIDE } from './terminal.tsx'
 import { PaneBar } from './pane-bar.tsx'
 import { startable } from '../model/programs.ts'
 import type { TerminalSession } from './terminal-session.ts'
@@ -19,15 +19,14 @@ import type { TerminalSession } from './terminal-session.ts'
 export type SpaceActions = {
   back: () => void
   newTab: (spaceId: string) => void
+  /** A new tab in the space's own folder: the folder line in the sheet still changes it. */
+  addAgent: (spaceId: string) => void
   rename: (kind: 'space' | 'tab', id: string, current: string) => void
   fontSize: () => number
-  setFontSize: (size: number) => void
   /** Opens a terminal wherever it is (another space included). */
   open: (address: string) => void
   settings: () => void
 }
-
-const WIDE = 720
 
 /** The program a tab is shown with: its agent's, else its first terminal's (defaults/mods/tabs). */
 function tabIcon(s: Store, c: Tab) {
@@ -73,22 +72,25 @@ function TabBar(props: { store: Store; spaceId: string; actions: SpaceActions })
   )
 }
 
-function PaneHeader(props: { store: Store; node: Node; tab: Tab; focused: boolean }) {
+function PaneHeader(props: { store: Store; node: Node; tab: Tab; focused: boolean; narrow: boolean; split: (pane: string, direction: 'right' | 'down') => void }) {
   const s = props.store
   const rev = useRev(s)
   const addr = () => terminalOf(props.node)
   const name = () => { rev(); const a = addr(); return a ? s.paneName(a) : (() => { const c = props.node.content; return c && 'mod' in c ? c.mod : t('panel') })() }
   const cwd = () => { rev(); const t = s.term(addr()); return t?.cwd ? shortPath(t.cwd, s.home) : '' }
+  const doing = () => { rev(); return s.activityOf(addr()) }
   const zoomed = () => { rev(); return props.tab.zoomed === props.node.id }
   const many = () => { rev(); return panes(props.tab.root).length > 1 }
   return (
     <View class="flex-row items-center h-[34px] pl-2.5 pr-0.5 gap-2 border-b border-border bg-background">
       <ProgramIcon icon={(rev(), s.program(addr()).icon)} size={14} />
       <Text class="text-[12.5px] font-medium text-foreground shrink-0 max-w-[45%]" numberOfLines={1}>{name()}</Text>
-      <Text testID={`cwd-${props.node.id}`} class="flex-1 text-[12.5px] text-sidebar-foreground" numberOfLines={1} ellipsizeMode="head" accessibilityLabel={cwd()}>{cwd()}</Text>
+      <Text testID={`cwd-${props.node.id}`} class="flex-1 text-[12.5px] text-sidebar-foreground" numberOfLines={1} ellipsizeMode={doing() ? 'tail' : 'head'} accessibilityLabel={doing() || cwd()}>{props.narrow ? '' : doing() || cwd()}</Text>
       <If when={(rev(), s.statusOf(addr()))}>{(st) => <StatusMark status={st()} size={7} />}</If>
-      <SmallButton name="split-right" label={t('splitRight')} testID={`split-right-${props.node.id}`} onPress={() => void s.splitPane(props.node.id, 'right')} />
-      <SmallButton name="split-down" label={t('splitDown')} testID={`split-down-${props.node.id}`} onPress={() => void s.splitPane(props.node.id, 'down')} />
+      <If when={!props.narrow}>
+        <SmallButton name="split-right" label={t('splitRight')} testID={`split-right-${props.node.id}`} onPress={() => props.split(props.node.id, 'right')} />
+        <SmallButton name="split-down" label={t('splitDown')} testID={`split-down-${props.node.id}`} onPress={() => props.split(props.node.id, 'down')} />
+      </If>
       <If when={many()}><SmallButton name={zoomed() ? 'unzoom' : 'zoom'} label={zoomed() ? t('unzoom') : t('zoom')} testID={`zoom-${props.node.id}`} onPress={() => s.zoom(props.node.id)} /></If>
       <SmallButton name="close" label={t('closePane')} testID={`close-${props.node.id}`} onPress={() => s.closePane(props.node.id)} />
     </View>
@@ -103,11 +105,11 @@ function SmallButton(props: { name: Parameters<typeof Glyph>[0]['name']; label: 
   )
 }
 
-function PaneBody(props: { store: Store; spaceId: string; node: Node; actions: SpaceActions; keys: boolean; onSession?: (s: TerminalSession) => void }) {
+function PaneBody(props: { store: Store; spaceId: string; node: Node; actions: SpaceActions; keys: boolean; onSession?: (s: TerminalSession) => void; tap?: () => void }) {
   const addr = terminalOf(props.node)
   return addr
     ? <TerminalView store={props.store} address={addr} fontSize={props.actions.fontSize()} keys={props.keys} onSession={props.onSession}
-        zoom={(n) => props.actions.setFontSize(n)} swipe={(d) => props.store.stepTab(props.spaceId, d)} />
+        swipe={(d) => props.store.stepTab(props.spaceId, d)} tap={props.tap} />
     : <View class="flex-1 items-center justify-center p-6"><Text class="text-[13px] text-sidebar-foreground text-center">{t('panelMod')}</Text></View>
 }
 
@@ -115,26 +117,33 @@ function PaneBody(props: { store: Store; spaceId: string; node: Node; actions: S
 const frame = (focused: boolean) => `rounded-[10px] overflow-hidden border ${focused ? 'border-chart-5' : 'border-border'} bg-background`
 
 /** A phone: the focused pane, its header above it and its row under it. */
-function PhoneSpace(props: { store: Store; spaceId: string; tab: Tab; actions: SpaceActions; back: () => void; menu: () => void }) {
+function PhoneSpace(props: { store: Store; spaceId: string; tab: Tab; actions: SpaceActions; sessions: Map<string, TerminalSession>; back: () => void; menu: () => void; split: (pane: string, direction: 'right' | 'down') => void }) {
   const s = props.store
   const rev = useRev(s)
   const node = () => { rev(); const f = focusedPaneOf(props.tab); return f ? find(props.tab.root, f) : undefined }
   const session = signal<TerminalSession | undefined>(undefined)
   const switching = signal(false)
+  const whole = () => { rev(); return s.shownWhole.has(props.tab.id) && panes(props.tab.root).length > 1 }
   return (
     <View class="flex-1 bg-background">
       <PhoneHeader store={s} spaceId={props.spaceId} tab={props.tab} node={node()} actions={props.actions} back={props.back} menu={props.menu}
         openSwitcher={() => switching.set(true)} />
       <ConnBanner store={s} />
-      {/* keyed by pane: another pane is another terminal */}
-      <Each of={node() ? [node()!] : []} key={(n) => n.id}>{(n) => (
-        <PaneBody store={s} spaceId={props.spaceId} node={n()} actions={props.actions} keys={false}
-          onSession={(t) => { session.set(t); cleanup(() => { if (session() === t) session.set(undefined) }) }} />
-      )}</Each>
-      <Each of={session() ? [session()!] : []}>{(t) => {
-        const p = () => { rev(); return s.program(t().address) }
-        return <PaneBar store={s} session={t()} program={p().name} agent={!!p().agent} />
-      }}</Each>
+      <If when={whole()} else={
+        <View class="flex-1">
+          {/* keyed by pane: another pane is another terminal */}
+          <Each of={node() ? [node()!] : []} key={(n) => n.id}>{(n) => (
+            <PaneBody store={s} spaceId={props.spaceId} node={n()} actions={props.actions} keys={false}
+              onSession={(t) => { session.set(t); props.sessions.set(t.address, t); cleanup(() => { if (session() === t) session.set(undefined); props.sessions.delete(t.address) }) }} />
+          )}</Each>
+          <Each of={session() ? [session()!] : []}>{(t) => {
+            const p = () => { rev(); return s.program(t().address) }
+            return <PaneBar store={s} session={t()} program={p().name} agent={!!p().agent} />
+          }}</Each>
+        </View>
+      }>
+        <WidePanes store={s} spaceId={props.spaceId} tab={props.tab} actions={props.actions} sessions={props.sessions} split={props.split} />
+      </If>
       <Switcher store={s} spaceId={props.spaceId} open={switching} actions={props.actions} />
     </View>
   )
@@ -164,7 +173,7 @@ function PhoneHeader(props: { store: Store; spaceId: string; tab: Tab; node: Nod
             </View>
           </If>
         </View>
-        <Text class="text-[11.5px] text-sidebar-foreground" numberOfLines={1}>{place()}</Text>
+        <Text testID="pane-activity" class="text-[11.5px] text-sidebar-foreground" numberOfLines={1}>{(rev(), s.activityOf(addr()) || place())}</Text>
       </View>
       <If when={waiting().length}>
         <View role="button" testID="next-waiting" accessibilityLabel={t('moreWaitingOpen', { n: waiting().length })} onPress={() => props.actions.open(waiting()[0].address)}
@@ -172,6 +181,7 @@ function PhoneHeader(props: { store: Store; spaceId: string; tab: Tab; node: Nod
           <Text class="text-[11.5px] font-medium text-chart-2">{t('plusWaiting', { n: waiting().length })}</Text>
         </View>
       </If>
+      <IconButton name="plus" label={t('addAgent')} testID="add-agent" onPress={() => props.actions.addAgent(props.spaceId)} />
       <IconButton name="more" label={t('paneActions')} testID="space-more" onPress={props.menu} />
     </View>
   )
@@ -246,16 +256,22 @@ function Switcher(props: { store: Store; spaceId: string; open: { (): boolean; s
   )
 }
 
-/** A tablet or a wide window: the split tree, every pane on screen, one key bar for the focused one. */
-function WidePanes(props: { store: Store; spaceId: string; tab: Tab; actions: SpaceActions }) {
+/** Under this width a pane's header has room for its name, zoom and close only; ⋯ still splits. */
+const NARROW_PANE = 340
+
+/** A tablet, a wide window, or a phone asked to: the split tree, every pane on screen, one key bar for the focused one. */
+function WidePanes(props: { store: Store; spaceId: string; tab: Tab; actions: SpaceActions; sessions: Map<string, TerminalSession>; split: (pane: string, direction: 'right' | 'down') => void }) {
   const s = props.store
   const rev = useRev(s)
   const box = signal({ w: 0, h: 0 })
-  const sessions = new Map<string, TerminalSession>()
+  const sessions = props.sessions
   const rects = computed(() => { rev(); const b = box(); return [...layoutRects(shownNode(props.tab), 0, 0, b.w, b.h)] })
   const focused = () => { rev(); return focusedPaneOf(props.tab) }
   const focusedSession = () => { rev(); const f = focused(); const a = f ? props.store.model.addressOf(f) : undefined; return a ? sessions.get(a) : undefined }
   const GAP = 8
+  // A split or a close changes a pane's height for good; on a phone its rows hold still otherwise (terminal-page.ts).
+  const count = computed(() => { rev(); return panes(props.tab.root).length })
+  effect(() => { count(); for (const t of sessions.values()) t.refit() })
   return (
     <View class="flex-1 bg-sidebar-primary">
       <View class="flex-1 m-1" onLayout={(b) => box.set({ w: b.size.width, h: b.size.height })}>
@@ -265,8 +281,8 @@ function WidePanes(props: { store: Store; spaceId: string; tab: Tab; actions: Sp
             <If when={n()}>{(node) => (
               <View onPress={() => s.focusPane(node().id)} class={`absolute ${frame(focused() === node().id)}`}
                 style={{ left: r()[1].x + GAP / 2, top: r()[1].y + GAP / 2, width: Math.max(0, r()[1].w - GAP), height: Math.max(0, r()[1].h - GAP) }}>
-                <PaneHeader store={s} node={node()} tab={props.tab} focused={focused() === node().id} />
-                <PaneBody store={s} spaceId={props.spaceId} node={node()} actions={props.actions} keys={false}
+                <PaneHeader store={s} node={node()} tab={props.tab} focused={focused() === node().id} narrow={r()[1].w < NARROW_PANE} split={props.split} />
+                <PaneBody store={s} spaceId={props.spaceId} node={node()} actions={props.actions} keys={false} tap={() => s.focusPane(node().id)}
                   onSession={(t) => { sessions.set(t.address, t); cleanup(() => sessions.delete(t.address)) }} />
               </View>
             )}</If>
@@ -330,16 +346,40 @@ export function SpaceScreen(props: { store: Store; spaceId: string; actions: Spa
   const wide = () => windowSize().width >= WIDE
   const insets = safeAreaInsets()
   const typing = () => keyboardFrame().height > 0
+  const sessions = new Map<string, TerminalSession>()
+  /** Panes side by side on a small screen: what it costs, then the choice. */
+  const accepts = async () => {
+    if (wide()) return true
+    return await AlertDialog.show({ title: t('smallSplitTitle'), description: t('smallSplitDetail'), actions: [
+      { id: 'cancel', label: t('cancel'), role: 'cancel' }, { id: 'go', label: t('smallSplitGo') }] }) === 'go'
+  }
+  const split = async (pane: string | undefined, direction: 'right' | 'down') => {
+    if (!await accepts()) return
+    const current = tab()
+    try {
+      await s.splitPane(pane, direction)
+      if (current && !wide()) s.showWhole(current.id, true)
+    } catch (e: any) {
+      s.toast({ title: t('couldntStart'), body: String(e?.message ?? e), level: 'error' })
+    }
+  }
   const menu = async () => {
     const current = tab()
     const pane = current ? focusedPaneOf(current) : undefined
     const phone = !wide()
+    const address = pane ? s.model.addressOf(pane) : undefined
+    const session = address ? sessions.get(address) : undefined
     const r = await AlertDialog.show({ title: name(), presentation: 'actionSheet', actions: [
+      ...(session ? [{ id: 'type', label: t('typeInTerminal') }] : []),
       ...(phone && pane ? [{ id: 'split-right', label: t('splitRight') }, { id: 'split-down', label: t('splitDown') }, { id: 'close-pane', label: t('closePane'), role: 'destructive' as const }] : []),
+      ...(phone && current && panes(current.root).length > 1 ? [s.shownWhole.has(current.id) ? { id: 'show-one', label: t('showOnePane') } : { id: 'show-all', label: t('showAllPanes') }] : []),
       ...(phone && current ? [{ id: 'rename-tab', label: t('renameTab') }] : []),
       { id: 'rename', label: t('renameSpace') }, { id: 'close', label: t('closeSpace'), role: 'destructive' },
       ...(phone ? [{ id: 'settings', label: t('settings') }] : []), { id: 'cancel', label: t('cancel'), role: 'cancel' }] })
-    if (r === 'split-right' || r === 'split-down') void s.splitPane(pane, r === 'split-right' ? 'right' : 'down')
+    if (r === 'type') session?.focus()
+    else if (r === 'split-right' || r === 'split-down') void split(pane, r === 'split-right' ? 'right' : 'down')
+    else if (r === 'show-one' && current) s.showWhole(current.id, false)
+    else if (r === 'show-all' && current) { if (await accepts()) s.showWhole(current.id, true) }
     else if (r === 'close-pane' && pane) s.closePane(pane)
     else if (r === 'rename-tab' && current) props.actions.rename('tab', current.id, current.name)
     else if (r === 'settings') props.actions.settings()
@@ -363,8 +403,8 @@ export function SpaceScreen(props: { store: Store; spaceId: string; actions: Spa
       <If when={space()} else={<View class="flex-1 items-center justify-center"><Text class="text-sidebar-foreground">{t('spaceClosed')}</Text></View>}>
         <If when={wide()}><TabBar store={s} spaceId={props.spaceId} actions={props.actions} /></If>
         <Each of={tab() ? [tab()!] : []} key={(t) => t.id}>{(t) => (
-          <If when={wide()} else={<PhoneSpace store={s} spaceId={props.spaceId} tab={t()} actions={props.actions} back={props.actions.back} menu={() => void menu()} />}>
-            <WidePanes store={s} spaceId={props.spaceId} tab={t()} actions={props.actions} />
+          <If when={wide()} else={<PhoneSpace store={s} spaceId={props.spaceId} tab={t()} actions={props.actions} sessions={sessions} back={props.actions.back} menu={() => void menu()} split={(p, d) => void split(p, d)} />}>
+            <WidePanes store={s} spaceId={props.spaceId} tab={t()} actions={props.actions} sessions={sessions} split={(p, d) => void split(p, d)} />
           </If>
         )}</Each>
         <If when={wide() && !typing()}><SpaceStatus store={s} spaceId={props.spaceId} /></If>

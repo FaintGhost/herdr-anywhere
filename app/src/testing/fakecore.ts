@@ -16,6 +16,8 @@ export const CLAUDE_EDIT_MENU = [' Edit file', ' src/api/login.ts', '', ' Do you
 export class FakeCore implements Pipe {
   onBytes?: (b: Uint8Array) => void
   onClose?: (reason: string) => void
+  /** The line stays open and nothing more arrives: a close that never reached the phone. */
+  mute = false
   terms = new Map<string, FakeTerm>()
   docs = new Map<string, { value: any; version: number }>()
   machines: any[] = []
@@ -65,7 +67,7 @@ export class FakeCore implements Pipe {
   }
 
   private later(b: Uint8Array) {
-    queueMicrotask(() => { if (!this.closed) this.onBytes?.(b) })
+    queueMicrotask(() => { if (!this.closed && !this.mute) this.onBytes?.(b) })
   }
 
   private out(ch: number, kind: number, payload: Uint8Array | string) {

@@ -13,6 +13,7 @@ const PINS = {
   '@xterm/xterm@6.0.0': 'sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg==',
   '@xterm/addon-fit@0.11.0': 'sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==',
   '@xterm/addon-webgl@0.19.0': 'sha512-b3fMOsyLVuCeNJWxolACEUED0vm7qC0cy4wRvf3oURSzDTYVQiGPhTnhWZwIHdvC48Y+oLhvYXnY4XDXPoJo6A==',
+  '@xterm/addon-unicode-graphemes@0.4.0': 'sha512-9+/CqwbKcnlkJU4d3wIgO+wjsL8f6vyz+UwUWLu6nADQz8Gr8ONqGCJfdDjIdI+yYZLABQqQy47FzEM6AWELjw==',
 }
 const work = process.argv[2]
 if (!work) { console.error('usage: node scripts/vendor-xterm.mjs <work dir>'); process.exit(2) }
@@ -29,7 +30,7 @@ for (const [spec, integrity] of Object.entries(PINS)) {
 }
 const read = (name, path) => readFileSync(join(dirs[name], path), 'utf8')
 const parts = { XTERM_JS: read('@xterm/xterm', 'lib/xterm.js'), XTERM_CSS: read('@xterm/xterm', 'css/xterm.css'), FIT_JS: read('@xterm/addon-fit', 'lib/addon-fit.js'),
-  WEBGL_JS: read('@xterm/addon-webgl', 'lib/addon-webgl.js') }
+  WEBGL_JS: read('@xterm/addon-webgl', 'lib/addon-webgl.js'), GRAPHEMES_JS: read('@xterm/addon-unicode-graphemes', 'lib/addon-unicode-graphemes.js') }
 for (const [k, v] of Object.entries(parts)) if (/<\/(script|style)/i.test(v)) throw new Error(`${k} would close its inline tag`)
 const out = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'vendor')
 mkdirSync(out, { recursive: true })

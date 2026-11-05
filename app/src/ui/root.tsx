@@ -1,12 +1,12 @@
 // The app: pairing on first launch, then home ⇄ space ⇄ settings over one live store, with alerts and sheets
 // over every screen.
-import { cleanup, computed, effect, platform, safeAreaInsets, setColorScheme, signal, Text, Video, View } from 'nsh'
+import { cleanup, computed, effect, Keyboard, platform, safeAreaInsets, setColorScheme, signal, Text, Video, View } from 'nsh'
 import { createNavStack, NavPage, NavStack } from 'nsh/base'
 import type { Store } from '../store.ts'
-import { folderApi, parseInvite, type Link, type Linker, type Tunnel } from '../link.ts'
+import { fileApi, folderApi, parseInvite, type Link, type Linker, type Tunnel } from '../link.ts'
 import type { PrefStore } from '../prefs.ts'
 import { Alerts, type AlertKind } from '../alerts.ts'
-import { followPage, notifyFromPage } from '../page.ts'
+import { allowNotifications, followPage, keepAlive, notifications, notifyFromPage, wantsKeepAlive } from '../page.ts'
 import { HomeScreen } from './home.tsx'
 import { SpaceScreen } from './space.tsx'
 import { SettingsScreen } from './settings.tsx'
@@ -81,6 +81,7 @@ function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: 
   const renaming = signal<RenameTarget | null>(null)
   const peeking = signal<string | null>(null)
   const folders = folderApi(deps.linker, deps.fetcher)
+  store.files = fileApi(deps.linker, deps.fetcher)
   const prefs = useSignal(deps.prefs.prefs)
   store.wants = (k) => (k === 'blocked' ? deps.prefs.prefs.get().alertBlocked : deps.prefs.prefs.get().alertDone)
   // The page (web-host.js) or the Android activity says whether the app is in front; on iOS it is while it runs.
@@ -88,8 +89,24 @@ function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: 
   store.onAlert = (kind, toast) => alerts.ring(kind, toast, store.appActive)
   const offPage = followPage({ front: (f) => { store.appActive = f }, open: (a) => openTerminal(a) })
   const offConn = store.conn.sub((c) => { if (c === 'unpaired') props.unpaired() })
+  const conn = useSignal(store.conn)
+  effect(() => keepAlive(wantsKeepAlive(conn(), prefs().stayConnected)))
+  // Android 13 and later post nothing until this is allowed, and an agent's question is why the app has notifications.
+  // A browser asks only from a tap, so there Settings has the button. The sample data has nobody to hear from.
+  effect(() => {
+    if (conn() !== 'ready' || platform.os === 'web' || props.leaveDemo || prefs().askedNotifications) return
+    deps.prefs.set({ askedNotifications: true })
+    void notifications().then((n) => { if (n === 'default') void allowNotifications() })
+  })
   cleanup(() => { offConn(); offPage(); store.disconnect() })
   void store.connect().catch(() => {})
+
+  // Another screen has no use for the keyboard the composer brought up, and Settings would sit under it.
+  let depth = nav.routes().length
+  effect(() => {
+    const now = nav.routes().length
+    if (now !== depth) { depth = now; Keyboard.dismiss() }
+  })
 
   const openSpace = (id: string) => {
     store.selectSpace(id)
@@ -107,9 +124,9 @@ function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: 
     r.name === 'space'
       ? <NavPage headerVisible={false} class="bg-sidebar">
           <SpaceScreen store={store} spaceId={r.id} actions={{
-            back: () => nav.pop(), newTab: (space) => newTarget.set({ kind: 'tab', space }),
+            back: () => nav.pop(), newTab: (space) => newTarget.set({ kind: 'tab', space }), addAgent: (space) => newTarget.set({ kind: 'tab', space, agent: true }),
             rename: (kind, id, current) => renaming.set({ kind, id, current }), fontSize: () => prefs().fontSize,
-            setFontSize: (n) => deps.prefs.set({ fontSize: n }), open: (a) => openTerminal(a), settings: () => nav.push({ name: 'settings' }),
+            open: (a) => openTerminal(a), settings: () => nav.push({ name: 'settings' }),
           }} />
         </NavPage>
       : r.name === 'settings'
@@ -119,7 +136,7 @@ function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: 
       : <NavPage headerVisible={false} class="bg-sidebar">
           <HomeScreen store={store} actions={{
             openSpace, openAgent: (a) => openTerminal(a.address), peek: (addr) => peeking.set(addr),
-            newMenu: () => newTarget.set({ kind: 'space' }), settings: () => nav.push({ name: 'settings' }),
+            addAgent: (space) => newTarget.set({ kind: 'tab', space, agent: true }), newMenu: () => newTarget.set({ kind: 'space' }), settings: () => nav.push({ name: 'settings' }),
             rename: (kind, id, current) => renaming.set({ kind, id, current }), leaveDemo: props.leaveDemo,
           }} />
         </NavPage>

@@ -4,13 +4,14 @@
 import type { Store } from '../store.ts'
 import type { CloseReason, Stream } from '../hc/client.ts'
 import { Signal } from '../store.ts'
+import { focusTerminalView } from '../page.ts'
 import { PageChannel, ctrlKey, readPageMessage, type BarKey } from './terminal-page.ts'
 import { findSince, sinceLabel, tailOf } from '../model/seen.ts'
 import { t, type Key } from '../strings/index.ts'
 
 export type SessionState = 'waiting' | 'live' | 'ended' | 'lost'
 /** What fingers did on the page that the app acts on. */
-export type Gestures = { zoom?: (size: number) => void; swipe?: (dir: 'next' | 'prev') => void; link?: (url: string) => void
+export type Gestures = { swipe?: (dir: 'next' | 'prev') => void; link?: (url: string) => void
   selected?: (text: string) => void; tap?: () => void }
 
 const WHY: Record<string, Key> = {
@@ -20,10 +21,14 @@ const WHY: Record<string, Key> = {
   finished: 'terminalFinished',
 }
 
+/** How often a viewer in use tells herdr-core so. */
+const CLAIM_MS = 2000
+
 export class TerminalSession {
   readonly state = new Signal<SessionState>('waiting')
   readonly why = new Signal('')
   readonly ctrl = new Signal(false)
+  private claimedAt = 0
   /** Scrolled back from the live bottom. */
   readonly away = new Signal(false)
   private channel: PageChannel
@@ -70,11 +75,11 @@ export class TerminalSession {
     } else if (m.t === 'copied') {
       this.copying?.(m.text)
       this.copying = undefined
-    } else if (m.t === 'zoom') this.opts.on?.zoom?.(m.size)
-    else if (m.t === 'swipe') this.opts.on?.swipe?.(m.dir)
+    } else if (m.t === 'swipe') this.opts.on?.swipe?.(m.dir)
     else if (m.t === 'link') this.opts.on?.link?.(m.url)
     else if (m.t === 'selected') this.opts.on?.selected?.(m.text)
     else if (m.t === 'tap') this.opts.on?.tap?.()
+    else if (m.t === 'touched') this.claim()
     else if (m.t === 'away') this.away.set(m.away)
     else if (m.t === 'tail') {
       // The page settled after output: the first time after the history replayed, find where the new output starts.
@@ -88,16 +93,31 @@ export class TerminalSession {
 
   /** Back to the live bottom. */
   bottom() { this.channel.send({ t: 'bottom' }) }
+  refit() { this.channel.send({ t: 'refit' }) }
 
   /** The page was torn down or reloads: output waits until it is ready again. */
   pageLost() {
     this.channel.lost()
   }
 
-  key(name: BarKey) { this.channel.send({ t: 'key', name }) }
+  key(name: BarKey) {
+    const ctrl = this.ctrl.get()
+    if (ctrl) this.ctrl.set(false)
+    this.channel.send({ t: 'key', name, ...(ctrl ? { ctrl } : {}) })
+    this.claim()
+  }
+  /** The person is on this viewer: the terminal takes its size back from another one (herdr-core: the last active viewer sets it). */
+  claim() {
+    if (this.opts.observe || Date.now() - this.claimedAt < CLAIM_MS) return
+    this.claimedAt = Date.now()
+    this.stream?.focus(true)
+  }
   toggleCtrl() { this.ctrl.set(!this.ctrl.get()) }
   paste(text: string) { this.channel.send({ t: 'paste', data: text }) }
-  focus() { this.channel.send({ t: 'focus' }); this.stream?.focus(true) }
+  focus() {
+    this.stream?.focus(true)
+    void focusTerminalView().then(() => this.channel.send({ t: 'focus' }))
+  }
   setTheme(dark: boolean) { this.channel.send({ t: 'theme', dark }) }
   setFontSize(size: number) { this.channel.send({ t: 'fontSize', size }) }
 

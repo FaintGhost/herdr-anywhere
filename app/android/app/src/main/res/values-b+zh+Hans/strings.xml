@@ -3,6 +3,8 @@
 <resources>
     <string name="channel_needs_you">Agent 在等你</string>
     <string name="channel_needs_you_detail">它在等你回答或批准。</string>
+    <string name="channel_connection">在后台保持连接</string>
+    <string name="keep_alive_title">已连接到你的电脑</string>
     <string name="channel_finished">Agent 已完成</string>
     <string name="channel_finished_detail">只在你没有看着它时提醒。</string>
 </resources>

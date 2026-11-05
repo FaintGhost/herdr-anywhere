@@ -3,6 +3,8 @@
 <resources>
     <string name="channel_needs_you">Un agente te necesita</string>
     <string name="channel_needs_you_detail">Está esperando una respuesta o una aprobación.</string>
+    <string name="channel_connection">Seguir conectado en segundo plano</string>
+    <string name="keep_alive_title">Conectado a tu ordenador</string>
     <string name="channel_finished">Un agente terminó</string>
     <string name="channel_finished_detail">Solo cuando no lo estás mirando.</string>
 </resources>

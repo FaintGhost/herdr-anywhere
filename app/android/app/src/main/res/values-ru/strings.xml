@@ -3,6 +3,8 @@
 <resources>
     <string name="channel_needs_you">Агент ждёт вас</string>
     <string name="channel_needs_you_detail">Он ждёт ответа или подтверждения.</string>
+    <string name="channel_connection">Оставаться на связи в фоне</string>
+    <string name="keep_alive_title">Подключено к компьютеру</string>
     <string name="channel_finished">Агент закончил</string>
     <string name="channel_finished_detail">Только когда вы на него не смотрите.</string>
 </resources>

@@ -265,6 +265,35 @@ func TestRevokeClosesLiveSocketsWithin3s(t *testing.T) {
 	}
 }
 
+func TestPingsLogHowLongTheLineTook(t *testing.T) {
+	old := pingEvery
+	pingEvery = 20 * time.Millisecond
+	t.Cleanup(func() { pingEvery = old })
+	f := newFixture(t, withHC(t))
+	id, token := f.pair(t)
+	c, _, err := dial(t, wsURL(f, "token="+token), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close(websocket.StatusNormalClosure, "")
+	// The client side answers pings only while it reads.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go c.Read(ctx)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && !strings.Contains(f.logs.String(), "device "+id+" line ") {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !strings.Contains(f.logs.String(), "device "+id+" line ") {
+		t.Fatalf("no line time in the log: %s", f.logs.String())
+	}
+	// Quick answers after the first stay out of the log: a phone stays connected for days.
+	time.Sleep(150 * time.Millisecond)
+	if n := strings.Count(f.logs.String(), "device "+id+" line "); n != 1 {
+		t.Fatalf("%d line times in the log, want the first only: %s", n, f.logs.String())
+	}
+}
+
 func TestConnectUpdatesLastSeenAndLogsNoToken(t *testing.T) {
 	f := newFixture(t, withHC(t))
 	id, token := f.pair(t)

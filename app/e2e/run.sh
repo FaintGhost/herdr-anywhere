@@ -39,7 +39,7 @@ HM_PAIR=$("$work/herdr-anywhere" pair --url "http://127.0.0.1:$port" 2>/dev/null
 [ -n "$HM_PAIR" ] || { echo "pair printed no link" >&2; exit 1; }
 cd "$app"
 # nsh test passes the test no environment, so the link goes in as a module, put back to the placeholder after.
-printf 'export const PAIR = %s\n' "'$HM_PAIR'" > e2e/pair.ts
+printf 'export const PAIR = %s\nexport const COMPANION = %s\n' "'$HM_PAIR'" "$serve_pid" > e2e/pair.ts
 status=0
 nsh test e2e/live.test.ts || status=$?
 [ $status -eq 0 ] || { echo "--- companion log" >&2; cat "$work/serve.log" >&2; }

@@ -1,6 +1,7 @@
 // The live connection to herdr-core and the world it shows, driven the way herdr-app's window is
 // (herdr-app/src/window.rs): every change folds into the model, the model is reconciled with the core's
 // terminals, and this machine's layout document is written back with compare-and-set.
+import type { FileApi } from './link.ts'
 import { HcClient, HcError, type Pipe, type Stream, type StreamHandlers, type Hello } from './hc/client.ts'
 import { Model, type FolderInfo, type Space, type Tab, newTab, local, machineOfAddress, spaceActiveTab, shownNode, focusedPaneOf, withPane } from './model/model.ts'
 import { captureDoc, replaceDoc, captureView, applyView, type View } from './model/doc.ts'
@@ -9,7 +10,7 @@ import { AgentList, type AgentInfo } from './model/agents.ts'
 import { programOf, agentArgv, INSTALLED_PROBE, parseInstalled, startable, type Program } from './model/programs.ts'
 import { addresses, find, modBlock, panes, terminalOf, type Axis, type Node } from './model/layout.ts'
 import { recentFolders } from './model/folders.ts'
-import { asks } from './model/answers.ts'
+import { asks, activity } from './model/answers.ts'
 import { t as tr, type Key } from './strings/index.ts'
 import { readMenu, type Menu } from './model/menu.ts'
 import { spaceMarks } from './model/marks.ts'
@@ -56,6 +57,13 @@ export class Signal<T> {
   sub(f: (v: T) => void) { this.subs.add(f); return () => this.subs.delete(f) }
 }
 
+/** Silence that means the line is dead, though the socket says it is open: the phone asks for the machines every 2.5 s
+ *  and herdr-core sends a heartbeat every 15 s (measured 2026-11-05, hc 0.1.18). The socket alone doesn't tell:
+ *  a close from the computer can fail to reach the phone, which then goes on saying Connected. */
+const QUIET_MS = 15_000
+/** A check later than this after the last one: the app was suspended, so nothing could have been heard. */
+const ASLEEP_MS = 5_000
+
 export class Store {
   readonly model = new Model()
   readonly terms = new Terminals()
@@ -74,6 +82,8 @@ export class Store {
   /** What the person can see: the app is in front and a tab's panes are on screen. */
   appActive = true
   viewingTab = false
+  /** Tabs this phone draws whole, every pane on screen; the others show the focused pane. Forgotten when the app restarts. */
+  shownWhole = new Set<string>()
   onAlert?: (kind: 'blocked' | 'done', toast: Toast) => void
   /** Which alerts the person wants (Settings › Alerts). */
   wants: (kind: 'blocked' | 'done') => boolean = () => true
@@ -82,6 +92,9 @@ export class Store {
   private io: Required<Omit<StoreIO, 'load' | 'save'>> & Pick<StoreIO, 'load' | 'save'>
   private loop?: ReturnType<typeof setInterval>
   private machineLoop?: ReturnType<typeof setInterval>
+  private quietLoop?: ReturnType<typeof setInterval>
+  private heardAt = 0
+  private checkedAt = 0
   private born = new Map<string, number>()
   private checking = new Set<string>()
   private adopting = new Set<string>()
@@ -135,6 +148,7 @@ export class Store {
       const hc = new HcClient(this.io.pipe())
       this.hc = hc
       hc.onClose = (r) => this.lost(r)
+      hc.onHeard = () => { this.heardAt = this.io.now() }
       this.hello = await hc.hello()
       this.opened = true
       const snap = await hc.subscribe((m) => this.event(m))
@@ -149,6 +163,8 @@ export class Store {
       this.error.set('')
       this.loop = this.io.setInterval(() => this.sync(), 500)
       this.machineLoop = this.io.setInterval(() => void this.refreshMachines(), 2500)
+      this.heardAt = this.checkedAt = this.io.now()
+      this.quietLoop = this.io.setInterval(() => this.checkQuiet(), 1000)
       void this.refreshInstalled(undefined)
     } catch (e: any) {
       this.hc?.close()
@@ -173,7 +189,15 @@ export class Store {
   private stopLoops() {
     if (this.loop) this.io.clearInterval(this.loop)
     if (this.machineLoop) this.io.clearInterval(this.machineLoop)
-    this.loop = this.machineLoop = undefined
+    if (this.quietLoop) this.io.clearInterval(this.quietLoop)
+    this.loop = this.machineLoop = this.quietLoop = undefined
+  }
+
+  private checkQuiet() {
+    const now = this.io.now()
+    if (now - this.checkedAt > ASLEEP_MS) this.heardAt = now
+    this.checkedAt = now
+    if (now - this.heardAt >= QUIET_MS) this.hc?.close()
   }
 
   private attemptAt = 0
@@ -473,6 +497,14 @@ export class Store {
     return t.name || (p.shell ? cleanTitle(t.title) || p.name : p.name)
   }
 
+  /** What an agent is doing or did, in its own words (model/answers.ts). */
+  activityOf(addr: string | undefined): string {
+    const t = this.term(addr)
+    if (!t) return ''
+    const p = this.program(t.address)
+    return p.agent ? activity(t.status, cleanTitle(t.title), p.name) : ''
+  }
+
   /** A pane header's name (herdr-app defaults/mods/pane): a shell or an agent by its program, anything else by its title. */
   paneName(addr: string | undefined): string {
     const t = this.term(addr)
@@ -610,17 +642,23 @@ export class Store {
     await this.call('terminal.send', { terminal: addr, text, force: true })
   }
 
+  /** Sends what the composer attaches to the computer (link.ts); the screens that start the store set it. */
+  files?: FileApi
+
   private flushing = false
   private async flushPending() {
     if (this.flushing || !this.pending.get().length || this.conn.get() !== 'ready') return
     this.flushing = true
     try {
       while (this.pending.get().length && this.conn.get() === 'ready') {
+        // Off the queue first: when the line goes before the answer comes, the computer may have it, and sending it
+        // again would run it twice.
         const first = this.pending.get()[0]
-        await this.call('terminal.send', { terminal: first.address, text: first.text, force: true })
         this.pending.set(this.pending.get().slice(1))
+        await this.call('terminal.send', { terminal: first.address, text: first.text, force: true })
+          .catch(() => this.toast({ title: tr('sendUnsure', { text: first.text }), level: 'error' }))
       }
-    } catch {} finally { this.flushing = false }
+    } finally { this.flushing = false }
   }
 
   counts() {
@@ -727,6 +765,12 @@ export class Store {
     const addr = await this.spawnInto(argv, cwd, p.id, c.id, on, (a) => this.model.split(target, direction === 'right' ? 'row' : 'column' as Axis, fresh, a))
     this.changed()
     return { pane: fresh, terminal: addr }
+  }
+
+  showWhole(tab: string, on: boolean) {
+    if (on) this.shownWhole.add(tab)
+    else this.shownWhole.delete(tab)
+    this.changed()
   }
 
   /** Closes a pane and ends its terminal; the last pane takes its tab (and the last tab its space). */

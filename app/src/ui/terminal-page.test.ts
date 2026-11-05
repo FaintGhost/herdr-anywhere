@@ -7,8 +7,6 @@ test('page messages are read strictly', () => {
   expect(readPageMessage('{"t":"size","cols":0,"rows":24}')).toBe(undefined)
   expect(readPageMessage('{"t":"input","data":"ls"}')).toEqual({ t: 'input', data: 'ls' })
   expect(readPageMessage('{"t":"copied","text":"abc"}')).toEqual({ t: 'copied', text: 'abc' })
-  expect(readPageMessage('{"t":"zoom","size":15}')).toEqual({ t: 'zoom', size: 15 })
-  expect(readPageMessage('{"t":"zoom","size":"big"}')).toBe(undefined)
   expect(readPageMessage('{"t":"swipe","dir":"next"}')).toEqual({ t: 'swipe', dir: 'next' })
   expect(readPageMessage('{"t":"swipe","dir":"up"}')).toBe(undefined)
   expect(readPageMessage('{"t":"link","url":"https://example.com/a"}')).toEqual({ t: 'link', url: 'https://example.com/a' })
@@ -55,6 +53,9 @@ test('Ctrl from the key bar turns the next letter into its control character', (
 
 test("the terminal takes herdr's palette: graphite in the dark, paper in the light", () => {
   expect(xtermTheme(true).background).toBe('#17191d')
+  // xterm's default is white: a bright line down a dark terminal's edge once it has been resized.
+  expect(xtermTheme(true).overviewRulerBorder).toBe('#17191d')
+  expect(xtermTheme(false).overviewRulerBorder).toBe('#ffffff')
   expect(xtermTheme(true).blue).toBe('#96b2d7')
   expect(xtermTheme(true).black).toBe('#45484f')
   expect(xtermTheme(false).background).toBe('#ffffff')
@@ -88,12 +89,17 @@ test("the page draws as Herdr's terminal: JetBrains Mono medium with the Nerd sy
   expect(html.includes('WebglAddon')).toBe(true)
 })
 
-test('the keyboard comes up only after a tap in the terminal, not when the page opens', () => {
+test('the keyboard does not come up when the page opens (e2e/page-touch.sh: nor on a tap or a drag)', () => {
   const html = terminalPage({ dark: true, fontSize: 13, scrollback: 2000 })
   expect(html.includes("setAttribute('inputmode','none')")).toBe(true)
 })
 
-test("on Android the WebView is left scrollable, so the page gets finger moves: drag, pinch and selection need them", () => {
+test('a phone gives the terminal the whole width; a wide pane keeps the padding', () => {
+  expect(terminalPage({ dark: true, fontSize: 13, scrollback: 2000, phone: true }).includes('#t{position:absolute;inset:12px 0}')).toBe(true)
+  expect(terminalPage({ dark: true, fontSize: 13, scrollback: 2000 }).includes('#t{position:absolute;inset:12px 14px}')).toBe(true)
+})
+
+test("on Android the WebView is left scrollable, so the page gets finger moves: drag and selection need them", () => {
   // NSH's Android WebView swallows every move while it is not scrollable; the page saw touchstart and touchend only.
   expect(webViewScrollable('android')).toBe(true)
   expect(webViewScrollable('ios')).toBe(false)

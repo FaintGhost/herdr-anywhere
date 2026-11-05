@@ -3,7 +3,7 @@
 import { mount, signal, Text, View } from 'nsh'
 import { Linker, pairWith, parsePairLink } from '../src/link.ts'
 import { Store } from '../src/store.ts'
-import { PAIR } from './pair.ts'
+import { COMPANION, PAIR } from './pair.ts'
 
 const lines = signal<string[]>([])
 const say = (s: string) => lines.update((l) => [...l, s])
@@ -39,7 +39,18 @@ async function run() {
   stream.write('echo typed-$((40+2))\r')
   await until(() => out.includes('typed-42'), 'the typed command output')
   say('typed: typed-42')
-  stream.detach()
+  // Far past what the socket carries (one message: 8 MiB), over HTTP through the real companion, and the line stays up.
+  const body = new Uint8Array(30_000_000).fill(7)
+  const up = await fetch(`${await l.baseUrl()}/api/files?name=${encodeURIComponent('report 1.pdf')}`, { method: 'POST', body, headers: { authorization: `Bearer ${l.link.get()!.token}` } })
+  const landed = (await up.json()).path as string
+  const seen = await store.exec(`wc -c < '${landed}'`)
+  say(`upload: ${up.status} ${landed.split('/').pop()} ${seen.stdout.trim()}, line ${store.conn.get()}`)
+  // The line goes quiet and stays open, as when the close never reaches the phone: only this test companion's own
+  // `hc connect` stops. The phone notices by itself and connects again.
+  void store.exec(`kill -STOP $(pgrep -P ${COMPANION})`).catch(() => {}) // its answer can't come back: that is the point
+  await until(() => store.conn.get() === 'reconnecting', 'the quiet line noticed', 25000)
+  await until(() => store.conn.get() === 'ready', 'connected again', 25000)
+  say(`quiet line: ${store.conn.get()}`)
   const other = storeFor(l)
   await other.connect()
   await until(() => other.model.spaces.some((s) => s.name === 'e2e'), 'the space on another screen')

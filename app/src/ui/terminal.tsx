@@ -1,19 +1,22 @@
 // A pane's terminal: xterm.js in a WebView, and "↓ latest" while it is scrolled back. The row under it (composer,
 // choices, keys) is ui/pane-bar.tsx.
-import { cleanup, Clipboard, colorScheme, effect, openUrl, platform, Text, untracked, View, WebView } from 'nsh'
+import { cleanup, Clipboard, colorScheme, effect, keyboardFrame, openUrl, platform, Text, untracked, View, WebView, windowSize } from 'nsh'
 import type { Store } from '../store.ts'
 import { terminalPage, webViewScrollable } from './terminal-page.ts'
 import { TerminalSession } from './terminal-session.ts'
 import { useSignal } from './kit.tsx'
 import { t } from '../strings/index.ts'
 
-export type TerminalGestures = { zoom?: (size: number) => void; swipe?: (dir: 'next' | 'prev') => void }
+/** From this width a space draws as the desktop does (ui/space.tsx). */
+export const WIDE = 720
+
+export type TerminalGestures = { swipe?: (dir: 'next' | 'prev') => void; tap?: () => void }
 
 export function TerminalView(props: { store: Store; address: string; fontSize?: number; keys?: boolean; observe?: boolean; onSession?: (s: TerminalSession) => void } & TerminalGestures) {
   let web: any
   const session = new TerminalSession(props.store, props.address, (m) => web?.postMessage(m), undefined, { observe: props.observe, on: {
-    zoom: (n) => props.zoom?.(n),
     swipe: (d) => props.swipe?.(d),
+    tap: () => props.tap?.(),
     link: (url) => { void openUrl(url).catch(() => {}) },
     selected: (text) => { void Clipboard.writeText(text).then(() => props.store.toast({ title: t('copied'), level: 'info' })) },
   } })
@@ -22,7 +25,7 @@ export function TerminalView(props: { store: Store; address: string; fontSize?: 
   const state = useSignal(session.state)
   const why = useSignal(session.why)
   const away = useSignal(session.away)
-  const html = untracked(() => terminalPage({ dark: colorScheme() === 'dark', fontSize: props.fontSize ?? 13, scrollback: 5000 }))
+  const html = untracked(() => terminalPage({ dark: colorScheme() === 'dark', fontSize: props.fontSize ?? 13, scrollback: 5000, phone: windowSize().width < WIDE, raised: keyboardFrame().height }))
   effect(() => session.setTheme(colorScheme() === 'dark'))
   effect(() => { if (props.fontSize) session.setFontSize(props.fontSize) })
   return (

@@ -19,7 +19,6 @@ test('through TailPocket: the name, connected, end-to-end encrypted, direct, bot
   await app.waitFor('text:9.9.9')
   expect(app.texts()).toContain('Companion version')
   expect(app.texts()).toContain('herdr-core version')
-  expect(app.texts()).toContain('This phone has to pair again, with a new code, to reach this computer.')
 })
 
 test('through a relay, with the region it reports', async () => {
@@ -99,9 +98,10 @@ test('a companion that cannot say its version leaves the row out rather than mak
   expect(app.texts()).not.toContain('Companion version')
 })
 
-test('Forget still asks first', async () => {
+test('Forget still asks first, and says what it does only then: on the page it read like a warning', async () => {
   const app = await settings({ via: 'tailpocket', routes: 'direct' })
-  const asked = new Promise<string>((said) => app.onDialog((d) => { said(d.title); return 'Cancel' }))
+  expect(app.texts().some((t) => t.includes('pair again'))).toBe(false)
+  const asked = new Promise<string>((said) => app.onDialog((d) => { said(d.title ?? ''); return 'Cancel' }))
   await app.press('id:forget')
   expect(await asked).toBe('Forget studio?')
   expect(app.texts()).toContain('studio')

@@ -45,3 +45,17 @@ export function followPage(on: { front: (front: boolean) => void; open: (termina
   const b = host.on('page.open', (d: any) => { if (typeof d?.terminal === 'string') on.open(d.terminal) })
   return () => { a(); b() }
 }
+
+/** Android ends a phone's connection soon after the app leaves the screen, unless a foreground service keeps it running:
+ *  while there is a computer to stay connected to, and the person wants it. */
+export function wantsKeepAlive(conn: string, on: boolean): boolean {
+  return on && conn !== 'idle' && conn !== 'unpaired'
+}
+export function keepAlive(on: boolean) {
+  if (host.available()) host.call('page.keepAlive', { on }).catch(() => {})
+}
+/** Gives the terminal's WebView the system's focus, which the composer may hold: Android brings the keyboard up for the
+ *  page only then. Elsewhere there is nothing to do (no such call). */
+export function focusTerminalView(): Promise<unknown> {
+  return host.available() ? host.call('page.focusTerminal').catch(() => {}) : Promise.resolve()
+}

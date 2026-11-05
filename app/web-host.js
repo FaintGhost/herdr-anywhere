@@ -22,6 +22,32 @@ function notify(player, a) {
   return true
 }
 
+// Files picked and not sent yet (page.pickFiles, page.uploadFile), as the phones' hosts keep them.
+const picked = new Map()
+let nextPick = 0
+
+function pickFiles({ limit }) {
+  return new Promise((resolve) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.multiple = true
+    input.oncancel = () => resolve([])
+    input.onchange = () => resolve([...input.files].slice(0, limit).map((f) => {
+      const id = String(++nextPick)
+      picked.set(id, f)
+      return { id, name: f.name, size: f.size }
+    }))
+    input.click()
+  })
+}
+
+async function uploadFile({ id, url, token }) {
+  const file = picked.get(id)
+  picked.delete(id)
+  const r = await fetch(url, { method: 'POST', body: file, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' } })
+  return { status: r.status, body: await r.text() }
+}
+
 export function createHost(player) {
   const functions = new Map([
     ['page.address', () => (typeof location === 'undefined' ? null : { href: location.href, origin: location.origin })],
@@ -31,6 +57,8 @@ export function createHost(player) {
     }],
     ['page.front', front],
     ['page.notify', (a) => notify(player, a)],
+    ['page.pickFiles', pickFiles],
+    ['page.uploadFile', uploadFile],
     ['page.notifications', permission],
     // Browsers ask only from a tap, so the app calls this from its Settings button.
     ['page.allowNotifications', () => (typeof Notification === 'undefined' ? 'unsupported' : Notification.requestPermission())],

@@ -45,6 +45,19 @@ test('typing goes to the terminal; Ctrl from the key bar applies to the next key
   expect(s.ctrl.get()).toBe(false)
 })
 
+test('a key from the bar with Ctrl held asks the page for the combination, once', async () => {
+  const { s, posted } = await setup()
+  s.page(JSON.stringify({ t: 'ready', cols: 80, rows: 24 }))
+  await settle()
+  s.toggleCtrl()
+  s.key('enter')
+  s.key('enter')
+  await settle()
+  const keys = posted.filter((m: any) => m.t === 'key')
+  expect(keys).toEqual([{ t: 'key', name: 'enter', ctrl: true }, { t: 'key', name: 'enter' }])
+  expect(s.ctrl.get()).toBe(false)
+})
+
 test('a new page size resizes the terminal', async () => {
   const { core, s } = await setup()
   s.page(JSON.stringify({ t: 'ready', cols: 80, rows: 24 }))
@@ -106,15 +119,15 @@ test('peeking watches without taking the size: observe on attach, no resize afte
   expect(core.resized).toEqual([])
 })
 
-test("the page's gestures reach the app: pinch, flick, link, selection and tap", async () => {
+test("the page's gestures reach the app: flick, link, selection and tap", async () => {
   const { store, r } = await setup()
   const seen: any[] = []
   const s = new TerminalSession(store, r.terminal, () => {}, (f) => { queueMicrotask(f); return 1 }, { on: {
-    zoom: (n) => seen.push(['zoom', n]), swipe: (d) => seen.push(['swipe', d]), link: (u) => seen.push(['link', u]),
+    swipe: (d) => seen.push(['swipe', d]), link: (u) => seen.push(['link', u]),
     selected: (t) => seen.push(['selected', t]), tap: () => seen.push(['tap']) } })
-  for (const m of [{ t: 'zoom', size: 16 }, { t: 'swipe', dir: 'prev' }, { t: 'link', url: 'https://example.com' }, { t: 'selected', text: 'abc' }, { t: 'tap' }])
+  for (const m of [{ t: 'swipe', dir: 'prev' }, { t: 'link', url: 'https://example.com' }, { t: 'selected', text: 'abc' }, { t: 'tap' }])
     s.page(JSON.stringify(m))
-  expect(seen).toEqual([['zoom', 16], ['swipe', 'prev'], ['link', 'https://example.com'], ['selected', 'abc'], ['tap']])
+  expect(seen).toEqual([['swipe', 'prev'], ['link', 'https://example.com'], ['selected', 'abc'], ['tap']])
 })
 
 test('scrolled back, the page says so; latest takes it to the bottom', async () => {

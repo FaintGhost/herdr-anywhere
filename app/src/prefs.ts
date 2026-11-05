@@ -2,8 +2,8 @@
 import { Signal } from './store.ts'
 
 export type Appearance = 'system' | 'light' | 'dark'
-export type Prefs = { appearance: Appearance; fontSize: number; alertBlocked: boolean; alertDone: boolean }
-export const DEFAULTS: Prefs = { appearance: 'system', fontSize: 13, alertBlocked: true, alertDone: true }
+export type Prefs = { appearance: Appearance; fontSize: number; alertBlocked: boolean; alertDone: boolean; stayConnected: boolean; askedNotifications: boolean }
+export const DEFAULTS: Prefs = { appearance: 'system', fontSize: 13, alertBlocked: true, alertDone: true, stayConnected: true, askedNotifications: false }
 import { FONT_MAX, FONT_MIN } from './ui/terminal-page.ts'
 export { FONT_MAX, FONT_MIN }
 
@@ -33,5 +33,7 @@ function clean(p: Prefs): Prefs {
     fontSize: Math.min(FONT_MAX, Math.max(FONT_MIN, Math.round(Number(p.fontSize) || DEFAULTS.fontSize))),
     alertBlocked: p.alertBlocked !== false,
     alertDone: p.alertDone !== false,
+    stayConnected: p.stayConnected !== false,
+    askedNotifications: p.askedNotifications === true,
   }
 }

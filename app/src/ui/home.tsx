@@ -20,6 +20,8 @@ export type HomeActions = {
   openAgent: (a: AgentInfo) => void
   peek: (address: string) => void
   newMenu: () => void
+  /** A new tab in this space, in its folder (sheets.tsx); starting it opens the space. */
+  addAgent: (spaceId: string) => void
   settings: () => void
   /** In Try it: says the data is made up, and leaves it. */
   leaveDemo?: () => void
@@ -146,6 +148,8 @@ function SpaceAgents(props: { store: Store; space: Space; actions: HomeActions }
   const agents = () => { rev(); return s.agents().filter((a) => a.space === props.space.id) }
   // The tab's name or the agent's title, when it says more than the program's name.
   const detail = (a: AgentInfo) => { const d = view().detail.get(a.address); return d && d !== a.programName ? d : null }
+  // What it is doing or did. "Needs you" above already shows what a blocked one asks.
+  const line = (a: AgentInfo) => { rev(); const l = s.activityOf(a.address); return a.status === 'blocked' || l === detail(a) ? '' : l }
   const menu = async (a: AgentInfo) => {
     const r = await AlertDialog.show({ title: a.programName, presentation: 'actionSheet', actions: [
       { id: 'close', label: t('close'), role: 'destructive' }, { id: 'cancel', label: t('cancel'), role: 'cancel' }] })
@@ -157,13 +161,16 @@ function SpaceAgents(props: { store: Store; space: Space; actions: HomeActions }
         <View role="button" testID={`space-agent-${a().address}`}
           accessibilityLabel={listOf(a().programName, `${a().space_name}${detail(a()) ? ` · ${detail(a())}` : ''}`, statusLabel(a().status))}
           onPress={() => props.actions.openAgent(a())} onLongPress={() => void menu(a())}
-          class="flex-row items-center gap-2 mx-2 pl-9 pr-2 h-9 rounded-[8px] active:bg-sidebar-accent">
-          <ProgramIcon icon={s.program(a().address).icon} size={14} />
-          <Text class={`flex-1 text-[13.5px] ${a().status === 'idle' ? 'text-muted-foreground' : 'text-foreground'}`} numberOfLines={1}>
-            {a().programName}
-            <If when={detail(a())}><Text class="text-sidebar-foreground">{` · ${detail(a())}`}</Text></If>
-          </Text>
-          <Text class={`text-[12px] ${STATUS_TEXT[a().status ?? ''] ?? 'text-sidebar-foreground'}`}>{statusLabel(a().status)}</Text>
+          class="mx-2 pl-9 pr-2 min-h-9 py-1.5 justify-center rounded-[8px] active:bg-sidebar-accent">
+          <View class="flex-row items-center gap-2">
+            <ProgramIcon icon={s.program(a().address).icon} size={14} />
+            <Text class={`flex-1 text-[13.5px] ${a().status === 'idle' ? 'text-muted-foreground' : 'text-foreground'}`} numberOfLines={1}>
+              {a().programName}
+              <If when={detail(a())}><Text class="text-sidebar-foreground">{` · ${detail(a())}`}</Text></If>
+            </Text>
+            <Text class={`text-[12px] ${STATUS_TEXT[a().status ?? ''] ?? 'text-sidebar-foreground'}`}>{statusLabel(a().status)}</Text>
+          </View>
+          <If when={line(a())}><Text testID={`activity-${a().address}`} class="pl-[22px] text-[12px] text-sidebar-foreground" numberOfLines={1}>{line(a())}</Text></If>
         </View>
         <Each of={view().subs.get(a().address) ?? []}>{(k) => (
           <View role="button" testID={`sub-${k().term.address}`} onPress={() => props.actions.peek(k().term.address)}
@@ -202,7 +209,7 @@ function SpaceRow(props: { store: Store; space: Space; color: string; actions: H
   }
   return (
     <View role="button" testID={`space-${props.space.id}`} accessibilityLabel={name()} onPress={() => props.actions.openSpace(props.space.id)} onLongPress={menu}
-      class={`flex-row items-center gap-2.5 mx-2 px-2 h-11 rounded-[8px] active:bg-sidebar-accent ${active() ? 'bg-accent' : ''}`}>
+      class={`flex-row items-center gap-2.5 mx-2 pl-2 h-11 rounded-[8px] active:bg-sidebar-accent ${active() ? 'bg-accent' : ''}`}>
       <SpaceBadge name={name()} color={props.color} />
       <Text class="text-[14px] text-foreground shrink-0 max-w-[60%]" numberOfLines={1}>{name()}</Text>
       <View class="flex-1 flex-row items-center justify-end gap-1.5 min-w-0">
@@ -215,6 +222,7 @@ function SpaceRow(props: { store: Store; space: Space; color: string; actions: H
         )}</If>
         <If when={status() === 'blocked' || status() === 'done'}><StatusMark status={status()} compact size={7} /></If>
       </View>
+      <IconButton name="plus" label={t('addAgent')} testID={`add-agent-${props.space.id}`} onPress={() => props.actions.addAgent(props.space.id)} />
     </View>
   )
 }

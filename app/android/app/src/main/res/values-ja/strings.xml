@@ -3,6 +3,8 @@
 <resources>
     <string name="channel_needs_you">エージェントが対応待ちのとき</string>
     <string name="channel_needs_you_detail">回答や承認を待っています。</string>
+    <string name="channel_connection">バックグラウンドで接続を保つ</string>
+    <string name="keep_alive_title">コンピュータに接続中</string>
     <string name="channel_finished">エージェントが完了したとき</string>
     <string name="channel_finished_detail">見ていないときだけ通知します。</string>
 </resources>

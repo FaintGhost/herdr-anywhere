@@ -6,6 +6,7 @@
   "capabilities": {
     "network": { "hosts": ["*"] },
     "clipboard": true,
+    "picker": true,
     "statusBar": true,
     "webview": { "hosts": [] },
     "host": ["page.*"]

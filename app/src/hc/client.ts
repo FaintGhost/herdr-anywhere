@@ -80,6 +80,8 @@ export class HcClient {
   private earlyBytes = 0
   private helloWait?: { resolve: (h: Hello) => void; reject: (e: Error) => void }
   private closed = false
+  /** Called on any bytes from the computer. */
+  onHeard?: () => void
   private timeoutMs: number
   private parser = new FrameParser((ch, kind, payload) => this.frame(ch, kind, payload))
 
@@ -179,6 +181,7 @@ export class HcClient {
   }
 
   private bytes(b: Uint8Array) {
+    this.onHeard?.()
     if (this.framed) return this.parser.push(b)
     // Before framing: the hello reply is one JSON line; anything after it is already framed.
     this.line = concat(this.line, b)

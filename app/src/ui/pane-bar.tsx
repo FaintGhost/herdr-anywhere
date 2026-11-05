@@ -1,8 +1,12 @@
 // The row under a pane's terminal on a phone: the composer; for a blocked agent, its own choices as its screen shows
 // them (model/menu.ts), or the keys when they can't be read; and, while the keyboard is up, the key row under them.
-import { cleanup, effect, Keyboard, keyboardFrame, signal, Text, View } from 'nsh'
-import { Input } from 'nsh/base'
+import { cleanup, effect, Keyboard, keyboardFrame, Picker, signal, Text, View } from 'nsh'
+import { AlertDialog, Input } from 'nsh/base'
 import type { Store } from '../store.ts'
+import { explain } from '../store.ts'
+import { MAX_FILE } from '../link.ts'
+import { machineOfAddress } from '../model/model.ts'
+import { withPath } from './attach.ts'
 import { asks } from '../model/answers.ts'
 import { shownOrder, type Option } from '../model/menu.ts'
 import type { BarKey } from './terminal-page.ts'
@@ -10,10 +14,17 @@ import type { TerminalSession } from './terminal-session.ts'
 import { ChoiceRow, Glyph, useRev, useSignal } from './kit.tsx'
 import { t } from '../strings/index.ts'
 
+
 const ROW_KEYS: { key: BarKey | 'ctrl'; label: string }[] = [
   { key: 'esc', label: 'esc' }, { key: 'btab', label: '⇧tab' }, { key: 'tab', label: 'tab' }, { key: 'ctrl', label: 'ctrl' },
-  { key: 'ctrlc', label: '^C' }, { key: 'left', label: '←' }, { key: 'up', label: '↑' }, { key: 'down', label: '↓' }, { key: 'right', label: '→' },
+  { key: 'ctrlc', label: '^C' }, { key: 'left', label: '←' }, { key: 'up', label: '↑' }, { key: 'down', label: '↓' }, { key: 'right', label: '→' }, { key: 'enter', label: '↵' },
 ]
+/** Ctrl is one tap and goes with the next key, so the keys it changes say what they are about to send. */
+const WITH_CTRL = new Set<string>(['tab', 'left', 'up', 'down', 'right', 'enter'])
+/** The composer grows with its text up to this, then scrolls. */
+const COMPOSER_MIN = 36
+const COMPOSER_MAX = 132
+
 const FALLBACK_KEYS: { key: string; label: string }[] = [
   { key: 'esc', label: 'esc' }, { key: 'up', label: '↑' }, { key: 'down', label: '↓' }, { key: 'left', label: '←' }, { key: 'right', label: '→' }, { key: 'enter', label: 'enter' },
 ]
@@ -88,24 +99,56 @@ function Composer(props: { store: Store; session: TerminalSession; hint: string;
   const addr = props.session.address
   const text = signal('')
   const pending = useSignal(props.store.pending)
+  const uploading = signal(0)
   const waiting = () => pending().filter((p) => p.address === addr).length
+  const tall = signal(COMPOSER_MIN)
   const send = () => {
     const typed = text()
     if (!typed.trim()) return
     text.set('')
+    tall.set(COMPOSER_MIN)
+    props.session.claim()
     void props.store.compose(addr, typed).catch((e) => props.store.toast({ title: t('couldntSend'), body: String(e?.message ?? e), level: 'error' }))
+  }
+  const failed = (body: string) => props.store.toast({ title: t('couldntAttach'), body, level: 'error' })
+  // One after another: a path joins the text when its file has landed, on the machine the terminal is on.
+  const land = async (name: string, go: () => Promise<string>) => {
+    uploading.set(uploading() + 1)
+    try { text.set(withPath(text(), await go())) } catch (e) { failed(`${name}: ${explain(e)}`) }
+    uploading.set(uploading() - 1)
+  }
+  const attach = async () => {
+    const api = props.store.files
+    if (!api) return
+    const choice = await AlertDialog.show({ title: t('attach'), presentation: 'actionSheet', actions: [
+      { id: 'photo', label: t('attachPhoto') }, { id: 'file', label: t('attachFile') }, { id: 'cancel', label: t('cancel'), role: 'cancel' }] })
+    const on = machineOfAddress(addr)
+    try {
+      if (choice === 'photo') {
+        // An agent needs no 48 megapixels: scaled on the phone, which also drops the location.
+        for (const { file } of await Picker.pickImages({ multiple: true, limit: 9, maxDimension: 2048, quality: 0.85 })) await land(file.name, () => api.sendPhoto(file, on))
+      } else if (choice === 'file') {
+        for (const f of await api.pick()) {
+          if (f.size > MAX_FILE) failed(t('fileTooBig', { name: f.name }))
+          else await land(f.name, () => api.sendPicked(f, on))
+        }
+      }
+    } catch (e) { failed(explain(e)) }
   }
   return (
     <View>
+      <If when={uploading()}><Text testID="uploading" class="px-3 pt-1 text-[11.5px] text-sidebar-foreground">{t('uploading')}</Text></If>
       <If when={waiting()}>
         <Text testID="pending" class="px-3 pt-1 text-[11.5px] text-sidebar-foreground">{t('pendingSend', { n: waiting() })}</Text>
       </If>
-      <View testID="composer" class="flex-row items-center gap-1.5 px-2 py-1">
+      <View testID="composer" class="flex-row items-end gap-1.5 px-2 py-1">
         <Key label="esc" testID="key-esc" onPress={() => props.session.key('esc')} grow={false} />
         <Input testID="compose-input" value={text()} onChange={(t) => text.set(t)} placeholder={props.hint} autoFocus={props.focus}
-          submitBehavior="submit" onSubmit={send} onFocus={() => props.focused(true)} onBlur={() => props.focused(false)}
-          class="flex-1 h-9 rounded-[8px] border border-input bg-background px-3 text-[14px] text-foreground placeholder:text-sidebar-foreground" />
-        <If when={text().trim()} else={<BarButton glyph="keyboard" label={t('typeInTerminal')} testID="show-keyboard" onPress={() => props.session.focus()} />}>
+          multiline submitBehavior="newline" onFocus={() => { props.session.claim(); props.focused(true) }} onBlur={() => props.focused(false)}
+          onContentSizeChange={(e) => tall.set(Math.max(COMPOSER_MIN, Math.min(COMPOSER_MAX, e.height + 16)))} style={{ height: text() ? tall() : COMPOSER_MIN }}
+          class="flex-1 rounded-[8px] border border-input bg-background px-3 py-2 text-[14px] text-foreground placeholder:text-sidebar-foreground" />
+        <BarButton glyph="plus" label={t('attach')} testID="attach" onPress={() => void attach()} />
+        <If when={text().trim()}>
           <BarButton glyph="send" label={t('send')} testID="compose-send" primary onPress={send} />
         </If>
       </View>
@@ -127,7 +170,7 @@ function KeyRow(props: { session: TerminalSession; keepTerminal: () => boolean }
       {ROW_KEYS.map((k) => (
         <View role="button" focusable={false} testID={`row-${k.key}`} accessibilityLabel={k.label} onPress={() => press(k.key)}
           class={`flex-1 h-8 items-center justify-center rounded-[6px] ${k.key === 'ctrl' && ctrl() ? 'bg-primary' : 'bg-secondary active:bg-accent'}`}>
-          <Text class={`text-[12px] font-mono ${k.key === 'ctrl' && ctrl() ? 'text-primary-foreground' : 'text-foreground'}`}>{k.label}</Text>
+          <Text class={`${k.key === 'enter' ? 'text-[16px]' : 'text-[12px]'} font-mono ${k.key === 'ctrl' && ctrl() ? 'text-primary-foreground' : 'text-foreground'}`}>{ctrl() && WITH_CTRL.has(k.key) ? `^${k.label}` : k.label}</Text>
         </View>
       ))}
       <View role="button" focusable={false} testID="hide-keyboard" accessibilityLabel={t('hideKeyboard')} onPress={() => Keyboard.dismiss()}

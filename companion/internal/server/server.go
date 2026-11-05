@@ -50,6 +50,9 @@ type Server struct {
 	active   sync.WaitGroup // one per live session
 	stop     chan struct{}
 	stopOnce sync.Once
+
+	maxUpload    int64
+	machineChunk int
 }
 
 func New(cfg Config) *Server {
@@ -66,6 +69,9 @@ func New(cfg Config) *Server {
 		static:   http.NotFoundHandler(),
 		sessions: map[*session]struct{}{},
 		stop:     make(chan struct{}),
+
+		maxUpload:    maxUpload,
+		machineChunk: machineChunk,
 	}
 	if cfg.WebDir != "" {
 		st, err := newStatic(cfg.WebDir)
@@ -85,6 +91,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/pair", s.pair)
 	mux.HandleFunc("GET /api/folders", s.folders)
 	mux.HandleFunc("POST /api/folders", s.createFolder)
+	mux.HandleFunc("POST /api/files", s.upload)
 	mux.HandleFunc("/hc", s.hc)
 	mux.Handle("/", s.static)
 	return s.logRequests(mux)

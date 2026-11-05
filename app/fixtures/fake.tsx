@@ -5,13 +5,18 @@
 // For Settings › Computer: `via: "tailpocket"` with `routes` ("relay:tok,direct": what the tunnel answers in turn, the
 // last one for good; "throws": it fails), `url` (the link's address), `conn: "lost"` (the core stops answering) and
 // `info: "none"` (the companion gives no version).
-import { host, mount, Storage } from 'nsh'
+import { host, Keyboard, mount, Storage } from 'nsh'
 import { Linker, type Route, type Tunnel } from '../src/link.ts'
 import { PrefStore } from '../src/prefs.ts'
 import { Store } from '../src/store.ts'
 import { Root } from '../src/ui/root.tsx'
 import { CLAUDE_EDIT_MENU, FakeCore, type FakeTab } from '../src/testing/fakecore.ts'
 import { FakeFolders } from '../src/testing/fake-folders.ts'
+
+// Recorded where a test can read it, as pairLinkUsed below: the test's own Keyboard is another bundle's.
+const putAway = Keyboard.dismiss
+let keyboardAway = 0
+Keyboard.dismiss = () => { void Storage.setItem('keyboard-away', String(++keyboardAway)); putAway() }
 
 const scene = String((host.params as any)?.scene ?? 'busy')
 const opened = scene.startsWith('link')
@@ -55,6 +60,13 @@ host.on('fake.drop', () => core.drop('network'))
 // Text the app sent (`terminal.send`), where a test reads it (`app.storage()['fake-sent']`).
 const sent: [string, string, boolean][] = []
 core.onSend = (addr, text, force) => { sent.push([addr, text, force]); void Storage.setItem('fake-sent', JSON.stringify(sent)) }
+// What came to POST /api/files: its name, its machine, its size.
+const put: [string, string, number][] = []
+const landed = (q: URLSearchParams, size: number) => {
+  put.push([q.get('name') ?? '', q.get('on') ?? '', size])
+  void Storage.setItem('fake-put', JSON.stringify(put))
+  return `/fake/uploads/${q.get('name')}`
+}
 // The computer's folders for the folder picker (GET/POST /api/folders); a folder made is recorded in `fake-created`.
 const disk = new FakeFolders(core.home, ['src/api', 'src/demo-app', 'src/web', 'src/clients/northwind/storefront-redesign-2026/web', 'Documents', 'notes', '.config'],
   ['src/api', 'src/demo-app', 'src/clients/northwind/storefront-redesign-2026/web'])
@@ -103,6 +115,7 @@ mount(() => (
     // Recorded where a test can read it: the app's own storage.
     pairLinkUsed: () => void Storage.setItem('pair-link-used', '1'),
     fetcher: (async (url: string, init: any) => {
+      if (url.includes('/api/files')) return answer(200, { path: landed(new URLSearchParams(url.split('?')[1]), init.body.size) })
       if (url.includes('/api/folders')) return folders(url, init)
       if (url.includes('/api/info')) return { ok: params.info !== 'none', json: async () => (params.info === 'none' ? {} : { version: '9.9.9' }) }
       const body = JSON.parse(init.body)

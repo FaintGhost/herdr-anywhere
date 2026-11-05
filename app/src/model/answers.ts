@@ -16,3 +16,13 @@ export function asks(s: Status): string {
   if (s?.state !== 'blocked') return ''
   return (s.msg ?? '').replace(/^(approve|answer):?\s+/i, '').trim()
 }
+
+/** The line that says what an agent is doing or did, in its own words. Claude Code 2.1.318, measured 2026-11-05: working,
+ *  its report has no words and its title is its summary of the task ("Sleep and read nsh.json"; at first only
+ *  "Claude Code"); done, a few seconds later, the report's msg says what it did. Empty when it says nothing new. */
+export function activity(s: Status, title: string, program: string): string {
+  const asked = asks(s)
+  if (asked) return asked
+  const said = (s?.msg ?? '').trim() || title
+  return said === program ? '' : said
+}

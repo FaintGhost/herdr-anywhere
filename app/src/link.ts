@@ -1,6 +1,7 @@
 // The phone's link to one computer: pairing with the companion (`herdr-anywhere pair` prints `<url>/#pair=<code>`, or,
 // under `serve --tailcat`, a TailPocket invite), the token it gives, kept in the app's storage, and the WebSocket pipe
 // to herdr-core it opens: at the companion's address, or through TailPocket's forwarder on 127.0.0.1.
+import { host as nativeHost } from 'nsh'
 import type { Pipe } from './hc/client.ts'
 import { SocketPipe, socketUrl, type Enc } from './hc/ws.ts'
 import { Signal } from './store.ts'
@@ -245,6 +246,50 @@ export function folderApi(linker: Linker, fetcher: typeof fetch = fetch): Folder
       const { r, body } = await call('/api/folders', { method: 'POST', body: JSON.stringify({ path }) })
       if (!r.ok) throw new Error(body.error ?? tr('refusedStatus', { status: r.status }))
       return body.path
+    },
+  }
+}
+
+/** The largest file the phone sends (companion/internal/server/files.go maxUpload). */
+export const MAX_FILE = 2 * 1024 * 1024 * 1024
+
+/** What page.pickFiles gives: a file the host holds, sent later by page.uploadFile. */
+export type PickedFile = { id: string; name: string; size: number }
+
+/** What the composer attaches goes over plain HTTP to the companion (POST /api/files), never over the socket to
+ *  herdr-core, whose one message can hold 8 MiB at most. `on` is the machine the terminal is on. */
+export type FileApi = {
+  sendPhoto(file: File, on?: string): Promise<string>
+  pick(): Promise<PickedFile[]>
+  sendPicked(file: PickedFile, on?: string): Promise<string>
+}
+
+export function fileApi(linker: Linker, fetcher: typeof fetch = fetch): FileApi {
+  const url = async (name: string, on?: string) => `${await linker.baseUrl()}/api/files?name=${encodeURIComponent(name)}${on ? `&on=${encodeURIComponent(on)}` : ''}`
+  const landed = (status: number, body: any, name: string): string => {
+    if (status === 413) throw new Error(tr('fileTooBig', { name }))
+    if (status === 404) throw new Error(tr('attachNeedsUpdate'))
+    if (status < 200 || status >= 300 || typeof body?.path !== 'string') throw new Error(body?.error ?? tr('refusedStatus', { status }))
+    return body.path
+  }
+  return {
+    async sendPhoto(file, on) {
+      let r: Response
+      try {
+        r = await fetcher(await url(file.name, on), { method: 'POST', body: file, headers: { authorization: `Bearer ${linker.link.get()?.token ?? ''}`, 'content-type': 'application/octet-stream' } })
+      } catch {
+        throw new Error(tr('cantReachComputer'))
+      }
+      return landed(r.status, await r.json().catch(() => ({})), file.name)
+    },
+    pick: () => nativeHost.call('page.pickFiles', { limit: 9 }, { timeout: 0 }) as Promise<PickedFile[]>,
+    async sendPicked(file, on) {
+      const link = linker.link.get()
+      if (link?.via === 'demo') return `~/.cache/herdr-anywhere/uploads/demo/${file.name}`
+      const r = await nativeHost.call('page.uploadFile', { id: file.id, url: await url(file.name, on), token: link?.token ?? '' }, { timeout: 0 }) as { status: number; body: string }
+      let body: any = {}
+      try { body = JSON.parse(r.body) } catch {}
+      return landed(r.status, body, file.name)
     },
   }
 }

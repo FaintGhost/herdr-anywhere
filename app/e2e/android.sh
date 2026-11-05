@@ -85,7 +85,40 @@ keyboard_up && { echo "FAIL: the keyboard is still up after pairing"; exit 1; }
 echo "ok: paired with one tap, connected over binary, home lists acme-api, keyboard closed"
 
 tap space-spandroid
+sleep 2
+# Reading the terminal asks for no keyboard: neither a tap on it nor a drag across it.
 tap terminal-
+keyboard_up && { echo "FAIL: a tap on the terminal brought the keyboard up"; exit 1; }
+xy=$(at terminal-); set -- $xy
+"$adb" shell input swipe "$1" "$(($2 - 200))" "$1" "$(($2 + 200))" 300
+keyboard_up && { echo "FAIL: a drag across the terminal brought the keyboard up"; exit 1; }
+echo "ok: a tap and a drag on the terminal leave the keyboard down"
+# The composer does, and ⋯ types in the terminal itself.
+tap compose-input
+keyboard_up || { echo "FAIL: a tap on the composer brought no keyboard"; exit 1; }
+# Return in the composer starts a new line, the box grows, and send sends both lines as one.
+height() { "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1; "$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep 'resource-id="compose-input"' | sed -E 's/.*bounds="\[[0-9]+,([0-9]+)\]\[[0-9]+,([0-9]+)\]".*/\1 \2/' | awk '{print $2-$1}'; }
+one=$(height)
+"$adb" shell input text "'touch hm-line-one'"
+"$adb" shell input keyevent 66
+"$adb" shell input text "'touch hm-line-two'"
+sleep 1
+two=$(height)
+[ -n "$shot" ] && "$adb" exec-out screencap -p > "${shot%.png}-composer.png"
+[ "$two" -gt "$one" ] || { echo "FAIL: the composer did not grow with a second line ($one -> $two)"; exit 1; }
+tap compose-send
+for _ in $(seq 1 15); do [ -e "$work/home/src/acme-api/hm-line-two" ] && break; sleep 1; done
+[ -e "$work/home/src/acme-api/hm-line-one" ] && [ -e "$work/home/src/acme-api/hm-line-two" ] || { echo "FAIL: two composer lines did not both reach the computer"; exit 1; }
+echo "ok: the composer grew from $one to $two px and sent both lines"
+"$adb" shell input keyevent 4
+sleep 1
+tap space-more
+sleep 1
+xy=""; for _ in 1 2 3 4 5; do "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1
+  xy=$("$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep -F 'text="Type in the terminal"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/' | awk '{print int(($1+$3)/2), int(($2+$4)/2)}')
+  [ -n "$xy" ] && break; sleep 1; done
+[ -n "$xy" ] || { echo "FAIL: no Type in the terminal in the menu"; exit 1; }
+"$adb" shell input tap $xy
 sleep 2
 "$adb" shell input text "'touch hm-typed'"
 "$adb" shell input keyevent 66
@@ -226,4 +259,50 @@ for _ in $(seq 1 10); do [ -d "$work/home/src/gamma-new" ] && break; sleep 1; do
 [ -d "$work/home/src/gamma-new" ] || { echo "FAIL: Create folder did not make the folder"; exit 1; }
 tap new-terminal
 started_in /src/gamma-new || { echo "FAIL: the new space did not start in the folder made"; exit 1; }
+# A split on the phone: ⋯ lists it, a warning comes first, then both panes are on the screen. A tap on a pane gives it
+# the row under the panes: the new pane goes into a folder, the old one makes a file, and the file lands outside it.
+tap_text() {
+  xy=""; for _ in 1 2 3 4 5 6 7 8; do "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1
+    xy=$("$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep -F "text=\"$1\"" | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/' | awk '{print int(($1+$3)/2), int(($2+$4)/2)}')
+    [ -n "$xy" ] && break; sleep 1; done
+  [ -n "$xy" ] || { echo "FAIL: nothing says $1 on screen"; exit 1; }
+  "$adb" shell input tap $xy
+}
+compose() { tap compose-input; sleep 1; "$adb" shell input text "'$1'"; sleep 1; tap compose-send; sleep 2; }
+terminals() { "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1; "$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep -c 'resource-id="terminal-' || true; }
+sleep 2
+[ "$(terminals)" = 1 ] || { echo "FAIL: one pane expected before the split, saw $(terminals)"; exit 1; }
+tap space-more
+sleep 1
+[ -n "$shot" ] && "$adb" exec-out screencap -p > "${shot%.png}-pane-menu.png"
+tap_text "Split right"
+sleep 1
+[ -n "$shot" ] && "$adb" exec-out screencap -p > "${shot%.png}-split-warning.png"
+tap_text "Split anyway"
+for _ in $(seq 1 15); do [ "$(terminals)" = 2 ] && break; sleep 1; done
+[ "$(terminals)" = 2 ] || { echo "FAIL: both panes should be on screen after the split, saw $(terminals)"; exit 1; }
+sleep 3
+[ -n "$shot" ] && "$adb" exec-out screencap -p > "${shot%.png}-split.png"
+echo "ok: a split asks first, then shows both panes"
+compose "mkdir hm-right; cd hm-right"
+for _ in $(seq 1 10); do [ -d "$work/home/src/gamma-new/hm-right" ] && break; sleep 1; done
+[ -d "$work/home/src/gamma-new/hm-right" ] || { echo "FAIL: the composer did not reach the new pane"; exit 1; }
+xy=$(at terminal-)
+"$adb" shell input tap $xy
+sleep 2
+compose "touch hm-left"
+for _ in $(seq 1 10); do [ -e "$work/home/src/gamma-new/hm-left" ] && break; sleep 1; done
+[ -e "$work/home/src/gamma-new/hm-left" ] || { echo "FAIL: a tap on the first pane did not give it the composer"; exit 1; }
+echo "ok: a tap on a pane gives it the composer"
+# Settings, for a look: its top and its end.
+tap space-more
+sleep 1
+tap_text "Settings"
+sleep 2
+screen_has 'text="Settings"' || { echo "FAIL: Settings did not open"; exit 1; }
+"$adb" shell dumpsys input_method | grep -q 'mInputShown=true' && { echo "FAIL: the keyboard stayed up over Settings"; exit 1; }
+[ -n "$shot" ] && "$adb" exec-out screencap -p > "${shot%.png}-settings.png"
+"$adb" shell input swipe 500 1800 500 300 200
+sleep 2
+[ -n "$shot" ] && "$adb" exec-out screencap -p > "${shot%.png}-settings-end.png"
 echo "PASS: notifications, and new spaces in a folder browsed to or made on the computer"

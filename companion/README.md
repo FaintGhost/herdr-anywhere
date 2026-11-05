@@ -44,6 +44,7 @@ at once.
 | `POST /api/pair` | `{"code","device"}` → `{"token","device","name"}`; 401 unknown code, 410 expired or used, 429 after 10 failures a minute from one IP |
 | `GET /api/folders?path=` | A folder's subfolders, for picking a space's folder: `{"path","home","parent","git","folders":[{"name","git"}]}`, hidden ones left out unless `hidden=1` (then marked `"hidden":true`); `~` and empty mean home. 404 `{"missing":true,"path","existing"}` when it does not exist (`existing` is the nearest folder above that does), 400 for a file or a relative path. `Authorization: Bearer <token>` |
 | `POST /api/folders` | `{"path"}` → `{"path","created"}`: makes the folder and its missing parents, after the phone asked; 409 when part of the path is a file. Same auth |
+| `POST /api/files?name=[&on=machine]` | A photo or file from the phone, the raw bytes as the body, up to 2 GB: `{"path","bytes"}`, its path on that computer for the agent to read. It lands in `~/.cache/herdr-anywhere/uploads`, kept 7 days. 413 when too large, 502 when the machine can't be reached |
 | `GET /hc?token=…[&enc=b64]` | WebSocket to `hc connect`: binary messages both ways, or base64 text with `enc=b64`. 401 bad token, 403 foreign `Origin`, 503 no hc. Closes with 4401 on revoke, "core closed" when hc exits |
 | anything else | files from `--web` |
 

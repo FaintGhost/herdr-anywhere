@@ -1,5 +1,5 @@
 // Settings: how the app looks, which alerts show, and the computer it is paired with.
-import { cleanup, Scroll, signal, Text, View } from 'nsh'
+import { cleanup, platform, Scroll, signal, Text, View } from 'nsh'
 import { AlertDialog } from 'nsh/base'
 import type { Store } from '../store.ts'
 import { companionVersion, type Link, type Linker, type Route } from '../link.ts'
@@ -123,6 +123,11 @@ export function SettingsScreen(props: { store: Store; prefs: PrefStore; link: Li
         <Row label={t('agentFinished')} detail={t('agentFinishedDetail')}>
           <Toggle label={t('agentFinished')} testID="alert-done" on={p().alertDone} onChange={(on) => props.prefs.set({ alertDone: on })} />
         </Row>
+        <If when={platform.os === 'android'}>
+          <Row label={t('stayConnected')} detail={t('stayConnectedDetail')}>
+            <Toggle label={t('stayConnected')} testID="stay-connected" on={p().stayConnected} onChange={(on) => props.prefs.set({ stayConnected: on })} />
+          </Row>
+        </If>
         <If when={notify() !== 'unsupported'}>
           <Row label={t('systemNotifications')} detail={NOTIFY(notify())}>
             <If when={notify() === 'default'}>
@@ -139,12 +144,9 @@ export function SettingsScreen(props: { store: Store; prefs: PrefStore; link: Li
         <If when={(rev(), props.store.hello)}><Fact label={t('coreVersion')} value={props.store.hello?.version ?? ''} /></If>
         <If when={companion()}><Fact label={t('companionVersion')} value={companion()} /></If>
         <If when={props.link.via === 'demo'} else={
-          <View>
-            <Row label={t('forgetComputer')} testID="forget" onPress={() => void forget()}>
-              <Text class="text-[13px] text-destructive">{t('forget')}</Text>
-            </Row>
-            <Text class="px-4 pt-2 text-[12px] text-sidebar-foreground">{t('forgetHint')}</Text>
-          </View>
+          <Row label={t('forgetComputer')} testID="forget" onPress={() => void forget()}>
+            <Text class="text-[13px] text-destructive">{t('forget')}</Text>
+          </Row>
         }>
           <Row label={t('demoLeaveFull')} testID="settings-demo-leave" onPress={props.forget} />
         </If>

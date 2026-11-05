@@ -1,6 +1,6 @@
 // Sheets over any screen: the "+" menu in two steps: the folder on the computer first
 // (folder-picker.tsx), then a terminal or an agent installed there, with its first task; and renaming a space or a tab.
-import { computed, Keyboard, keyboardFrame, signal, Text, View, type Signal } from 'nsh'
+import { computed, effect, Keyboard, keyboardFrame, signal, Text, View, type Signal } from 'nsh'
 import { Input, Sheet } from 'nsh/base'
 import type { Store } from '../store.ts'
 import { explain } from '../store.ts'
@@ -14,7 +14,7 @@ import { FolderPickerView } from './folder-picker.tsx'
 const above = () => ({ marginBottom: keyboardFrame().height + 16 })
 
 /** Where "+" was pressed: the home screen starts a space, a space starts a tab in it. */
-export type NewTarget = { kind: 'space' } | { kind: 'tab'; space: string }
+export type NewTarget = { kind: 'space' } | { kind: 'tab'; space: string; agent?: boolean }
 
 export function NewSheet(props: { store: Store; target: Signal<NewTarget | null>; folders?: FolderApi; onStarted: (r: { space: string; pane: string }) => void }) {
   const s = props.store
@@ -38,7 +38,9 @@ export function NewSheet(props: { store: Store; target: Signal<NewTarget | null>
     const t = props.target()
     return folder() || (t?.kind === 'tab' ? s.folderFor(t.space) : s.home)
   }
-  const title = () => (props.target()?.kind === 'tab' ? t('newTab') : t('newSpace'))
+  const title = () => { const n = props.target(); return n?.kind === 'tab' ? (n.agent ? t('addAgent') : t('newTab')) : t('newSpace') }
+  // Adding an agent starts at the program, in the space's folder.
+  effect(() => { const n = props.target(); if (n?.kind === 'tab' && n.agent) picking.set(false) })
   // Another machine's folders are not this computer's: the picker lists only the computer the companion runs on, so a
   // tab there starts at the second step, in its space's folder.
   const local = () => { rev(); const t = props.target(); return !!props.folders && !(t?.kind === 'tab' && s.model.space(t.space)?.machine) }

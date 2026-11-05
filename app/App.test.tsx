@@ -82,7 +82,7 @@ test('on a phone a space is its pane: a two-line header, the terminal, one compo
   await app.waitFor('id:terminal-t3')
   expect(app.shows('id:pane-header')).toBe(true)
   expect(app.shows('text:web › Terminal')).toBe(true)
-  for (const id of ['id:composer', 'id:compose-input', 'id:key-esc', 'id:show-keyboard']) expect(app.shows(id)).toBe(true)
+  for (const id of ['id:composer', 'id:compose-input', 'id:key-esc', 'id:attach']) expect(app.shows(id)).toBe(true)
   for (const id of ['id:tab-tb3', 'id:cwd-p-tb3', 'id:space-status', 'id:answers']) expect(app.count(id)).toBe(0)
 })
 
@@ -121,22 +121,81 @@ test('tapping an agent opens its space at its pane', async () => {
   await app.waitFor('id:terminal-t1')
 })
 
-test('split right from ⋯ adds a pane, the switcher goes between them, close takes it away', async () => {
+test('the first time it connects, the app asks to post notifications; only once', async () => {
+  const app = await open('./fixtures/fake.tsx', { host: { params: { scene: 'busy' }, handlers: { 'page.notifications': 'default', 'page.allowNotifications': 'granted' } } })
+  await app.waitFor('text:Needs you')
+  await app.waitUntil(() => app.host.calls().some((c) => c.name === 'page.allowNotifications'))
+  await app.press('id:space-sp2')
+  await app.waitFor('id:terminal-t3')
+  await app.press('id:back')
+  await app.waitFor('text:Needs you')
+  expect(app.host.calls().filter((c) => c.name === 'page.allowNotifications').length).toBe(1)
+})
+
+test('a wide screen shows what each agent is doing in its pane header', async () => {
+  const app = await open('./fixtures/fake.tsx', { width: 1000, host: { params: { scene: 'busy' } } })
+  await app.waitFor('text:Needs you')
+  await app.press('id:space-sp2')
+  await app.waitFor('id:terminal-t3')
+  await app.host.send('fake.status', { address: 't3', state: 'blocked', kind: 'permission', msg: 'approve Bash: npm test' })
+  await app.waitUntil(() => app.texts().some((t) => t.includes('Bash: npm test')))
+})
+
+test('a split on a phone asks first, then shows both panes; one at a time is a menu away', async () => {
   const app = await busy()
   await app.waitFor('text:Needs you')
   await app.press('id:space-sp2')
   await app.waitFor('id:terminal-t3')
-  app.onDialog((d) => (d.buttons.includes('Split right') ? 'Split right' : null))
+
+  // Declining the warning leaves one pane.
+  const asked: string[] = []
+  app.onDialog((d) => {
+    if (d.buttons.includes('Split right')) return 'Split right'
+    if (d.buttons.includes('Split anyway')) { asked.push(d.title ?? ''); return 'Cancel' }
+    return null
+  })
   await app.press('id:space-more')
-  // The new pane has focus; the switcher goes back to the first.
+  await app.waitUntil(() => asked.length === 1)
+  expect(app.count('id:pane-header')).toBe(1)
+  expect(app.shows('id:terminal-t3')).toBe(true)
+  expect(app.shows('id:split-right-p-tb3')).toBe(false)
+
+  // Going ahead puts both on the screen, each with its own header, and the row under them stays.
+  app.onDialog((d) => (d.buttons.includes('Split right') ? 'Split right' : d.buttons.includes('Split anyway') ? 'Split anyway' : null))
+  await app.press('id:space-more')
+  await app.waitFor('id:close-p-tb3')
+  expect(app.shows('id:terminal-t3')).toBe(true)
+  expect(app.count('id:compose-input')).toBe(1)
+
+  // One at a time: the new pane has focus, and the switcher goes back to the first.
+  app.onDialog((d) => (d.buttons.includes('Show one pane') ? 'Show one pane' : null))
+  await app.press('id:space-more')
   await app.waitUntil(() => !app.shows('id:terminal-t3'))
   await app.press('id:switcher')
   await app.waitFor('id:switch-pane-p-tb3')
   await app.press('id:switch-pane-p-tb3')
   await app.waitFor('id:terminal-t3')
-  app.onDialog((d) => (d.buttons.includes('Close pane') ? 'Close pane' : null))
+
+  // Both again: the same warning, and it can be declined.
+  app.onDialog((d) => (d.buttons.includes('Show all panes') ? 'Show all panes' : d.buttons.includes('Split anyway') ? 'Split anyway' : null))
   await app.press('id:space-more')
-  await app.waitUntil(() => !app.shows('id:terminal-t3'))
+  await app.waitFor('id:close-p-tb3')
+
+  // Closing the other pane leaves one, drawn the phone's way.
+  await app.press('id:close-p-tb3')
+  await app.waitUntil(() => !app.shows('id:close-p-tb3'))
+})
+
+test('going to another screen puts the keyboard away: Settings is not left under it', async () => {
+  const app = await busy()
+  await app.waitFor('text:Needs you')
+  await app.press('id:space-sp2')
+  await app.waitFor('id:terminal-t3')
+  const before = Number(app.storage()['keyboard-away'] ?? 0)
+  app.onDialog((d) => (d.buttons.includes('Settings') ? 'Settings' : null))
+  await app.press('id:space-more')
+  await app.waitFor('text:Appearance')
+  await app.waitUntil(() => Number(app.storage()['keyboard-away'] ?? 0) === before + 1)
 })
 
 test('+ on home starts a terminal in a new space and opens it', async () => {
@@ -184,6 +243,43 @@ test('New space opens on the folder browser: into src, into demo-app, Use this f
   await app.press('id:new-terminal')
   await app.waitFor('id:terminal-t1')
   await app.waitFor('text:demo-app › Terminal')
+})
+
+test('a space that is already open adds an agent from its header, in its own folder, as a new tab', async () => {
+  const app = await busy()
+  await app.waitFor('text:Needs you')
+  await app.press('id:space-sp2')
+  await app.waitFor('id:compose-input')
+  await app.press('id:add-agent')
+  await app.waitFor('id:new-claude')
+  expect(app.count('id:folder-search')).toBe(0)
+  expect(app.shows('text:Add an agent')).toBe(true)
+  await app.press('id:folder-chosen')
+  await app.waitFor('id:folder-search')
+  await app.press('id:folder-use')
+  await app.waitFor('id:new-claude')
+  await app.press('id:new-claude')
+  await app.waitFor('id:start')
+  await app.press('id:start')
+  await app.waitUntil(() => app.count('id:start') === 0)
+  await app.press('id:switcher')
+  await app.waitFor('id:switch-new-folder')
+  expect(app.texts().filter((x) => x === 'Terminal').length).toBe(2)
+})
+
+test('home adds an agent to a space from its row, and opens that space', async () => {
+  const app = await busy()
+  await app.waitFor('text:Needs you')
+  await app.press('id:add-agent-sp2')
+  await app.waitFor('id:new-claude')
+  expect(app.count('id:folder-search')).toBe(0)
+  expect(app.shows('text:Add an agent')).toBe(true)
+  await app.press('id:new-claude')
+  await app.press('id:start')
+  await app.waitFor('id:compose-input')
+  await app.press('id:switcher')
+  await app.waitFor('id:switch-new-folder')
+  expect(app.texts().filter((x) => x === 'Terminal').length).toBe(2)
 })
 
 test('the search filters Recent and the folders, the × clears it, a typed path browses, and up goes to the parent', async () => {

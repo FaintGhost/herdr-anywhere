@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.1.5
+
+Herdr Anywhere stays with your agents after you put the phone down, and the terminal now behaves like one on a phone.
+
+**It stays connected**
+
+- On Android the app keeps its connection in the background, with a quiet notification saying so, and an agent's question reaches you as a notification while you're away. Settings can turn this off. The app asks once to post notifications.
+- A connection that died without a word no longer sits there showing Connected: the app notices in about 15 seconds and reconnects, through TailPocket too.
+
+**The terminal**
+
+- Scrolling carries on after your finger lifts and slows down.
+- Lines with emoji and Chinese stay in their columns.
+- The keyboard opening no longer resizes the terminal, which printed a long answer into the scrollback twice.
+- Links open wherever they are, even wrapped across rows. Press and drag selects text.
+- Two fingers no longer change the text size: it's in Settings.
+- Settings and other screens open with the keyboard put away, not half hidden under it.
+
+**Telling agents what to do**
+
+- The composer grows with what you type, for several lines.
+- The key row has Enter, and Ctrl turns the keys it can combine into Ctrl+Enter, Ctrl+Tab and Ctrl+arrows.
+- Attach photos and files up to 2 GB: their path goes in your message, and the file lands where the terminal runs, on another machine too.
+
+**Agents and panes**
+
+- Add an agent from a space's header or from any space on home.
+- Home and each pane show what the agent is doing.
+- Split right and Split down work on a phone: it says what a small screen costs, then shows the panes side by side, and a tap picks the one you're typing to.
+
+Android: `Herdr-Anywhere.apk`, which updates an installed 0.1.3. Mac: `herdr-anywhere-macos-arm64`, which attachments need.
+
 ## v0.1.4
 
 The README's Try it goes straight to the steps. `INSTALL.md` checks the Mac and Herdr for you.
