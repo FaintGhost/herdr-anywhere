@@ -1,0 +1,229 @@
+#!/bin/sh
+# The app on an Android device or emulator against a real computer: an isolated herdr-core with a fake project and the
+# companion on this computer's loopback, which an emulator reaches as 10.0.2.2. Installs the APK, pairs it by typing the
+# link, and passes when the phone is connected (the companion logs it) and its home screen lists the project.
+# Then it opens the space and types a command into its terminal, which passes when the file the command makes appears.
+# Last, away from the app: a blocked terminal posts Android's notification and a tap on it opens the pane; a finished one
+# posts the quieter kind. Then, back in the app, a new space whose folder is picked by browsing the computer, and one
+# in a typed folder that doesn't exist, which the app makes after the tap on Create it.
+# Usage: ANDROID_SERIAL=emulator-5554 e2e/android.sh [apk] [screenshot.png]
+# ANDROID_SERIAL is required, so the run never lands on another emulator.
+set -eu
+: "${ANDROID_SERIAL:?set ANDROID_SERIAL to the device to use}"
+app=$(cd "$(dirname "$0")/.." && pwd)
+apk=${1:-$app/android/build/Herdr.apk}
+shot=${2:-}
+adb="${ANDROID_HOME:-$HOME/Library/Android/sdk}/platform-tools/adb"
+hc=$(command -v hc || echo "$HOME/.local/bin/hc")
+id=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$app/nsh.json")
+
+port=7691
+while nc -z 127.0.0.1 "$port" 2>/dev/null; do port=$((port + 1)); done
+work=$(mktemp -d)
+(cd "$app/../companion" && go build -o "$work/herdr-anywhere" ./cmd/herdr-anywhere)
+run=$(mktemp -d /tmp/hmXXXX)
+mkdir -p "$work/home/src/acme-api" "$work/home/src/beta-web" "$work/state" "$work/config" "$work/data"
+: > "$work/home/.zshrc"
+export HC_SESSION="hmandroid-$$" HC_SOCKET="" HOME="$work/home" SHELL=/bin/zsh
+export XDG_STATE_HOME="$work/state" XDG_CONFIG_HOME="$work/config" XDG_DATA_HOME="$work/data" XDG_RUNTIME_DIR="$run"
+export HERDR_ANYWHERE_STATE="$work/companion" GIT_CONFIG_GLOBAL="$work/home/.gitconfig"
+"$hc" run --bg --keep --cwd "$work/home/src/acme-api" --label herdr.space=spandroid --label herdr.tab=tbandroid >/dev/null
+cleanup() {
+  [ -n "${serve_pid:-}" ] && kill "$serve_pid" 2>/dev/null
+  "$hc" server stop >/dev/null 2>&1 || true
+  chmod -R u+w "$work" 2>/dev/null; rm -rf "$work" "$run"
+}
+trap cleanup EXIT INT TERM
+"$work/herdr-anywhere" serve --listen "127.0.0.1:$port" --hc "$hc" > "$work/serve.log" 2>&1 &
+serve_pid=$!
+sleep 1
+link=$("$work/herdr-anywhere" pair --url "http://10.0.2.2:$port" 2>/dev/null | grep -o 'http://[^ ]*#pair=[A-Za-z0-9_-]*' | head -1)
+
+# The centre of the view with this resource-id (an NSH testID), from the accessibility tree; an id ending in "-" is a
+# prefix (space-<id>, terminal-<address>).
+at() {
+  case $1 in *-) q="resource-id=\"$1" ;; *) q="resource-id=\"$1\"" ;; esac
+  "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1
+  "$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep -F "$q" | head -1 |
+    sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/' | awk '{print int(($1+$3)/2), int(($2+$4)/2)}'
+}
+tap() {
+  xy=""; for _ in 1 2 3 4 5 6 7 8 9 10; do xy=$(at "$1"); [ -n "$xy" ] && break; sleep 1; done
+  [ -n "$xy" ] || { echo "FAIL: no view $1 on screen"; exit 1; }
+  "$adb" shell input tap $xy
+}
+screen_has() { "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1; "$adb" shell cat /sdcard/hm.xml | grep -q "$1"; }
+
+"$adb" install -r "$apk" >/dev/null
+"$adb" shell pm clear "$id" >/dev/null
+# Android 13+ posts an app's notifications only once the person allows them (the app asks from Settings).
+"$adb" shell pm grant "$id" android.permission.POST_NOTIFICATIONS
+activity=$("$adb" shell cmd package resolve-activity --brief "$id" | tail -1 | tr -d '\r')
+# The app's own activity, which can answer the app's host calls (NSH's AppActivity cannot be extended).
+[ "$activity" = "$id/.MainActivity" ] || { echo "FAIL: the launcher opens $activity"; exit 1; }
+"$adb" shell am start -W -n "$activity" >/dev/null
+tap pair-link
+"$adb" shell input text "'$link'"
+tap pair # once, with the keyboard up: the tap has to reach the button
+
+ok=""
+for _ in $(seq 1 30); do
+  if grep -q "device .* connected (binary," "$work/serve.log" && screen_has acme-api; then ok=1; break; fi
+  sleep 1
+done
+[ -n "$shot" ] && "$adb" exec-out screencap -p > "$shot"
+if [ -z "$ok" ]; then
+  echo "FAIL: not connected over binary within 30 s"
+  "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1
+  "$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep 'resource-id="pair-error"' | sed -E 's/.*text="([^"]*)".*/  phone says: \1/' || true
+  grep -vE " GET /assets/" "$work/serve.log" | tail -5 | sed -E 's/token=[^ &]+/token=…/'
+  exit 1
+fi
+# The keyboard's window on screen (input_method's mInputShown stayed true with the keyboard gone; checked both ways).
+keyboard_up() { sleep 1; "$adb" shell dumpsys window InputMethod | grep -q "isOnScreen=true"; }
+keyboard_up && { echo "FAIL: the keyboard is still up after pairing"; exit 1; }
+echo "ok: paired with one tap, connected over binary, home lists acme-api, keyboard closed"
+
+tap space-spandroid
+tap terminal-
+sleep 2
+"$adb" shell input text "'touch hm-typed'"
+"$adb" shell input keyevent 66
+for _ in $(seq 1 15); do [ -e "$work/home/src/acme-api/hm-typed" ] && break; sleep 1; done
+[ -n "$shot" ] && "$adb" exec-out screencap -p > "${shot%.png}-terminal.png"
+[ -e "$work/home/src/acme-api/hm-typed" ] || { echo "FAIL: typing in the terminal did not reach the computer"; exit 1; }
+echo "ok: typed in the terminal and the command ran on the computer"
+
+# The keys a phone keyboard lacks sit above the keyboard while it is up: the keyboard's top is its window's top plus the
+# content inset it gives (dumpsys window InputMethod: frame=[0,top]…, mGivenContentInsets=[0,inset]…).
+keyboard_up || { echo "FAIL: the keyboard is not up in the terminal"; exit 1; }
+# The bar follows the keyboard as it opens, so give it a few seconds (one run read it mid-way: bottom 2326, top 1517).
+above=""
+for _ in 1 2 3 4 5; do
+  ime=$("$adb" shell dumpsys window InputMethod)
+  top=$(echo "$ime" | grep -oE ' frame=\[0,[0-9]+\]' | head -1 | grep -oE '[0-9]+\]$' | tr -d ']')
+  inset=$(echo "$ime" | grep -oE 'mGivenContentInsets=\[0,[0-9]+\]' | head -1 | grep -oE '[0-9]+\]$' | tr -d ']')
+  "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1
+  esc=$("$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep -F 'resource-id="key-esc"' | sed -E 's/.*bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,([0-9]+)\]".*/\1/')
+  [ -n "$esc" ] && [ "$esc" -le $((top + inset)) ] && { above=1; break; }
+  sleep 1
+done
+[ -n "$above" ] || { echo "FAIL: the key bar (bottom $esc) is under the keyboard (top $((top + inset)))"; exit 1; }
+echo "ok: the key bar sits above the keyboard"
+
+# The terminal reports idle, then blocked (OSC 7501, as agents do): the app plays Herdr's request sound. Android logs
+# each player the app starts (dumpsys audio, "playback activity"); the emulator has no audio out, so this is the
+# player starting, not a sound heard.
+printf '%s\n' "printf '\033]7501;state=idle\033\\\\'; sleep 3; printf '\033]7501;state=blocked\033\\\\'" > "$work/home/src/acme-api/hm-alert.sh"
+uid=$("$adb" shell pm list packages -U "$id" | grep -oE 'uid:[0-9]+' | head -1 | cut -d: -f2)
+# Android keeps earlier runs' players in that log; count only the ones that appear after this point.
+before=$("$adb" shell dumpsys audio | grep -oE "new player piid:[0-9]+ uid/pid:$uid/" | grep -oE 'piid:[0-9]+' | tr '\n' ' ')
+"$adb" shell input text "'sh hm-alert.sh'"
+"$adb" shell input keyevent 66
+played=""
+for _ in $(seq 1 20); do
+  log=$("$adb" shell dumpsys audio)
+  for piid in $(echo "$log" | grep -oE "new player piid:[0-9]+ uid/pid:$uid/" | grep -oE 'piid:[0-9]+'); do
+    case " $before " in *" $piid "*) continue ;; esac
+    echo "$log" | grep -q "player $piid event:started" && played=1
+  done
+  [ -n "$played" ] && break
+  sleep 1
+done
+[ -n "$played" ] || { echo "FAIL: no player started after the terminal became blocked"; "$adb" shell dumpsys audio | grep -E "uid/pid:$uid/" | tail -3; exit 1; }
+echo "ok: a blocked terminal starts the app's sound player"
+
+# Away from the app (the home screen in front), the terminal asks a question: the notification says who asks, where
+# and what, on the loud channel (dumpsys notification: the record's line names its channel and importance, the lines
+# after it the text).
+"$adb" shell input keyevent 3
+sleep 1
+term=$("$hc" ls --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["terminals"][0]["address"])')
+printf '%s\n' "printf '\033]7501;state=working\033\\\\'; sleep 2; printf '\033]7501;state=blocked:kind=question:msg=$(printf 'Which port?' | base64)\033\\\\'" > "$work/home/src/acme-api/hm-ask.sh"
+"$hc" send --force "$term" 'sh hm-ask.sh' >/dev/null
+posted() { "$adb" shell dumpsys notification --noredact | grep -A40 "pkg=$id" | grep -E "$1" >/dev/null; }
+record() { "$adb" shell dumpsys notification --noredact | grep -E "NotificationRecord.*pkg=$id .*tag=$term .*$1" >/dev/null; }
+asked=""
+for _ in $(seq 1 15); do posted "android.text=String \(acme-api › .* · Which port\?\)" && { asked=1; break; }; sleep 1; done
+[ -n "$asked" ] || { echo "FAIL: no notification with where it is and what it asks"; "$adb" shell dumpsys notification --noredact | grep -A40 "pkg=$id" | grep -E "android\.(title|text)|channel" | head -6; exit 1; }
+posted "android.title=String \(.* needs you\)" || { echo "FAIL: the notification does not say who needs you"; exit 1; }
+record "importance=4 .*channel=needs-you" || { echo "FAIL: a question is not on the needs-you channel (heads-up)"; exit 1; }
+[ -n "$shot" ] && "$adb" exec-out screencap -p > "${shot%.png}-notification.png"
+echo "ok: away from the app, a blocked terminal posts a notification with who, where and what"
+
+# A tap on it opens that pane.
+"$adb" shell cmd statusbar expand-notifications
+sleep 1
+"$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1
+xy=$("$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep -F 'needs you' | head -1 |
+  sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/' | awk '{print int(($1+$3)/2), int(($2+$4)/2)}')
+[ -n "$xy" ] || { echo "FAIL: the notification is not in the shade"; exit 1; }
+"$adb" shell input tap $xy
+opened=""
+for _ in $(seq 1 10); do screen_has "resource-id=\"terminal-$term\"" && screen_has 'resource-id="pane-header"' && { opened=1; break; }; sleep 1; done
+[ -n "$shot" ] && "$adb" exec-out screencap -p > "${shot%.png}-opened.png"
+[ -n "$opened" ] || { echo "FAIL: tapping the notification did not open the pane of $term"; exit 1; }
+echo "ok: tapping the notification opens the pane"
+
+# Away again, the terminal finishes: the notification is the quieter kind.
+"$adb" shell input keyevent 3
+sleep 1
+printf '%s\n' "printf '\033]7501;state=working\033\\\\'; sleep 2; printf '\033]7501;state=done\033\\\\'" > "$work/home/src/acme-api/hm-done.sh"
+"$hc" send --force "$term" 'sh hm-done.sh' >/dev/null
+done=""
+for _ in $(seq 1 15); do posted "android.title=String \(.* finished\)" && { done=1; break; }; sleep 1; done
+[ -n "$done" ] || { echo "FAIL: no notification when the terminal finished"; exit 1; }
+record "importance=2 .*channel=finished" || { echo "FAIL: a finished terminal is not on the quiet channel"; exit 1; }
+echo "ok: notifications away from the app: a question with who, where and what opens its pane; a finish is quieter"
+
+# A new space's folder, picked by browsing: home, then src, then beta-web. The terminal starts there (hc ls: its cwd).
+started_in() {
+  for _ in $(seq 1 15); do
+    "$hc" ls --json | python3 -c 'import json,sys; sys.exit(0 if any(t["cwd"].endswith(sys.argv[1]) for t in json.load(sys.stdin)["terminals"]) else 1)' "$1" && return 0
+    sleep 1
+  done
+  return 1
+}
+# The pane's Back until home shows (a tap right as the app comes to the front was seen to be lost).
+to_home() {
+  for _ in 1 2 3 4 5; do screen_has 'resource-id="new"' && return 0; tap back; sleep 1; done
+  echo "FAIL: Back does not lead home"; exit 1
+}
+"$adb" shell am start -n "$activity" >/dev/null
+sleep 1
+to_home # from the pane the notification opened
+tap new
+# New space opens on the folder browser; the program comes after the folder.
+for _ in $(seq 1 10); do screen_has 'resource-id="folder-search"' && break; sleep 1; done
+screen_has 'resource-id="folder-search"' || { echo "FAIL: New space does not open on the folder browser"; exit 1; }
+screen_has 'resource-id="new-terminal"' && { echo "FAIL: the program shows before a folder is picked"; exit 1; }
+tap folder-src
+for _ in $(seq 1 10); do screen_has 'resource-id="crumb-1"' && break; sleep 1; done
+# A row answers the first tap while the search still has the keyboard up.
+tap folder-search
+"$adb" shell input text beta
+for _ in $(seq 1 10); do screen_has 'resource-id="folder-acme-api"' || break; sleep 1; done
+tap folder-beta-web
+sleep 2
+screen_has 'resource-id="crumb-2"' || { echo "FAIL: a folder row needs a second tap while the keyboard is up"; exit 1; }
+"$adb" shell am force-stop com.google.android.inputmethod.latin # its floating bar can sit over the sheet
+tap folder-use
+tap new-terminal
+started_in /src/beta-web || { echo "FAIL: the new space did not start in the folder picked"; exit 1; }
+echo "ok: a new space starts in the folder picked by browsing"
+
+# A typed folder that doesn't exist gets a card; Create folder makes it on the computer, and the space starts there.
+to_home
+tap new
+tap folder-search
+"$adb" shell input text "'~/src/gamma-new'"
+for _ in $(seq 1 10); do screen_has "doesn't exist" && break; sleep 1; done
+screen_has "doesn't exist" || { echo "FAIL: the app did not say the typed folder doesn't exist"; exit 1; }
+[ -e "$work/home/src/gamma-new" ] && { echo "FAIL: the folder was made before Create folder"; exit 1; }
+[ -n "$shot" ] && "$adb" exec-out screencap -p > "${shot%.png}-missing.png"
+tap folder-create
+for _ in $(seq 1 10); do [ -d "$work/home/src/gamma-new" ] && break; sleep 1; done
+[ -d "$work/home/src/gamma-new" ] || { echo "FAIL: Create folder did not make the folder"; exit 1; }
+tap new-terminal
+started_in /src/gamma-new || { echo "FAIL: the new space did not start in the folder made"; exit 1; }
+echo "PASS: notifications, and new spaces in a folder browsed to or made on the computer"

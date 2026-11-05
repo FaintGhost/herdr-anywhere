@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notification channel names, the words of src/strings (scripts/check-strings.sh compares them). -->
+<resources>
+    <string name="channel_needs_you">An agent needs you</string>
+    <string name="channel_needs_you_detail">It is waiting for an answer or an approval.</string>
+    <string name="channel_finished">An agent finished</string>
+    <string name="channel_finished_detail">Only when you are not looking at it.</string>
+</resources>

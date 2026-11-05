@@ -1,0 +1,85 @@
+// The steps of e2e/live.test.ts, run inside an app so they get the live network (a test file's own fetch has none).
+// Each step adds a line; the test reads them.
+import { mount, signal, Text, View } from 'nsh'
+import { Linker, pairWith, parsePairLink } from '../src/link.ts'
+import { Store } from '../src/store.ts'
+import { PAIR } from './pair.ts'
+
+const lines = signal<string[]>([])
+const say = (s: string) => lines.update((l) => [...l, s])
+const until = async (cond: () => boolean, what: string, ms = 10000) => {
+  const end = Date.now() + ms
+  while (!cond()) {
+    if (Date.now() > end) throw new Error(`timed out waiting for ${what}`)
+    await new Promise((r) => setTimeout(r, 50))
+  }
+}
+const memory = new Map<string, string>()
+const linker = () => new Linker({ load: async (k) => memory.get(k) ?? null, save: (k, v) => memory.set(k, v), remove: (k) => memory.delete(k) })
+const storeFor = (l: Linker) => new Store({ pipe: () => l.pipe() })
+
+async function run() {
+  const p = parsePairLink(PAIR)
+  if (!p) throw new Error('no pairing link')
+  const link = await pairWith(p, 'e2e phone')
+  say(`paired: token ${link.token.length > 20 ? 'long' : 'short'}`)
+  say(`second use: ${await pairWith(p, 'e2e phone').then(() => 'paired', (e) => e.message)}`)
+
+  const l = linker()
+  l.set(link)
+  const store = storeFor(l)
+  await store.connect()
+  say(`connected: ${store.conn.get()} generation ${store.hello!.generation}`)
+  const r = await store.newSpace({ name: 'e2e', argv: ['sh', '-c', 'echo hm-e2e-$((6*7)); exec sh'] })
+  let out = ''
+  const dec = new TextDecoder()
+  const stream = await store.attach(r.terminal, { cols: 80, rows: 24 }, { data: (b) => { out += dec.decode(b) }, close: () => {} })
+  await until(() => out.includes('hm-e2e-42'), 'the command output').catch((e) => { throw new Error(`${e.message}; got ${JSON.stringify(out.slice(-300))}; term ${JSON.stringify(store.terms.get(r.terminal))}`) })
+  say('ran: hm-e2e-42')
+  stream.write('echo typed-$((40+2))\r')
+  await until(() => out.includes('typed-42'), 'the typed command output')
+  say('typed: typed-42')
+  stream.detach()
+  const other = storeFor(l)
+  await other.connect()
+  await until(() => other.model.spaces.some((s) => s.name === 'e2e'), 'the space on another screen')
+  say('other screen: e2e')
+  await store.exec('mkdir -p "$HOME/proj" && cd "$HOME/proj" && git init -q && git checkout -qb feature/x && git -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init')
+  const g = await store.newSpace({ folder: `${store.home}/proj` })
+  await until(() => !!store.model.folderInfo.get(g.terminal)?.branch, 'the git branch', 8000).catch((e) => {
+    throw new Error(`${e.message}; term ${JSON.stringify(store.terms.get(g.terminal)?.foreground)} pane ${store.model.paneOf(g.terminal)}`)
+  })
+  say(`git: ${store.model.folderInfo.get(g.terminal)!.branch}`)
+  // A terminal started outside the app, in a space of its own: adopted, and its branch shows too.
+  const ext = await (store as any).call('terminal.run', { argv: [], cwd: `${store.home}/proj`, keep: true, labels: { 'herdr.space': 'spext', 'herdr.tab': 'tbext' } })
+  await until(() => !!store.model.paneOf(ext.address), 'adoption')
+  await until(() => !!store.model.folderInfo.get(ext.address)?.branch, 'the adopted branch', 8000).catch((e) => {
+    throw new Error(`${e.message}; term ${JSON.stringify(store.terms.get(ext.address)?.foreground)} cwd ${store.terms.get(ext.address)?.cwd}`)
+  })
+  say(`adopted git: ${store.model.folderInfo.get(ext.address)!.branch}`)
+  // The same terminal seen by a screen that connects after it started (the demo's case).
+  const late = storeFor(l)
+  await late.connect()
+  await until(() => !!late.model.folderInfo.get(ext.address)?.branch, 'the branch on a late screen', 8000).catch((e) => {
+    throw new Error(`${e.message}; pane ${late.model.paneOf(ext.address)} term ${JSON.stringify(late.terms.get(ext.address)?.foreground)}`)
+  })
+  say(`late git: ${late.model.folderInfo.get(ext.address)!.branch}`)
+  late.disconnect()
+  store.closeSpace('spext')
+  store.closeSpace(g.space)
+  store.closeSpace(r.space)
+  await until(() => store.terms.get(r.terminal)?.state !== 'live', 'the terminal to end')
+  say(`closed: ${store.terms.get(r.terminal)?.state}`)
+  store.disconnect()
+  other.disconnect()
+
+  const bad = linker()
+  bad.set({ ...link, token: 'not-a-token' })
+  const s3 = storeFor(bad)
+  await s3.connect().catch(() => {})
+  await until(() => s3.conn.get() === 'unpaired', 'unpaired')
+  say(`bad token: ${s3.error.get()}`)
+}
+
+run().then(() => say('done'), (e) => say(`FAIL ${e?.message ?? e}`))
+mount(() => <View class="flex-1"><Each of={lines()}>{(t) => <Text>{t()}</Text>}</Each></View>)

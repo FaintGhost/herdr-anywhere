@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The drawing in assets/brand/herdr-anywhere-full.svg. An adaptive icon is 108dp and the launcher shows the middle 72dp, so 896 units of the drawing are 72dp. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="1344" android:viewportHeight="1344">
+    <group android:translateX="160" android:translateY="160">
+        <path android:fillColor="#FFF2F3F5" android:pathData="M-160 1184 L-160 341 L64 341 A96 96 0 0 1 130 350 A90 90 0 0 1 270 255 A85 85 0 0 1 400 228 C470 225 530 255 590 295 C680 350 750 470 795 590 C820 655 800 720 745 732 C705 742 672 735 650 745 A60 60 0 0 1 670 860 A60 60 0 0 1 650 970 A60 60 0 0 1 640 1090 L630 1184 Z"/>
+        <path android:fillColor="#FF3C4046" android:pathData="M650 470 A175 175 0 0 0 300 470 A125 125 0 0 0 550 470 A60 60 0 0 0 430 470 A37.5 37.5 0 0 1 505 470 A75 75 0 0 1 355 470 A117.5 117.5 0 0 1 590 470 A30 30 0 0 0 650 470 Z"/>
+        <path android:strokeColor="#FF3C4046" android:strokeWidth="28" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M640 535 L685 565 L640 595"/>
+        <path android:strokeColor="#FF3C4046" android:strokeWidth="28" android:strokeLineCap="round" android:pathData="M712 595 L760 595"/>
+        <path android:strokeColor="#FFA7ACB3" android:strokeWidth="40" android:strokeLineCap="round" android:pathData="M716 300 A110 110 0 0 1 776 372"/>
+        <path android:strokeColor="#FFA7ACB3" android:strokeWidth="40" android:strokeLineCap="round" android:pathData="M755 219 A200 200 0 0 1 863 348"/>
+    </group>
+</vector>

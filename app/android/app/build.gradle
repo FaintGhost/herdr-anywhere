@@ -1,0 +1,33 @@
+// The NSH app (../nsh.json) in one full-screen NshView. `nsh package` makes an APK too, but its manifest cannot allow
+// plain http, which the companion on a home network speaks; this host's network security config does.
+plugins { id 'com.android.application' }
+def app = new groovy.json.JsonSlurper().parse(rootProject.file('../nsh.json'))
+android {
+    namespace 'io.jingtao.herdranywhere'
+    compileSdk 36
+    defaultConfig {
+        applicationId app.id
+        minSdk 28
+        targetSdk 35
+        versionCode app.build as int
+        versionName app.version
+        manifestPlaceholders = [appName: app.name]
+        ndk { abiFilters 'arm64-v8a', 'x86_64' }
+    }
+    // A release key: a PKCS12 file in HERDR_ANDROID_KEYSTORE (alias `release`), its password in
+    // HERDR_ANDROID_KEYSTORE_PASSWORD. Without it the debug key signs, for builds that stay on this machine. An APK signed
+    // with another key cannot update one already installed.
+    def keystore = System.getenv('HERDR_ANDROID_KEYSTORE')
+    signingConfigs {
+        if (keystore) release { storeFile file(keystore); storeType 'PKCS12'; storePassword System.getenv('HERDR_ANDROID_KEYSTORE_PASSWORD'); keyAlias 'release'; keyPassword System.getenv('HERDR_ANDROID_KEYSTORE_PASSWORD') }
+    }
+    buildTypes { release { minifyEnabled false; signingConfig keystore ? signingConfigs.release : signingConfigs.debug } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    packaging { jniLibs { useLegacyPackaging false } }
+}
+dependencies {
+    implementation files('libs/nsh.aar')
+    // TailPocketNsh.attach answers the app's tailPocket.* host calls (src/tunnel.ts) on a coroutine scope of ours.
+    implementation project(':tailpocket-nsh')
+    implementation libs.kotlinx.coroutines.android
+}

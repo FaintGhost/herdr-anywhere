@@ -1,0 +1,100 @@
+// The terminal's web page and the app's side of it.
+import { expect, test } from 'nsh/test'
+import { PageChannel, TERMINAL_FONTS, ctrlKey, readPageMessage, terminalPage, webViewScrollable, xtermTheme } from './terminal-page.ts'
+
+test('page messages are read strictly', () => {
+  expect(readPageMessage('{"t":"ready","cols":80,"rows":24}')).toEqual({ t: 'ready', cols: 80, rows: 24 })
+  expect(readPageMessage('{"t":"size","cols":0,"rows":24}')).toBe(undefined)
+  expect(readPageMessage('{"t":"input","data":"ls"}')).toEqual({ t: 'input', data: 'ls' })
+  expect(readPageMessage('{"t":"copied","text":"abc"}')).toEqual({ t: 'copied', text: 'abc' })
+  expect(readPageMessage('{"t":"zoom","size":15}')).toEqual({ t: 'zoom', size: 15 })
+  expect(readPageMessage('{"t":"zoom","size":"big"}')).toBe(undefined)
+  expect(readPageMessage('{"t":"swipe","dir":"next"}')).toEqual({ t: 'swipe', dir: 'next' })
+  expect(readPageMessage('{"t":"swipe","dir":"up"}')).toBe(undefined)
+  expect(readPageMessage('{"t":"link","url":"https://example.com/a"}')).toEqual({ t: 'link', url: 'https://example.com/a' })
+  expect(readPageMessage('{"t":"link","url":"javascript:alert(1)"}')).toBe(undefined)
+  expect(readPageMessage('{"t":"tap"}')).toEqual({ t: 'tap' })
+  expect(readPageMessage('nope')).toBe(undefined)
+})
+
+test('output waits for the page, comes as one message per flush, and a split UTF-8 character arrives whole', () => {
+  const posted: string[] = []
+  const timers: (() => void)[] = []
+  const ch = new PageChannel((m) => posted.push(m), (f) => { timers.push(f); return 0 })
+  const euro = new TextEncoder().encode('€!')
+  ch.write(euro.slice(0, 2))
+  ch.write(euro.slice(2))
+  expect(posted).toEqual([])
+  ch.ready()
+  timers.shift()!()
+  expect(posted.map((p) => JSON.parse(p))).toEqual([{ t: 'write', data: '€!' }])
+})
+
+test('a lost page drops what was queued and waits for ready again', () => {
+  const posted: string[] = []
+  const timers: (() => void)[] = []
+  const ch = new PageChannel((m) => posted.push(m), (f) => { timers.push(f); return 0 })
+  ch.ready()
+  ch.write(new TextEncoder().encode('gone'))
+  ch.lost()
+  ch.write(new TextEncoder().encode('x'))
+  for (const f of timers.splice(0)) f()
+  expect(posted).toEqual([])
+  ch.ready()
+  for (const f of timers.splice(0)) f()
+  expect(posted.map((p) => JSON.parse(p).data)).toEqual(['x'])
+})
+
+test('Ctrl from the key bar turns the next letter into its control character', () => {
+  expect(ctrlKey('c')).toBe('\x03')
+  expect(ctrlKey('C')).toBe('\x03')
+  expect(ctrlKey('[')).toBe('\x1b')
+  expect(ctrlKey(' ')).toBe('\x00')
+  expect(ctrlKey('ab')).toBe('ab')
+})
+
+test("the terminal takes herdr's palette: graphite in the dark, paper in the light", () => {
+  expect(xtermTheme(true).background).toBe('#17191d')
+  expect(xtermTheme(true).blue).toBe('#96b2d7')
+  expect(xtermTheme(true).black).toBe('#45484f')
+  expect(xtermTheme(false).background).toBe('#ffffff')
+  expect(xtermTheme(false).brightWhite).toBe('#111214')
+})
+
+test('the page is self-contained: xterm inline, nothing loaded from anywhere', () => {
+  const html = terminalPage({ dark: true, fontSize: 13, scrollback: 2000 })
+  expect(/<script[^>]*\ssrc=|<link\b|@import|<iframe|<img/i.test(html)).toBe(false)
+  expect(html.includes('"fontSize":13')).toBe(true)
+})
+
+test("the page draws as Herdr's terminal: JetBrains Mono medium with the Nerd symbols, line height 1.15, padding 14 by 12", () => {
+  const html = terminalPage({ dark: true, fontSize: 13, scrollback: 2000 })
+  expect(html.includes("@font-face{font-family:'JetBrains Mono';src:url(data:font/woff;base64,")).toBe(true)
+  expect(html.includes("@font-face{font-family:'Symbols Nerd Font';src:url(data:font/woff;base64,")).toBe(true)
+  expect(html.includes('"lineHeight":1.15')).toBe(true)
+  expect(html.includes('"fontWeight":500')).toBe(true)
+  expect(html.includes('#t{position:absolute;inset:12px 14px}')).toBe(true)
+  // ⏺ ⏸ ✔ ⚠ and the like are text by default: drawn from Noto Sans Symbols 2 in the terminal's colours, not as
+  // Android's colour emoji. Characters that are emoji by default (✅ ⏳) are left out of it and stay emoji.
+  expect(html.includes("@font-face{font-family:'Noto Sans Symbols 2';src:url(data:font/woff;base64,")).toBe(true)
+  expect(TERMINAL_FONTS.startsWith("'JetBrains Mono', 'Symbols Nerd Font', 'Noto Sans Symbols 2', ")).toBe(true)
+  expect(html.includes('fontFamily: cfg.fonts')).toBe(true)
+  // iOS 26 has no ⎿ or Braille of its own: these come with the page (e2e/ios-glyphs.sh draws them on a simulator).
+  expect(html.includes("@font-face{font-family:'Noto Sans Symbols';src:url(data:font/woff;base64,")).toBe(true)
+  expect(html.includes("'Noto Sans Symbols'\", '\\u23bf')")).toBe(true)
+  expect(html.includes("@font-face{font-family:'Noto Sans Mono';src:url(data:font/woff;base64,")).toBe(true)
+  expect(html.includes("'Noto Sans Mono'\", '\\u23ba')")).toBe(true)
+  // Box drawing and blocks are drawn by the WebGL renderer, so they join across rows at that line height.
+  expect(html.includes('WebglAddon')).toBe(true)
+})
+
+test('the keyboard comes up only after a tap in the terminal, not when the page opens', () => {
+  const html = terminalPage({ dark: true, fontSize: 13, scrollback: 2000 })
+  expect(html.includes("setAttribute('inputmode','none')")).toBe(true)
+})
+
+test("on Android the WebView is left scrollable, so the page gets finger moves: drag, pinch and selection need them", () => {
+  // NSH's Android WebView swallows every move while it is not scrollable; the page saw touchstart and touchend only.
+  expect(webViewScrollable('android')).toBe(true)
+  expect(webViewScrollable('ios')).toBe(false)
+})

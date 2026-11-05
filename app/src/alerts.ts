@@ -1,0 +1,33 @@
+// What an alert does beyond the in-app toast. herdr-app (src/window.rs `alert`, src/sound.rs) plays Herdr's sound for
+// every alert, whether or not the person is looking; a phone also posts the system's notification while the app is not
+// in front, where its toast can't be seen.
+import { Signal, type Toast } from './store.ts'
+
+export type AlertKind = 'blocked' | 'done'
+export type Sound = { id: number; kind: AlertKind }
+/** herdr-app gives a sound player this long before it stops it (src/sound.rs PLAYER_LIMIT). */
+export const SOUND_LIMIT_MS = 15_000
+
+export class Alerts {
+  /** The sounds playing now: each is a player on screen until it ends. */
+  readonly sounds = new Signal<Sound[]>([])
+  private next = 0
+  private setTimeout: typeof setTimeout
+
+  constructor(private io: { notify?: (t: Toast, kind: AlertKind) => void; setTimeout?: typeof setTimeout } = {}) {
+    this.setTimeout = io.setTimeout ?? globalThis.setTimeout.bind(globalThis)
+  }
+
+  ring(kind: AlertKind, toast: Toast, front: boolean) {
+    const sound = { id: ++this.next, kind }
+    this.sounds.set([...this.sounds.get(), sound])
+    // A player that never says it ended (a sound that can't load) must not stay forever.
+    this.setTimeout(() => this.ended(sound.id), SOUND_LIMIT_MS)
+    if (!front) this.io.notify?.(toast, kind)
+  }
+
+  ended(id: number) {
+    const left = this.sounds.get().filter((s) => s.id !== id)
+    if (left.length !== this.sounds.get().length) this.sounds.set(left)
+  }
+}

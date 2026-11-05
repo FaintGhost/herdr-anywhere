@@ -1,0 +1,16 @@
+.ref/
+node_modules/
+dist/
+build/
+.nsh/
+*.apk
+*.app
+.DS_Store
+.herdr-presence-*.md
+companion/herdr-anywhere
+companion/herdr-anywhere-macos-*
+app/e2e/shots/
+.claude/
+# Built by app/scripts/tailpocket.sh and app/ios/build.sh
+third_party/tailpocket-8ae23dd/sdk/apple/NSH/NativeShell.xcframework
+.dev/

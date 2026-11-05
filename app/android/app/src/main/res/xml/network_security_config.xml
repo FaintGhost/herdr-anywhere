@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The companion (herdr-anywhere serve) is reached at whatever address the computer has on the person's network, over
+     plain http and ws, so cleartext is allowed to any host. NSH's fetch goes through HttpURLConnection, which Android
+     stops for cleartext without this (2026-10-30, emulator, API 35: "Can't reach 10.0.2.2:…" while TCP got through). -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

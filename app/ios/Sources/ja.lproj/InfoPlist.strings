@@ -1,0 +1,2 @@
+NSCameraUsageDescription = "Herdr Anywhere は herdr-anywhere pair が表示する QR コードをスキャンしてパソコンとペアリングします。";
+NSLocalNetworkUsageDescription = "Herdr Anywhere はネットワーク経由でパソコンの herdr-anywhere に接続します。";

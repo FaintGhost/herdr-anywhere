@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lets the app use TailPocketConnection.baseUrl (plain HTTP to 127.0.0.1; the tunnel itself is encrypted).
+     Android blocks cleartext HTTP by default. Use it from your manifest:
+       <application android:networkSecurityConfig="@xml/tailpocket_network_security_config">
+     or copy this domain-config into your own config. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

@@ -1,0 +1,18 @@
+pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+// TailPocket's Android modules come from its copy of commit 8ae23dd (third_party), with its version catalog, and its
+// phone library from the local Maven repository scripts/tailpocket.sh builds there.
+def tailpocket = file('../../third_party/tailpocket-8ae23dd')
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google(); mavenCentral()
+        maven { url = new File(tailpocket, 'build/android/m2').toURI() }
+    }
+    versionCatalogs { libs { from(files(new File(tailpocket, 'sdk/android/gradle/libs.versions.toml'))) } }
+}
+rootProject.name = 'Herdr'
+include ':app'
+['tailpocket', 'tailpocket-ui', 'tailpocket-nsh'].each {
+    include ":$it"
+    project(":$it").projectDir = new File(tailpocket, "sdk/android/$it")
+}

@@ -1,0 +1,56 @@
+# The iOS app's own host project (xcodegen): NSH's NshAppView in an app of ours, so the app can ship its sounds, answer
+# TailPocket's host calls and ask for the camera. build.sh fills in what is generated (nsh/, and TailPocket's library and
+# NSH's NativeShell.xcframework in the TailPocket copy).
+name: Herdr
+options:
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: io.jingtao.herdranywhere
+    MARKETING_VERSION: "0.1.3"
+    CURRENT_PROJECT_VERSION: "4"
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    GENERATE_INFOPLIST_FILE: NO
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    # NSH ships arm64 slices only (devices and Apple-silicon simulators).
+    EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+packages:
+  # TailPocket's NSH adapter (TailPocketNsh.attach), which brings TailPocket, its QR scanner and NSH's NativeShell.
+  TailPocketNSH:
+    path: ../../third_party/tailpocket-8ae23dd/sdk/apple/NSH
+targets:
+  Herdr:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+      - path: nsh
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: TailPocketNSH
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Herdr Anywhere
+        # Without these iOS tells the app English on a phone in another language (e2e/ios-locale.sh; without them Japanese showed English, 2026-11-02).
+        CFBundleLocalizations: [en, zh-Hans, zh-Hant, es, ko, ja, ru]
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UIApplicationSupportsMultipleScenes: false
+        UIStatusBarStyle: UIStatusBarStyleDefault
+        # On ProMotion iPhones the app's animations move at 120 Hz (NSH's docs; nsh package sets it too).
+        CADisableMinimumFrameDurationOnPhone: true
+        # TailPocket's QR scanner, for pairing.
+        NSCameraUsageDescription: Herdr Anywhere scans the QR code herdr-anywhere pair shows, to pair with your computer.
+        # The companion on the LAN (serve --lan); TailPocket's skill asks for it too.
+        NSLocalNetworkUsageDescription: Herdr Anywhere connects to herdr-anywhere on your computer over your network.
+        # TailPocket's forwarder is plain http on 127.0.0.1 (the tunnel itself is encrypted); this opens nothing else.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]

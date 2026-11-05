@@ -1,0 +1,2 @@
+NSCameraUsageDescription = "Herdr Anywhere 會掃描 herdr-anywhere pair 顯示的 QR 碼，以便和你的電腦配對。";
+NSLocalNetworkUsageDescription = "Herdr Anywhere 會透過你的網路連上電腦裡的 herdr-anywhere。";

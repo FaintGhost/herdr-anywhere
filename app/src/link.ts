@@ -1,0 +1,249 @@
+// The phone's link to one computer: pairing with the companion (`herdr-anywhere pair` prints `<url>/#pair=<code>`, or,
+// under `serve --tailcat`, a TailPocket invite), the token it gives, kept in the app's storage, and the WebSocket pipe
+// to herdr-core it opens: at the companion's address, or through TailPocket's forwarder on 127.0.0.1.
+import type { Pipe } from './hc/client.ts'
+import { SocketPipe, socketUrl, type Enc } from './hc/ws.ts'
+import { Signal } from './store.ts'
+import type { FolderApi, Listing, Missing } from './model/folders.ts'
+import { t as tr, type Key } from './strings/index.ts'
+
+/** `via: 'tailpocket'`: the computer is reached through TailPocket, which keeps its own link (with the phone's key). */
+export type Link = { url: string; token: string; device: string; name: string; enc: Enc; via?: 'tailpocket' }
+export type PairLink = { url: string; code: string }
+
+export function parsePairLink(text: string): PairLink | null {
+  const m = /^(https?:\/\/[^\s/#?]+)[^\s#]*#pair=([A-Za-z0-9_-]+)$/.exec(text.trim())
+  return m ? { url: m[1], code: m[2] } : null
+}
+
+const host = (url: string) => url.replace(/^https?:\/\//, '')
+
+export async function pairWith(p: PairLink, device: string, fetcher: typeof fetch = fetch): Promise<Link> {
+  let r: Response
+  try {
+    r = await fetcher(`${p.url}/api/pair`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: p.code, device }) })
+  } catch {
+    throw new Error(tr('cantReachHost', { host: host(p.url) }))
+  }
+  if (r.status === 401) throw new Error(tr('codeWrong'))
+  if (r.status === 410) throw new Error(tr('codeExpired'))
+  if (r.status === 429) throw new Error(tr('tooManyCodes'))
+  const body: any = await r.json().catch(() => ({}))
+  if (!r.ok || typeof body.token !== 'string') throw new Error(body.error ? tr('refusedBecause', { reason: body.error }) : tr('refusedStatus', { status: r.status }))
+  return { url: p.url, token: body.token, device: body.device ?? '', name: body.name ?? host(p.url), enc: 'bin' }
+}
+
+/** TailPocket on the phone (src/tunnel.ts; a fake in tests). Failures carry TailPocket's code (its docs/BRIDGE.md). */
+/** How the tunnel reaches the computer now, as Tailcat measured it; `unknown` when it could not tell. */
+export type Route = { route: 'direct' } | { route: 'relay'; relay?: string } | { route: 'unknown' }
+
+export type Tunnel = {
+  /** Pairs with the computer that showed `invite` and keeps its link; resolves with the computer's answer. */
+  pair: (invite: string, device: string) => Promise<string>
+  /** The text of a QR code, from the camera. */
+  scan: () => Promise<string>
+  /** Opens the tunnel to the paired computer: `baseUrl` is `http://127.0.0.1:<port>`, which ends at the companion. */
+  connect: () => Promise<Opened>
+  forget: () => void
+}
+
+/** The invite `herdr-anywhere pair` shows under `serve --tailcat` (companion/internal/tailcat Prefix), within `text`. */
+export function parseInvite(text: string): string | null {
+  return /(?:^|\s)(herdr1:[A-Za-z0-9_-]+)(?:\s|$)/.exec(text)?.[1] ?? null
+}
+
+/** TailPocket's failure code: its `code`, or, from the native bridge through NSH's host.call, the message. */
+export const tunnelCode = (e: any): string => (/^[a-z-]+$/.test(e?.code ?? '') ? e.code : String(e?.message ?? e))
+
+const TUNNEL_REFUSED: Record<string, Key> = {
+  expired: 'inviteExpired',
+  unreachable: 'tunnelUnreachable',
+  'invalid-invite': 'inviteInvalid',
+  denied: 'tunnelDenied',
+}
+
+/** Pairs through TailPocket: the companion's answer (its Payload) is what `POST /api/pair` returns. */
+export async function pairThrough(tunnel: Tunnel, invite: string, device: string): Promise<Link> {
+  let answer: string
+  try {
+    answer = await tunnel.pair(invite, device)
+  } catch (e) {
+    const code = tunnelCode(e)
+    throw new Error(TUNNEL_REFUSED[code] ? tr(TUNNEL_REFUSED[code]) : tr('tunnelFailed', { code }))
+  }
+  let body: any = null
+  try { body = JSON.parse(answer) } catch {}
+  if (typeof body?.token !== 'string') throw new Error(tr('noToken'))
+  return { url: 'tailpocket:', via: 'tailpocket', token: body.token, device: body.device ?? '', name: body.name ?? tr('computer'), enc: 'bin' }
+}
+
+export type LinkerIO = {
+  load: (k: string) => Promise<string | null>
+  save: (k: string, v: string) => void
+  remove: (k: string) => void
+  socket?: (url: string, enc: Enc) => Pipe
+  tunnel?: Tunnel
+}
+
+type Opened = { baseUrl: string; close: () => void; path?: () => Promise<Route> }
+/** A tunnel being opened, and once open, the tunnel. */
+type Tunnelling = { opening: Promise<Opened>; open?: Opened }
+
+export class Linker {
+  readonly link = new Signal<Link | null>(null)
+  /** The TailPocket tunnel every pipe uses, until its forwarder stops answering. */
+  private tunnel?: Tunnelling
+  constructor(private io: LinkerIO) {}
+
+  async load() {
+    const v = await this.io.load('link')
+    if (!v) return
+    try {
+      const l = JSON.parse(v)
+      if (typeof l.url === 'string' && typeof l.token === 'string') this.link.set({ enc: 'bin', device: '', name: host(l.url), ...l })
+    } catch {}
+  }
+
+  set(l: Link) {
+    this.dropTunnel(this.tunnel)
+    this.io.save('link', JSON.stringify(l))
+    this.link.set(l)
+  }
+
+  forget() {
+    this.dropTunnel(this.tunnel)
+    if (this.link.get()?.via === 'tailpocket') this.io.tunnel?.forget()
+    this.io.remove('link')
+    this.link.set(null)
+  }
+
+  /** A pipe to herdr-core through the companion; binary that does not get through moves the link to base64. */
+  pipe(): Pipe {
+    const l = this.link.get()
+    if (!l) throw new Error(tr('notPaired'))
+    const open = this.io.socket ?? ((url, enc) => new SocketPipe(url, enc))
+    const outer: Pipe = { send: () => {}, close: () => {} }
+    const closed = (r: string) => {
+      if (r === 'binary-unsupported' && l.enc === 'bin' && this.link.get() === l) this.set({ ...l, enc: 'b64' })
+      outer.onClose?.(r)
+    }
+    if (l.via !== 'tailpocket') {
+      const inner = open(socketUrl(l.url, l.token, l.enc), l.enc)
+      inner.onBytes = (b) => outer.onBytes?.(b)
+      inner.onClose = closed
+      outer.send = (b) => inner.send(b)
+      outer.close = () => inner.close()
+      return outer
+    }
+    // Through TailPocket: the socket opens once the tunnel is up, and bytes sent before then wait. A socket that closes
+    // unanswered means the forwarder no longer reaches the computer (the phone slept, or the computer restarted its
+    // node): that tunnel is closed, and the store's retry opens a new one, as TailPocket advises.
+    if (!this.io.tunnel) throw new Error(tr('noTunnel'))
+    const t = (this.tunnel ??= this.tunnelling(this.io.tunnel))
+    let inner: Pipe | undefined
+    let ended = false
+    const queue: Uint8Array[] = []
+    outer.send = (b) => { if (inner) inner.send(b); else if (!ended) queue.push(b) }
+    outer.close = () => {
+      if (inner) return inner.close()
+      if (!ended) { ended = true; outer.onClose?.('closed') }
+    }
+    t.opening.then((c) => {
+      if (ended) return
+      let heard = false
+      const s = (inner = open(socketUrl(c.baseUrl, l.token, l.enc), l.enc))
+      s.onBytes = (b) => { heard = true; outer.onBytes?.(b) }
+      s.onClose = (r) => {
+        if (r === 'network' && !heard) this.dropTunnel(t)
+        closed(r)
+      }
+      for (const b of queue.splice(0)) s.send(b)
+    }, () => {
+      if (this.tunnel === t) this.tunnel = undefined
+      if (!ended) { ended = true; outer.onClose?.('tunnel') }
+    })
+    return outer
+  }
+
+  /** How the tunnel travels right now; null for a link with no tunnel. Never a guess: `unknown` when it cannot tell. */
+  async path(): Promise<Route | null> {
+    const l = this.link.get()
+    if (!l || l.via !== 'tailpocket') return null
+    if (!this.io.tunnel) return { route: 'unknown' }
+    const t = (this.tunnel ??= this.tunnelling(this.io.tunnel))
+    try {
+      const r = await (await t.opening).path?.()
+      if (r?.route === 'direct') return { route: 'direct' }
+      if (r?.route === 'relay') return r.relay ? { route: 'relay', relay: r.relay } : { route: 'relay' }
+    } catch {
+      if (!t.open && this.tunnel === t) this.tunnel = undefined
+    }
+    return { route: 'unknown' }
+  }
+
+  /** The companion's address for its http calls: the link's, or the tunnel's that the pipes use. */
+  async baseUrl(): Promise<string> {
+    const l = this.link.get()
+    if (!l) throw new Error(tr('notPaired'))
+    if (l.via !== 'tailpocket') return l.url
+    if (!this.io.tunnel) throw new Error(tr('noTunnel'))
+    const t = (this.tunnel ??= this.tunnelling(this.io.tunnel))
+    try {
+      return (await t.opening).baseUrl
+    } catch (e) {
+      if (this.tunnel === t) this.tunnel = undefined
+      throw e
+    }
+  }
+
+  private tunnelling(tunnel: Tunnel): Tunnelling {
+    const t: Tunnelling = { opening: tunnel.connect() }
+    t.opening.then((c) => { if (this.tunnel === t) t.open = c; else c.close() }, () => {})
+    return t
+  }
+
+  private dropTunnel(t: Tunnelling | undefined) {
+    if (!t || t !== this.tunnel) return
+    this.tunnel = undefined
+    t.open?.close()
+  }
+}
+
+/** The companion's own version, from its `/api/info`; '' when it cannot say. */
+export async function companionVersion(linker: Linker, fetcher: typeof fetch = fetch): Promise<string> {
+  try {
+    const r = await fetcher(`${await linker.baseUrl()}/api/info`)
+    const body: any = r.ok ? await r.json() : {}
+    return typeof body.version === 'string' ? body.version : ''
+  } catch {
+    return ''
+  }
+}
+
+/** The companion's folder calls (companion/README.md): a folder's subfolders, and making one after the person asked. */
+export function folderApi(linker: Linker, fetcher: typeof fetch = fetch): FolderApi {
+  const call = async (path: string, init?: RequestInit) => {
+    const token = linker.link.get()?.token ?? ''
+    let r: Response
+    try {
+      r = await fetcher(`${await linker.baseUrl()}${path}`, { ...init, headers: { authorization: `Bearer ${token}`, ...(init?.body ? { 'content-type': 'application/json' } : {}) } })
+    } catch {
+      throw new Error(tr('cantReachComputer'))
+    }
+    const body: any = await r.json().catch(() => ({}))
+    return { r, body }
+  }
+  return {
+    async list(path, hidden) {
+      const { r, body } = await call(`/api/folders?path=${encodeURIComponent(path)}${hidden ? '&hidden=1' : ''}`)
+      if (r.status === 404 && body.missing) return { missing: true, path: body.path, existing: body.existing } as Missing
+      if (!r.ok) throw new Error(body.error ?? tr('refusedStatus', { status: r.status }))
+      return body as Listing
+    },
+    async create(path) {
+      const { r, body } = await call('/api/folders', { method: 'POST', body: JSON.stringify({ path }) })
+      if (!r.ok) throw new Error(body.error ?? tr('refusedStatus', { status: r.status }))
+      return body.path
+    },
+  }
+}

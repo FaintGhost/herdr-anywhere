@@ -1,0 +1,2 @@
+NSCameraUsageDescription = "Herdr Anywhere 通过扫描 herdr-anywhere pair 显示的二维码和你的电脑配对。";
+NSLocalNetworkUsageDescription = "Herdr Anywhere 通过你的网络连接电脑上的 herdr-anywhere。";

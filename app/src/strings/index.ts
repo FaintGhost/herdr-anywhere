@@ -1,0 +1,76 @@
+// The app's words in seven languages, picked by the phone's language. `t` reads NSH's `locale`, so it follows a change.
+// Spans, dates and lists are written here: NSH's runtime has Intl.NumberFormat and DateTimeFormat only (measured
+// 2026-11-02, `nsh test` on 0.3.0: no PluralRules, RelativeTimeFormat or ListFormat).
+import { locale } from 'nsh'
+import { en } from './en.ts'
+import { es } from './es.ts'
+import { ja } from './ja.ts'
+import { ko } from './ko.ts'
+import { ru } from './ru.ts'
+import { zhHans } from './zh-Hans.ts'
+import { zhHant } from './zh-Hant.ts'
+
+export type Lang = 'en' | 'zh-Hans' | 'zh-Hant' | 'es' | 'ko' | 'ja' | 'ru'
+export const LANGS: Lang[] = ['en', 'zh-Hans', 'zh-Hant', 'es', 'ko', 'ja', 'ru']
+export type Key = keyof typeof en
+type Forms = { one?: string; few?: string; many?: string; other?: string }
+export type Table = Record<Key, string | Forms>
+export const TABLES: Record<Lang, Table> = { en, 'zh-Hans': zhHans, 'zh-Hant': zhHant, es, ko, ja, ru }
+
+/** The table for a BCP 47 tag: Chinese by script or region; a language the app doesn't have is English. */
+export function langFor(tag: string): Lang {
+  const t = tag.replace(/_/g, '-').toLowerCase()
+  if (/^zh(-|$)/.test(t)) return /-hant(-|$)/.test(t) || (!/-hans(-|$)/.test(t) && /-(tw|hk|mo)(-|$)/.test(t)) ? 'zh-Hant' : 'zh-Hans'
+  const base = t.split('-')[0] as Lang
+  return (['es', 'ko', 'ja', 'ru'] as Lang[]).includes(base) ? base : 'en'
+}
+
+export const lang = (): Lang => langFor(locale())
+
+/** Which plural form a count takes. */
+export function plural(l: Lang, n: number): 'one' | 'few' | 'many' | 'other' {
+  if (l === 'en' || l === 'es') return n === 1 ? 'one' : 'other'
+  if (l !== 'ru') return 'other'
+  const ten = n % 10, hundred = n % 100
+  if (ten === 1 && hundred !== 11) return 'one'
+  return ten >= 2 && ten <= 4 && !(hundred >= 12 && hundred <= 14) ? 'few' : 'many'
+}
+
+/** The word in the phone's language, its blanks filled in; a word that counts picks its form by `vars.n`. */
+export function t(key: Key, vars?: Record<string, string | number>): string {
+  const l = lang()
+  const value = TABLES[l][key]
+  const text = typeof value === 'string' ? value : value[plural(l, Number(vars?.n ?? 0))] ?? ''
+  return text.replace(/\{(\w+)\}/g, (all, name) => (vars && name in vars ? String(vars[name]) : all))
+}
+
+export type Unit = 'm' | 'h' | 'd'
+export type Formats = {
+  /** How a day of a month is written; `month` from 0. */
+  monthDay: (month: number, day: number) => string
+  /** A span of time, short: under a minute when `n` is 0. */
+  span: (unit: Unit, n: number) => string
+  listSep: string
+}
+
+const units = (u: Record<Unit, string>, under: string) => (unit: Unit, n: number) => (unit === 'm' && n < 1 ? under : `${n}${u[unit]}`)
+const CJK_DAY = (month: number, day: number) => `${month + 1}月${day}日`
+const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const ES_MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+const RU_MONTHS = ['янв.', 'февр.', 'мар.', 'апр.', 'мая', 'июн.', 'июл.', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.']
+
+const FORMATS: Record<Lang, Formats> = {
+  en: { monthDay: (m, d) => `${EN_MONTHS[m]} ${d}`, span: units({ m: 'm', h: 'h', d: 'd' }, '<1m'), listSep: ', ' },
+  'zh-Hans': { monthDay: CJK_DAY, span: units({ m: '分钟', h: '小时', d: '天' }, '<1分钟'), listSep: '，' },
+  'zh-Hant': { monthDay: CJK_DAY, span: units({ m: '分鐘', h: '小時', d: '天' }, '<1分鐘'), listSep: '，' },
+  es: { monthDay: (m, d) => `${d} ${ES_MONTHS[m]}`, span: units({ m: ' min', h: ' h', d: ' d' }, '<1 min'), listSep: ', ' },
+  ko: { monthDay: (m, d) => `${m + 1}월 ${d}일`, span: units({ m: '분', h: '시간', d: '일' }, '1분 미만'), listSep: ', ' },
+  ja: { monthDay: CJK_DAY, span: units({ m: '分', h: '時間', d: '日' }, '1分未満'), listSep: '、' },
+  ru: { monthDay: (m, d) => `${d} ${RU_MONTHS[m]}`, span: units({ m: ' мин', h: ' ч', d: ' д' }, '<1 мин'), listSep: ', ' },
+}
+
+export const formatsFor = (l: Lang): Formats => FORMATS[l]
+export const formats = (): Formats => FORMATS[lang()]
+
+/** Parts of a screen reader's sentence, in the phone's language. */
+export const listOf = (...parts: string[]): string => parts.filter(Boolean).join(formats().listSep)

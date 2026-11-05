@@ -1,0 +1,13 @@
+{
+  "name": "Herdr fixture",
+  "id": "io.jingtao.herdranywhere.fixture",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": {
+    "network": { "hosts": ["*"] },
+    "clipboard": true,
+    "statusBar": true,
+    "webview": { "hosts": [] },
+    "host": ["page.*"]
+  }
+}

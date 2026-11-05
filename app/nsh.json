@@ -1,0 +1,110 @@
+{
+  "name": "Herdr Anywhere",
+  "id": "io.jingtao.herdranywhere",
+  "version": "0.1.3",
+  "build": 4,
+  "appearance": "system",
+  "theme": {
+    "cssVars": {
+      "theme": {
+        "font-sans": "Geist, sans-serif",
+        "font-mono": "JetBrains Mono, monospace",
+        "radius": "8px"
+      },
+      "light": {
+        "background": "#ffffff",
+        "foreground": "#1b1b1e",
+        "card": "#ffffff",
+        "card-foreground": "#1b1b1e",
+        "popover": "#ffffff",
+        "popover-foreground": "#1b1b1e",
+        "primary": "#1b1b1e",
+        "primary-foreground": "#ffffff",
+        "secondary": "#f6f6f6",
+        "secondary-foreground": "#1b1b1e",
+        "muted": "#f6f6f6",
+        "muted-foreground": "#69696a",
+        "accent": "#ececec",
+        "accent-foreground": "#1b1b1e",
+        "destructive": "#c93c2c",
+        "border": "#e2e2e2",
+        "input": "#d9d9d9",
+        "ring": "#1f62d0",
+        "sidebar": "#f1f1ee",
+        "sidebar-foreground": "#969698",
+        "sidebar-accent": "#f3f3f3",
+        "sidebar-accent-foreground": "#1b1b1e",
+        "sidebar-primary": "#fafaf9",
+        "sidebar-primary-foreground": "#1b1b1e",
+        "sidebar-border": "#e2e2e2",
+        "sidebar-ring": "#1f62d0",
+        "chart-1": "#9a6700",
+        "chart-2": "#c93c2c",
+        "chart-3": "#2f6fe4",
+        "chart-4": "#a8a8aa",
+        "chart-5": "#1f62d0"
+      },
+      "dark": {
+        "background": "#17191d",
+        "foreground": "#eeeeef",
+        "card": "#17191d",
+        "card-foreground": "#eeeeef",
+        "popover": "#25272b",
+        "popover-foreground": "#eeeeef",
+        "primary": "#eeeeef",
+        "primary-foreground": "#17191d",
+        "secondary": "#2c2e31",
+        "secondary-foreground": "#eeeeef",
+        "muted": "#2c2e31",
+        "muted-foreground": "#98999b",
+        "accent": "#2d2f33",
+        "accent-foreground": "#eeeeef",
+        "destructive": "#f0705f",
+        "border": "#2f3135",
+        "input": "#3a3c40",
+        "ring": "#96b2d7",
+        "sidebar": "#101114",
+        "sidebar-foreground": "#696a6d",
+        "sidebar-accent": "#232529",
+        "sidebar-accent-foreground": "#eeeeef",
+        "sidebar-primary": "#131518",
+        "sidebar-primary-foreground": "#eeeeef",
+        "sidebar-border": "#2f3135",
+        "sidebar-ring": "#96b2d7",
+        "chart-1": "#e5c07b",
+        "chart-2": "#f0705f",
+        "chart-3": "#76a8ff",
+        "chart-4": "#696a6d",
+        "chart-5": "#96b2d7"
+      }
+    }
+  },
+  "statusBar": {
+    "foreground": "auto"
+  },
+  "capabilities": {
+    "network": {
+      "hosts": [
+        "*"
+      ]
+    },
+    "clipboard": true,
+    "openUrl": {
+      "schemes": [
+        "https",
+        "http"
+      ]
+    },
+    "statusBar": true,
+    "webview": {
+      "hosts": []
+    },
+    "host": [
+      "page.*",
+      "tailPocket.*"
+    ]
+  },
+  "web": {
+    "host": "./web-host.js"
+  }
+}

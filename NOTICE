@@ -1,0 +1,64 @@
+Herdr Anywhere
+
+Herdr Anywhere's own code is under the MIT License (see LICENSE). This product includes material from other projects,
+under their licenses.
+
+Herdr desktop app (https://github.com/herdrdev/herdr-app), Apache License 2.0
+  - the program icons in app/assets/icons (from defaults/icons)
+  - the UI icons in app/assets/ui (from defaults/frame and defaults/mods)
+  - the program table in app/src/data/programs.json (from defaults/programs.json),
+    and the files app/scripts/gen-assets.mjs generates from it and from the icons in app/src/data
+  - the alert sounds in app/assets/sounds (from assets/sounds)
+  - the space colours, status marks and layout the screens follow (from defaults/mods and src/settings.rs)
+  The copied files are unchanged.
+
+NSH (https://nsh.dev), Apache License 2.0
+  - the runtime that the Android, iOS and web builds embed
+
+Geist, Copyright 2024 The Geist Project Authors, SIL Open Font License 1.1
+  - app/assets/fonts/Geist.ttf (license: app/assets/fonts/OFL.txt)
+
+JetBrains Mono, Copyright 2020 The JetBrains Mono Project Authors, SIL Open Font License 1.1
+  - app/assets/fonts/JetBrainsMono-Variable.ttf, and the same font as WOFF in app/assets/fonts and as base64 in
+    app/src/vendor/fonts.ts (license: app/assets/fonts/OFL-JetBrainsMono.txt)
+
+Symbols Nerd Font (https://github.com/ryanoasis/nerd-fonts), MIT License, Copyright (c) 2014 Ryan L McIntyre
+  - app/assets/fonts/SymbolsNerdFont-Subset.woff, cut from herdr-app's assets/fonts/SymbolsNerdFont-Regular.ttf to
+    the Powerline, Seti, Devicons and Octicons ranges, and as base64 in app/src/vendor/fonts.ts
+    (license: app/assets/fonts/LICENSE-SymbolsNerdFont.txt)
+
+Noto Sans Symbols 2, Copyright 2022 The Noto Project Authors, SIL Open Font License 1.1
+  - app/assets/fonts/NotoSansSymbols2-Subset.woff, cut from google/fonts ofl/notosanssymbols2/NotoSansSymbols2-Regular.ttf
+    (Version 2.008) to the code points in app/assets/fonts/NotoSansSymbols2-Subset.unicodes, and as base64 in
+    app/src/vendor/fonts.ts (license: app/assets/fonts/OFL-NotoSansSymbols2.txt)
+
+Noto Sans Symbols, Copyright 2022 The Noto Project Authors, SIL Open Font License 1.1
+  - app/assets/fonts/NotoSansSymbols-Subset.woff, cut from google/fonts ofl/notosanssymbols at wght 400 to the code points
+    in app/assets/fonts/NotoSansSymbols-Subset.unicodes, and as base64 in app/src/vendor/fonts.ts
+    (license: app/assets/fonts/OFL-NotoSansSymbols.txt)
+
+Noto Sans Mono, Copyright 2022 The Noto Project Authors, SIL Open Font License 1.1
+  - app/assets/fonts/NotoSansMono-Subset.woff, cut from google/fonts ofl/notosansmono at wght 400 and wdth 100 to the code
+    points in app/assets/fonts/NotoSansMono-Subset.unicodes, and as base64 in app/src/vendor/fonts.ts
+    (license: app/assets/fonts/OFL-NotoSansMono.txt)
+
+xterm.js 6.0.0, @xterm/addon-fit 0.11.0 and @xterm/addon-webgl 0.19.0, MIT License
+  - app/src/vendor/xterm.ts (license: app/src/vendor/xterm-LICENSE)
+
+The Android and iOS apps include TailPocket at commit 8ae23dd (MIT License, see above), copied into
+third_party/tailpocket-8ae23dd: its phone library (connectmobile, built with gomobile), its Swift package and NSH
+adapter (sdk/apple), its Android modules (sdk/android) and its JavaScript client (sdk/js). The library is built from
+the Go modules listed below for serve --tailcat, and golang.org/x/mobile (BSD 3-Clause License, Copyright 2009 The Go
+Authors). Its Android modules bring AndroidX, Jetpack Compose,
+CameraX and Kotlin's coroutines and serialization (Apache License 2.0) and ZXing (Apache License 2.0).
+
+The companion (companion/) is built with these Go modules:
+  - github.com/coder/websocket, ISC License, Copyright (c) 2025 Coder
+  - github.com/mdp/qrterminal/v3, MIT License, Copyright 2019 Mark Percival
+  - rsc.io/qr, BSD 3-Clause License, Copyright (c) 2009 The Go Authors
+  - golang.org/x/sys and golang.org/x/term, BSD 3-Clause License, Copyright 2009 The Go Authors
+  - TailPocket at commit 8ae23dd, MIT License, Copyright (c) 2026 the tailpocket authors;
+    its Go packages are copied into third_party/tailpocket-8ae23dd with its LICENSE and NOTICE
+  - for serve --tailcat, tailscale.com and github.com/tailscale/tailcat (BSD 3-Clause License, Copyright (c) 2020
+    Tailscale Inc & contributors), github.com/tailscale/wireguard-go (MIT License) and gvisor.dev/gvisor
+    (Apache License 2.0), with the modules they depend on; each module's license is in its source

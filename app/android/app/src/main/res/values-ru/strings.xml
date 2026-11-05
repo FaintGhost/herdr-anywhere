@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notification channel names, the words of src/strings (scripts/check-strings.sh compares them). -->
+<resources>
+    <string name="channel_needs_you">Агент ждёт вас</string>
+    <string name="channel_needs_you_detail">Он ждёт ответа или подтверждения.</string>
+    <string name="channel_finished">Агент закончил</string>
+    <string name="channel_finished_detail">Только когда вы на него не смотрите.</string>
+</resources>
