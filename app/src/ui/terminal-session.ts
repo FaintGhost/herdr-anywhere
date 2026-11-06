@@ -12,7 +12,7 @@ import { t, type Key } from '../strings/index.ts'
 export type SessionState = 'waiting' | 'live' | 'ended' | 'lost'
 /** What fingers did on the page that the app acts on. */
 export type Gestures = { swipe?: (dir: 'next' | 'prev') => void; link?: (url: string) => void
-  selected?: (text: string) => void; tap?: () => void }
+  selected?: (text: string) => void; tap?: () => void; focused?: () => void }
 
 const WHY: Record<string, Key> = {
   exited: 'programExited',
@@ -85,6 +85,7 @@ export class TerminalSession {
     else if (m.t === 'link') this.opts.on?.link?.(m.url)
     else if (m.t === 'selected') this.opts.on?.selected?.(m.text)
     else if (m.t === 'tap') this.opts.on?.tap?.()
+    else if (m.t === 'focused') this.opts.on?.focused?.()
     else if (m.t === 'touched') this.claim()
     else if (m.t === 'away') this.away.set(m.away)
     else if (m.t === 'tail') {

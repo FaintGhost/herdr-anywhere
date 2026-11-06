@@ -61,6 +61,12 @@ export function focusTerminalView(): Promise<unknown> {
   return host.available() ? host.call('page.focusTerminal').catch(() => {}) : Promise.resolve()
 }
 
+/** Asks the system for the keyboard once the page's field has the typing focus. Android shows none for a field a page
+ *  focused on its own, only for one the person touched; the menu's Type in the terminal is a touch outside the page. */
+export function showTerminalKeyboard() {
+  if (host.available()) host.call('page.showKeyboard').catch(() => {})
+}
+
 /** Downloads the Android app and hands it to the system, which asks the person to confirm and refuses a file not signed
  *  with this app's key. "needsPermission": the system's screen for allowing that opened, and the person comes back. */
 export async function installApp(app: { url: string; digest: string; bytes: number }, progress: (done: number) => void): Promise<'installing' | 'needsPermission'> {

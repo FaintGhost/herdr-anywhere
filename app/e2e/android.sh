@@ -112,14 +112,21 @@ for _ in $(seq 1 15); do [ -e "$work/home/src/acme-api/hm-line-two" ] && break; 
 echo "ok: the composer grew from $one to $two px and sent both lines"
 "$adb" shell input keyevent 4
 sleep 1
-tap space-more
-sleep 1
-xy=""; for _ in 1 2 3 4 5; do "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1
-  xy=$("$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep -F 'text="Type in the terminal"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/' | awk '{print int(($1+$3)/2), int(($2+$4)/2)}')
-  [ -n "$xy" ] && break; sleep 1; done
-[ -n "$xy" ] || { echo "FAIL: no Type in the terminal in the menu"; exit 1; }
-"$adb" shell input tap $xy
-sleep 2
+# The menu's Type in the terminal brings the keyboard up itself, with it down before (the back key put it away). adb's
+# typing reaches a focused field with no keyboard on screen, so the keyboard is checked before anything is typed.
+typein() {
+  tap space-more
+  sleep 1
+  xy=""; for _ in 1 2 3 4 5; do "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1
+    xy=$("$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep -F 'text="Type in the terminal"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/' | awk '{print int(($1+$3)/2), int(($2+$4)/2)}')
+    [ -n "$xy" ] && break; sleep 1; done
+  [ -n "$xy" ] || { echo "FAIL: no Type in the terminal in the menu"; exit 1; }
+  "$adb" shell input tap $xy
+  up=""; for _ in 1 2 3 4 5; do keyboard_up && { up=1; break; }; done
+  [ -n "$up" ] || { echo "FAIL: Type in the terminal $1 did not bring the keyboard up"; exit 1; }
+}
+keyboard_up && { echo "FAIL: the back key left the keyboard up"; exit 1; }
+typein "after the back key"
 "$adb" shell input text "'touch hm-typed'"
 "$adb" shell input keyevent 66
 for _ in $(seq 1 15); do [ -e "$work/home/src/acme-api/hm-typed" ] && break; sleep 1; done
@@ -146,6 +153,12 @@ echo "ok: the key bar sits above the keyboard"
 escs=$("$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep -cF 'content-desc="esc"' || true)
 [ "$escs" = 1 ] || { echo "FAIL: $escs Esc keys on screen with the keyboard up"; exit 1; }
 echo "ok: one Esc on screen"
+# The key bar's button puts the keyboard away; the menu brings it back (until 0.1.10 it didn't).
+tap hide-keyboard
+sleep 1
+keyboard_up && { echo "FAIL: the key bar's button left the keyboard up"; exit 1; }
+typein "after the key bar's hide button"
+echo "ok: Type in the terminal brings the keyboard up after the back key and after the key bar's hide button"
 
 # Shift is held from the key row for the next key: Shift then Tab sends back-tab (ESC [ Z), which Claude Code reads as
 # its mode switch. cat -v on the computer writes the line that arrives.

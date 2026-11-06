@@ -286,3 +286,9 @@ test('the phone keeps hold of the last few terminals it left, not all of them', 
   }
   expect(left.map((a) => core.viewers(a))).toEqual([0, 1, 1, 1, 1, 1, 1])
 })
+test('the page having the typing focus is passed on, so the app can ask the system for the keyboard', async () => {
+  let asked = 0
+  const s = new TerminalSession((await setup()).store, 't1', () => {}, (f) => { queueMicrotask(f); return 1 }, { on: { focused: () => { asked++ } } })
+  s.page(JSON.stringify({ t: 'focused' }))
+  expect(asked).toBe(1)
+})

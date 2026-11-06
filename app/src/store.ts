@@ -593,7 +593,8 @@ export class Store {
   }
 
   /** Terminals whose program reports a status, in space, tab, pane order (herdr's `agents()`), and the agents that never
-   *  report one (OpenCode before 2.2 prints no OSC 7501), known by what they run. */
+   *  report one (OpenCode before 2.2 prints no OSC 7501: its packages/tui/src/context/program-status.ts came in
+   *  with anomalyco/opencode#55172, is in the v2.2.0 release and not in v1.19.5; read 2026-11-06), known by what they run. */
   agents(): AgentInfo[] {
     const out: AgentInfo[] = []
     const focusedPane = this.viewingTab ? this.model.focusedPane() : undefined

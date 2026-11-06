@@ -20,7 +20,7 @@ import { FIT_JS, GRAPHEMES_JS, WEBGL_JS, XTERM_CSS, XTERM_JS } from '../vendor/x
 import { MONO_WOFF, NOTO_MONO_WOFF, SYMBOLS1_WOFF, SYMBOLS2_WOFF, SYMBOLS_WOFF } from '../vendor/fonts.ts'
 
 export type PageMessage = { t: 'ready' | 'size'; cols: number; rows: number } | { t: 'input'; data: string } | { t: 'copied'; text: string }
-  | { t: 'selected'; text: string } | { t: 'swipe'; dir: 'next' | 'prev' } | { t: 'link'; url: string } | { t: 'tap' } | { t: 'touched' }
+  | { t: 'selected'; text: string } | { t: 'swipe'; dir: 'next' | 'prev' } | { t: 'link'; url: string } | { t: 'tap' } | { t: 'touched' } | { t: 'focused' }
   | { t: 'away'; away: boolean } | { t: 'tail'; lines: string[] } | { t: 'text'; base: number; lines: string[] }
 export type BarKey = 'esc' | 'tab' | 'btab' | 'enter' | 'ctrlc' | 'up' | 'down' | 'left' | 'right' | 'home' | 'end' | 'pgup' | 'pgdn'
 
@@ -134,7 +134,7 @@ const BOOT = `(function () {
   }
   // The keyboard: only when the app asks. xterm focuses its textarea on every mouse event, so between two asks the
   // textarea says it wants no keyboard.
-  function keyboard() { var ta = term.textarea; if (ta && ta.getAttribute('inputmode') !== 'text') { ta.blur(); ta.setAttribute('inputmode', 'text'); } term.focus(); }
+  function keyboard() { var ta = term.textarea; if (ta && ta.getAttribute('inputmode') !== 'text') { ta.blur(); ta.setAttribute('inputmode', 'text'); } term.focus(); post({ t: 'focused' }); }
   // Where a finger is, in cells of the whole buffer.
   function cell(x, y) {
     var r = term.element.querySelector('.xterm-screen').getBoundingClientRect();
@@ -417,6 +417,7 @@ export function readPageMessage(data: string): PageMessage | undefined {
   if (m?.t === 'swipe' && (m.dir === 'next' || m.dir === 'prev')) return { t: 'swipe', dir: m.dir }
   if (m?.t === 'link' && typeof m.url === 'string' && /^https?:\/\//.test(m.url)) return { t: 'link', url: m.url }
   if (m?.t === 'tap') return { t: 'tap' }
+  if (m?.t === 'focused') return { t: 'focused' }
   if (m?.t === 'touched') return { t: 'touched' }
   if (m?.t === 'away' && typeof m.away === 'boolean') return { t: 'away', away: m.away }
   const strings = (v: any, max: number) => Array.isArray(v) && v.length <= max && v.every((l: any) => typeof l === 'string')

@@ -211,6 +211,8 @@ for (const [width, scale] of [[360, 3], [384, 2.8125], [393, 3], [411, 2.625], [
   await t.send({ t: 'focus' })
   await t.page.waitForTimeout(100)
   check('the app can still ask for the keyboard', await t.asks())
+  // Android shows no keyboard for a field the page focused on its own: the page says it has, and the app asks.
+  check('the page says the terminal has the typing focus', await t.page.evaluate(() => window.posts.some((p) => p.t === 'focused')))
   await t.page.evaluate(() => document.querySelector('.xterm-helper-textarea').blur())
   await t.tap(195, 300)
   check('after the keyboard went away a tap does not bring it back', !(await t.asks()))

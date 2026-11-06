@@ -1,0 +1,27 @@
+name: KeyboardCheck
+options: { deploymentTarget: { iOS: "16.0" } }
+settings:
+  base:
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    SWIFT_VERSION: "5.0"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    ARCHS: arm64
+targets:
+  Host:
+    type: application
+    platform: iOS
+    sources: [host]
+    settings: { base: { PRODUCT_BUNDLE_IDENTIFIER: io.test.keyboardcheck.host } }
+  UITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [tests]
+    dependencies: [{ target: Host }]
+    settings: { base: { PRODUCT_BUNDLE_IDENTIFIER: io.test.keyboardcheck.uitests, TEST_TARGET_NAME: Host } }
+schemes:
+  UITests:
+    build: { targets: { Host: all, UITests: [test] } }
+    test: { targets: [UITests] }

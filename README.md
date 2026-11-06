@@ -125,8 +125,12 @@ ANDROID_SERIAL=emulator-5554 app/e2e/android-update.sh <files listed in the scri
 SIM_UDID=<simulator udid> app/e2e/ios.sh                 # on a simulator
 SIM_UDID=<simulator udid> app/e2e/ios-tailcat.sh         # on a simulator, through TailPocket (needs the internet)
 SIM_UDID=<simulator udid> app/e2e/ios-glyphs.sh          # on an iOS 26 simulator: agents' symbols are not the missing box
+SIM_UDID=<simulator udid> app/e2e/ios-keyboard.sh        # on a simulator: the keyboard comes up for the terminal, with real taps
 app/e2e/user-path.sh <folder with the release files>     # INSTALL.md's steps, without Go
 ```
+
+Every pull request runs the companion, unit, screen and page tests and a secret scan. [CONTRIBUTING.md](CONTRIBUTING.md) says
+which test to write for which change.
 
 ## License
 

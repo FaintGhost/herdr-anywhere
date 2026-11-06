@@ -3,6 +3,7 @@ package io.jingtao.herdranywhere;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.WebView;
 import android.Manifest;
 import android.app.Activity;
@@ -101,7 +102,22 @@ public class MainActivity extends Activity {
       WebView web = webViewIn(view);
       reply.resolve(web != null && web.requestFocus());
     }));
+    // The page focused its field without a touch on it, and WebView asks for no keyboard then (2026-11-06: the input
+    // method's log showed onStartInput for the page and no show request). The page says when its field has the focus.
+    view.handle("page.showKeyboard", (data, reply) -> runOnUiThread(() -> showKeyboard(reply, 0)));
     view.loadAssetBundle("nsh");
+  }
+
+  /** Asks for the keyboard for the terminal's page. Right after the key bar's button put the keyboard away, the input
+   *  method still serves the root view for a moment and refuses (ImeTracker: onFailed at PHASE_CLIENT_VIEW_SERVED,
+   *  2026-11-06), so it asks again every 50 ms for up to a second. */
+  private void showKeyboard(NshHostReply reply, int tries) {
+    WebView web = webViewIn(view);
+    InputMethodManager imm = getSystemService(InputMethodManager.class);
+    if (web == null || imm == null || !web.hasFocus()) { reply.resolve(false); return; }
+    if (imm.showSoftInput(web, 0)) { reply.resolve(true); return; }
+    if (tries >= 20) { reply.resolve(false); return; }
+    web.postDelayed(() -> showKeyboard(reply, tries + 1), 50);
   }
 
   /** Android lets an app start a foreground service only while it is on screen; onResume starts it if it couldn't. */

@@ -1,0 +1,96 @@
+name: Tests
+
+# Every pull request and every push to main runs the tests a contributor runs locally, plus a secret scan over the
+# whole history. The device suites (app/e2e/android*.sh, ios*.sh) and the ones that need a real herdr-core
+# (app/e2e/run.sh, user-path.sh) need an emulator, a simulator or herdr-core, and run on a Mac before a release.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NSH_VERSION: "v0.3.0"
+  # SHA-256 of nsh-macos-arm64.tar.gz; matches the digest GitHub lists for the release asset (checked 2026-11-06).
+  # Update both together.
+  NSH_SHA256: "34fdd2ec43d5e22986723e7633acf9223e365bd5bace1a502b5ae24fb75c266c"
+
+jobs:
+  companion:
+    name: Companion (go test)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: companion/go.mod
+          cache-dependency-path: companion/go.sum
+      - run: go vet ./... && go test ./...
+        working-directory: companion
+
+  app:
+    name: App (unit and screen tests)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install nsh
+        run: |
+          curl -sfL -o nsh.tar.gz "https://github.com/longbridge/nsh/releases/download/$NSH_VERSION/nsh-macos-arm64.tar.gz"
+          echo "$NSH_SHA256  nsh.tar.gz" | shasum -a 256 -c -
+          tar -xzf nsh.tar.gz -C "$HOME" && mv "$HOME/nsh" "$HOME/.nsh"
+          echo "$HOME/.nsh/bin" >> "$GITHUB_PATH"
+      - run: nsh --version && nsh check && scripts/test.sh
+        working-directory: app
+
+  page:
+    name: Terminal page (touch and keyboard, Chromium)
+    runs-on: macos-26
+    env:
+      PLAYWRIGHT_VERSION: "1.58.2"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - name: Install Playwright's Chromium
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw" && cd "$RUNNER_TEMP/pw"
+          npm install --no-save --ignore-scripts "playwright-core@$PLAYWRIGHT_VERSION"
+          node node_modules/playwright-core/cli.js install chromium
+          echo "PLAYWRIGHT_DIR=$RUNNER_TEMP/pw/node_modules/playwright-core" >> "$GITHUB_ENV"
+      - run: e2e/page-touch.sh
+        working-directory: app
+
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+      # SHA-256 of gitleaks_8.30.1_linux_x64.tar.gz; matches the digest GitHub lists for the release asset
+      # (checked 2026-11-06). Update both together.
+      GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install gitleaks
+        run: |
+          curl -sfL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v$GITLEAKS_VERSION/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "$GITLEAKS_SHA256  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+      # The whole history. A finding that is not a secret goes in .gitleaksignore with why and the date it was checked.
+      - run: ./gitleaks git --no-banner --redact .

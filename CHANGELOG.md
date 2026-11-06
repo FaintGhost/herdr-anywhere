@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.10
+
+- Type in the terminal, from a pane's menu, brings the keyboard up again after the key row's button put it away.
+- Every pull request runs the tests and a secret scan. [CONTRIBUTING.md](CONTRIBUTING.md) says which test goes with which change.
+
+Android: `Herdr-Anywhere.apk`; an installed 0.1.6 or later can update to it from home. Mac: `herdr-anywhere-macos-arm64`.
+
 ## v0.1.9
 
 Fixes from using the phone every day.

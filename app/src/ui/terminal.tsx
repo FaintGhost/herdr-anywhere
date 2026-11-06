@@ -3,6 +3,7 @@
 import { cleanup, Clipboard, colorScheme, effect, keyboardFrame, openUrl, platform, Text, untracked, View, WebView, windowSize } from 'nsh'
 import type { Store } from '../store.ts'
 import { terminalPage, webViewScrollable } from './terminal-page.ts'
+import { showTerminalKeyboard } from '../page.ts'
 import { TerminalSession } from './terminal-session.ts'
 import { useSignal } from './kit.tsx'
 import { t } from '../strings/index.ts'
@@ -17,6 +18,7 @@ export function TerminalView(props: { store: Store; address: string; fontSize?: 
   const session = new TerminalSession(props.store, props.address, (m) => web?.postMessage(m), undefined, { observe: props.observe, on: {
     swipe: (d) => props.swipe?.(d),
     tap: () => props.tap?.(),
+    focused: () => showTerminalKeyboard(),
     link: (url) => { void openUrl(url).catch(() => {}) },
     selected: (text) => { void Clipboard.writeText(text).then(() => props.store.toast({ title: t('copied'), level: 'info' })) },
   } })

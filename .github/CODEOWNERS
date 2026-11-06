@@ -1,0 +1,8 @@
+# What runs in CI, what builds and signs the apps, and vendored code: the owner reviews every change.
+/.github/                 @jt-wang
+/app/android/             @jt-wang
+/app/ios/                 @jt-wang
+/app/nsh.json             @jt-wang
+/companion/go.mod         @jt-wang
+/companion/go.sum         @jt-wang
+/third_party/             @jt-wang
