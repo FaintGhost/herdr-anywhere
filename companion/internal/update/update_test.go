@@ -1,10 +1,11 @@
 package update
 
 import (
+	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -16,24 +17,55 @@ import (
 	"time"
 )
 
-// A release as api.github.com answers it (measured 2026-11-06 on this repo's v0.1.5): asset digests are "sha256:<hex>".
+// The key tests sign with; the real one signs only real releases.
+var (
+	testPriv = ed25519.NewKeyFromSeed(bytes.Repeat([]byte{7}, ed25519.SeedSize))
+	testPub  = testPriv.Public().(ed25519.PublicKey)
+)
+
+func testClient(srv *httptest.Server) Client {
+	return Client{Releases: srv.URL, Key: testPub, Current: "0.1.5"}
+}
+
+// fakeGitHub serves a release the way github.com/<repo>/releases does: latest/download/<file> for the newest release,
+// download/<tag>/<file> for a given one. digest "" leaves the Mac file out of the release.
 func fakeGitHub(t *testing.T, tag string, binary []byte, digest string) (*httptest.Server, *atomic.Int32) {
+	return fakeReleases(t, tag, binary, digest, nil)
+}
+
+// fakeReleases is fakeGitHub with a chance to change the manifest or its signature after signing; a nil signature is
+// missing from the release.
+func fakeReleases(t *testing.T, tag string, binary []byte, digest string, tamper func(body, sig []byte) ([]byte, []byte)) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
+	files := []File{{Name: AppAsset, SHA256: "00", Bytes: 136080774}}
+	if digest != "" {
+		files = append(files, File{Name: Asset, SHA256: strings.TrimPrefix(digest, "sha256:"), Bytes: int64(len(binary))})
+	}
+	body, sig, err := Sign(testPriv, Manifest{Version: strings.TrimPrefix(tag, "v"), Files: files})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tamper != nil {
+		body, sig = tamper(body, sig)
+	}
 	var checks atomic.Int32
 	mux := http.NewServeMux()
-	var srv *httptest.Server
-	mux.HandleFunc("/repos/"+Repo+"/releases/latest", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/latest/download/"+ManifestFile, func(w http.ResponseWriter, r *http.Request) {
 		checks.Add(1)
 		if !strings.HasPrefix(r.Header.Get("User-Agent"), "herdr-anywhere/") {
 			t.Errorf("User-Agent = %q", r.Header.Get("User-Agent"))
 		}
-		json.NewEncoder(w).Encode(map[string]any{"tag_name": tag, "assets": []map[string]any{
-			{"name": "Herdr-Anywhere.apk", "browser_download_url": srv.URL + "/apk", "digest": "sha256:00", "size": 136080774},
-			{"name": Asset, "browser_download_url": srv.URL + "/mac", "digest": digest},
-		}})
+		w.Write(body)
 	})
-	mux.HandleFunc("/mac", func(w http.ResponseWriter, r *http.Request) { w.Write(binary) })
-	srv = httptest.NewServer(mux)
+	mux.HandleFunc("/latest/download/"+ManifestFile+".sig", func(w http.ResponseWriter, r *http.Request) {
+		if sig == nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Write(sig)
+	})
+	mux.HandleFunc("/download/"+tag+"/"+Asset, func(w http.ResponseWriter, r *http.Request) { w.Write(binary) })
+	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv, &checks
 }
@@ -81,18 +113,72 @@ func TestNewer(t *testing.T) {
 func TestLatestReadsTheMacFile(t *testing.T) {
 	bin := script("0.1.6")
 	srv, _ := fakeGitHub(t, "v0.1.6", bin, digestOf(bin))
-	r, err := Client{API: srv.URL, Current: "0.1.5"}.Latest(context.Background())
+	r, err := testClient(srv).Latest(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Version != "0.1.6" || r.URL != srv.URL+"/mac" || r.Digest != digestOf(bin) {
+	if r.Version != "0.1.6" || r.URL != srv.URL+"/download/v0.1.6/"+Asset || r.Digest != digestOf(bin) || r.Bytes != int64(len(bin)) {
 		t.Fatalf("%+v", r)
+	}
+}
+
+// Only a manifest signed by the key built into this program counts: someone able to change the release on GitHub can't
+// make computers install a file of theirs.
+func TestLatestRefusesAManifestTheKeyDidNotSign(t *testing.T) {
+	other := ed25519.NewKeyFromSeed(bytes.Repeat([]byte{9}, ed25519.SeedSize))
+	for name, tamper := range map[string]func(body, sig []byte) ([]byte, []byte){
+		"no signature": func(body, sig []byte) ([]byte, []byte) { return body, nil },
+		"another key's signature": func(body, sig []byte) ([]byte, []byte) {
+			b, s, _ := Sign(other, Manifest{Version: "0.1.6", Files: []File{{Name: Asset, SHA256: "ab", Bytes: 1}}})
+			return b, s
+		},
+		"changed after signing": func(body, sig []byte) ([]byte, []byte) {
+			return bytes.Replace(body, []byte("0.1.6"), []byte("0.1.9"), 1), sig
+		},
+		"not a signature": func(body, sig []byte) ([]byte, []byte) { return body, []byte("hello") },
+		"empty signature": func(body, sig []byte) ([]byte, []byte) { return body, []byte{} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			bin := script("0.1.6")
+			srv, _ := fakeReleases(t, "v0.1.6", bin, digestOf(bin), tamper)
+			if r, err := testClient(srv).Latest(context.Background()); err == nil {
+				t.Fatalf("accepted %+v", r)
+			}
+			m := manager(t, srv, installed(t), func() { t.Error("restarted") })
+			m.Check(context.Background())
+			if m.Latest() != "" || m.App().URL != "" {
+				t.Fatalf("remembered %q %+v", m.Latest(), m.App())
+			}
+		})
+	}
+}
+
+// The same release checks out under its own key only.
+func TestLatestAcceptsWhatTheKeySigned(t *testing.T) {
+	bin := script("0.1.6")
+	srv, _ := fakeGitHub(t, "v0.1.6", bin, digestOf(bin))
+	c := testClient(srv)
+	if _, err := c.Latest(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	c.Key = ed25519.NewKeyFromSeed(bytes.Repeat([]byte{9}, ed25519.SeedSize)).Public().(ed25519.PublicKey)
+	if _, err := c.Latest(context.Background()); err == nil {
+		t.Fatal("another key accepted it")
+	}
+}
+
+func TestTheBuiltInKeyIsAKey(t *testing.T) {
+	if len(PublicKey) != ed25519.PublicKeySize {
+		t.Fatalf("%d bytes", len(PublicKey))
+	}
+	if c := (Client{}); !bytes.Equal(c.key(), PublicKey) {
+		t.Fatal("a client without a key doesn't use the built-in one")
 	}
 }
 
 func TestLatestRefusesAReleaseWithoutADigest(t *testing.T) {
 	srv, _ := fakeGitHub(t, "v0.1.6", script("0.1.6"), "")
-	if _, err := (Client{API: srv.URL, Current: "0.1.5"}).Latest(context.Background()); err == nil {
+	if _, err := (testClient(srv)).Latest(context.Background()); err == nil {
 		t.Fatal("no error")
 	}
 }
@@ -100,7 +186,7 @@ func TestLatestRefusesAReleaseWithoutADigest(t *testing.T) {
 func TestApplyReplacesTheFile(t *testing.T) {
 	bin := script("0.1.6")
 	srv, _ := fakeGitHub(t, "v0.1.6", bin, digestOf(bin))
-	c := Client{API: srv.URL, Current: "0.1.5"}
+	c := testClient(srv)
 	r, err := c.Latest(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -132,7 +218,7 @@ func TestApplyKeepsTheOldFile(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			srv, _ := fakeGitHub(t, "v0.1.6", c.bin, c.digest)
-			cl := Client{API: srv.URL, Current: "0.1.5"}
+			cl := testClient(srv)
 			r, err := cl.Latest(context.Background())
 			if err != nil {
 				t.Fatal(err)
@@ -161,7 +247,7 @@ func assertNoLeftovers(t *testing.T, exe string) {
 func manager(t *testing.T, srv *httptest.Server, exe string, restart func()) *Manager {
 	t.Helper()
 	return &Manager{
-		Client:   Client{API: srv.URL, Current: "0.1.5"},
+		Client:   testClient(srv),
 		Exe:      exe,
 		Installs: true,
 		Dir:      t.TempDir(),
@@ -182,7 +268,7 @@ func TestCheckRemembersANewerVersion(t *testing.T) {
 	if m.Latest() != "0.1.6" {
 		t.Fatalf("Latest = %q", m.Latest())
 	}
-	if a := m.App(); a.URL != srv.URL+"/apk" || a.Digest != "sha256:00" || a.Bytes != 136080774 {
+	if a := m.App(); a.URL != srv.URL+"/download/v0.1.6/"+AppAsset || a.Digest != "sha256:00" || a.Bytes != 136080774 {
 		t.Fatalf("App = %+v", a)
 	}
 }

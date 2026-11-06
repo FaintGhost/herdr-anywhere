@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -33,20 +36,27 @@ func buildVersion(t *testing.T, v, out string) []byte {
 	return b
 }
 
-func releaseServer(t *testing.T, version string, bin []byte) *httptest.Server {
+// releaseKey signs the test releases; the program trusts it only when told so with --release-key.
+var releaseKey = ed25519.NewKeyFromSeed(bytes.Repeat([]byte{5}, ed25519.SeedSize))
+
+// releaseServer serves a signed release the way github.com/<repo>/releases does, and the flags that point at it.
+func releaseServer(t *testing.T, version string, bin []byte) (*httptest.Server, []string) {
 	t.Helper()
 	sum := sha256.Sum256(bin)
-	var srv *httptest.Server
+	body, sig, err := update.Sign(releaseKey, update.Manifest{Version: version, Files: []update.File{
+		{Name: update.Asset, SHA256: hex.EncodeToString(sum[:]), Bytes: int64(len(bin))},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/"+update.Repo+"/releases/latest", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"tag_name": "v" + version, "assets": []map[string]any{
-			{"name": update.Asset, "browser_download_url": srv.URL + "/mac", "digest": "sha256:" + hex.EncodeToString(sum[:])},
-		}})
-	})
-	mux.HandleFunc("/mac", func(w http.ResponseWriter, r *http.Request) { w.Write(bin) })
-	srv = httptest.NewServer(mux)
+	mux.HandleFunc("/latest/download/"+update.ManifestFile, func(w http.ResponseWriter, r *http.Request) { w.Write(body) })
+	mux.HandleFunc("/latest/download/"+update.ManifestFile+".sig", func(w http.ResponseWriter, r *http.Request) { w.Write(sig) })
+	mux.HandleFunc("/download/v"+version+"/"+update.Asset, func(w http.ResponseWriter, r *http.Request) { w.Write(bin) })
+	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	return srv
+	key := base64.StdEncoding.EncodeToString(releaseKey.Public().(ed25519.PublicKey))
+	return srv, []string{"--releases", srv.URL, "--release-key", key}
 }
 
 func freePort(t *testing.T) int {
@@ -92,7 +102,7 @@ func TestAPhoneUpdatesARunningCompanion(t *testing.T) {
 	bin := buildVersion(t, "0.0.2", filepath.Join(dir, "new"))
 	buildVersion(t, "0.0.1", filepath.Join(dir, "herdr-anywhere"))
 	exe := filepath.Join(dir, "herdr-anywhere")
-	gh := releaseServer(t, "0.0.2", bin)
+	_, flags := releaseServer(t, "0.0.2", bin)
 
 	state := filepath.Join(dir, "state")
 	st, err := store.Open(state)
@@ -111,7 +121,7 @@ func TestAPhoneUpdatesARunningCompanion(t *testing.T) {
 	port := freePort(t)
 	url := fmt.Sprintf("http://127.0.0.1:%d", port)
 	var logs strings.Builder
-	cmd := exec.Command(exe, "serve", "--listen", fmt.Sprintf("127.0.0.1:%d", port), "--state", state, "--update-api", gh.URL)
+	cmd := exec.Command(exe, append([]string{"serve", "--listen", fmt.Sprintf("127.0.0.1:%d", port), "--state", state}, flags...)...)
 	cmd.Stdout, cmd.Stderr = &logs, &logs
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
@@ -173,16 +183,16 @@ func TestUpdateCommand(t *testing.T) {
 	bin := buildVersion(t, "0.0.2", filepath.Join(dir, "new"))
 	buildVersion(t, "0.0.1", filepath.Join(dir, "herdr-anywhere"))
 	exe := filepath.Join(dir, "herdr-anywhere")
-	gh := releaseServer(t, "0.0.2", bin)
+	_, flags := releaseServer(t, "0.0.2", bin)
 
-	out, err := exec.Command(exe, "update", "--check", "--update-api", gh.URL).CombinedOutput()
+	out, err := exec.Command(exe, append([]string{"update", "--check"}, flags...)...).CombinedOutput()
 	if err != nil || !strings.Contains(string(out), "0.0.2 is available") {
 		t.Fatalf("%v: %s", err, out)
 	}
 	if got, _ := os.ReadFile(exe); string(got) == string(bin) {
 		t.Fatal("--check replaced the file")
 	}
-	out, err = exec.Command(exe, "update", "--update-api", gh.URL).CombinedOutput()
+	out, err = exec.Command(exe, append([]string{"update"}, flags...)...).CombinedOutput()
 	if err != nil || !strings.Contains(string(out), "updated to herdr-anywhere 0.0.2") {
 		t.Fatalf("%v: %s", err, out)
 	}
@@ -190,8 +200,25 @@ func TestUpdateCommand(t *testing.T) {
 	if err != nil || strings.TrimSpace(string(out)) != "herdr-anywhere 0.0.2" {
 		t.Fatalf("%v: %s", err, out)
 	}
-	out, err = exec.Command(exe, "update", "--update-api", gh.URL).CombinedOutput()
+	out, err = exec.Command(exe, append([]string{"update"}, flags...)...).CombinedOutput()
 	if err != nil || !strings.Contains(string(out), "is the latest version") {
 		t.Fatalf("%v: %s", err, out)
+	}
+}
+
+// Without being told otherwise the program trusts only the key built into it, so a release signed with another one
+// changes nothing.
+func TestTheProgramRefusesAReleaseSignedWithAnotherKey(t *testing.T) {
+	dir := t.TempDir()
+	bin := buildVersion(t, "0.0.2", filepath.Join(dir, "new"))
+	buildVersion(t, "0.0.1", filepath.Join(dir, "herdr-anywhere"))
+	exe := filepath.Join(dir, "herdr-anywhere")
+	srv, _ := releaseServer(t, "0.0.2", bin)
+	out, err := exec.Command(exe, "update", "--releases", srv.URL).CombinedOutput()
+	if err == nil || !strings.Contains(string(out), "isn't signed by the Herdr Anywhere key") {
+		t.Fatalf("%v: %s", err, out)
+	}
+	if out, _ := exec.Command(exe, "--version").CombinedOutput(); strings.TrimSpace(string(out)) != "herdr-anywhere 0.0.1" {
+		t.Fatalf("now %s", out)
 	}
 }

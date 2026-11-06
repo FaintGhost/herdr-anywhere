@@ -28,16 +28,21 @@ export GIT_CONFIG_GLOBAL="$work/home/.gitconfig"
 "$hc" run --bg --keep --cwd "$work/home/src/acme-api" --label herdr.space=spupd --label herdr.tab=tbupd >/dev/null
 cp "$old_bin" "$work/herdr-anywhere"
 
-# What api.github.com answers for this repo (measured 2026-11-06), and the files. $work/scenario picks the app's file.
+# A release signed with a key made here, as github.com/<repo>/releases serves it: latest/download/ for the newest,
+# download/v<version>/ for its files. $work/scenario picks the app's file and the manifest that goes with it.
+(cd "$app/../companion" && go build -o "$work/release-manifest" ./cmd/release-manifest)
+release_key=$("$work/release-manifest" keygen "$work/release.key")
+for s in good bad-digest other-key; do
+  mkdir -p "$work/rel-$s/files"
+  ln -s "$new_bin" "$work/rel-$s/files/herdr-anywhere-macos-arm64"
+  case $s in good) a=$new_apk ;; bad-digest) a=$old_apk ;; other-key) a=$other_apk ;; esac
+  ln -s "$a" "$work/rel-$s/files/Herdr-Anywhere.apk"
+  "$work/release-manifest" sign -any-key -key "$work/release.key" -version "$new_version" -out "$work/rel-$s" \
+    "$work/rel-$s/files/herdr-anywhere-macos-arm64" "$work/rel-$s/files/Herdr-Anywhere.apk" >/dev/null
+done
 cat > "$work/gh.py" <<'EOF'
-import hashlib, http.server, json, os, sys
-port, version, mac, good, other, scenario, asked = sys.argv[1:8]
-def digest(p):
-    h = hashlib.sha256()
-    with open(p, 'rb') as f:
-        for b in iter(lambda: f.read(1 << 20), b''): h.update(b)
-    return 'sha256:' + h.hexdigest()
-good_d, other_d, mac_d = digest(good), digest(other), digest(mac)
+import http.server, os, sys
+port, version, mac, good, other, work, asked = sys.argv[1:8]
 class H(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def file(self, p):
@@ -45,28 +50,24 @@ class H(http.server.BaseHTTPRequestHandler):
         with open(p, 'rb') as f:
             for b in iter(lambda: f.read(1 << 20), b''): self.wfile.write(b)
     def do_GET(self):
-        s = open(scenario).read().strip()
-        if self.path.endswith('/releases/latest'):
+        s = open(work + '/scenario').read().strip()
+        if self.path == '/latest/download/latest.json':
             with open(asked, 'a') as f: f.write('asked\n')
-            app = {'good': good_d, 'bad-digest': 'sha256:' + '0' * 64, 'other-key': other_d}[s]
-            b = json.dumps({'tag_name': 'v' + version, 'assets': [
-                {'name': 'herdr-anywhere-macos-arm64', 'browser_download_url': f'http://127.0.0.1:{port}/mac', 'digest': mac_d, 'size': os.path.getsize(mac)},
-                {'name': 'Herdr-Anywhere.apk', 'browser_download_url': f'http://10.0.2.2:{port}/app.apk', 'digest': app, 'size': os.path.getsize(good)},
-            ]}).encode()
-            self.send_response(200); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
-        elif self.path == '/mac': self.file(mac)
-        elif self.path == '/app.apk': self.file(other if s == 'other-key' else good)
+            self.file(f'{work}/rel-{s}/latest.json')
+        elif self.path == '/latest/download/latest.json.sig': self.file(f'{work}/rel-{s}/latest.json.sig')
+        elif self.path == f'/download/v{version}/herdr-anywhere-macos-arm64': self.file(mac)
+        elif self.path == f'/download/v{version}/Herdr-Anywhere.apk': self.file(other if s == 'other-key' else good)
         else: self.send_error(404)
 http.server.ThreadingHTTPServer(('127.0.0.1', int(port)), H).serve_forever()
 EOF
 echo good > "$work/scenario"
 : > "$work/asked"
-python3 "$work/gh.py" "$gh" "$new_version" "$new_bin" "$new_apk" "$other_apk" "$work/scenario" "$work/asked" &
+python3 "$work/gh.py" "$gh" "$new_version" "$new_bin" "$new_apk" "$other_apk" "$work" "$work/asked" &
 gh_pid=$!
 
 serve_pid=""
 start_serve() {
-  "$work/herdr-anywhere" serve --listen "127.0.0.1:$port" --hc "$hc" --state "$state" --update-api "http://127.0.0.1:$gh" >> "$work/serve.log" 2>&1 &
+  "$work/herdr-anywhere" serve --listen "127.0.0.1:$port" --hc "$hc" --state "$state" --releases "http://127.0.0.1:$gh" --release-key "$release_key" >> "$work/serve.log" 2>&1 &
   serve_pid=$!
   i=0
   until curl -sf "http://127.0.0.1:$port/api/info" >/dev/null; do
@@ -77,6 +78,7 @@ start_serve() {
 cleanup() {
   [ -n "$serve_pid" ] && kill "$serve_pid" 2>/dev/null
   kill "$gh_pid" 2>/dev/null
+  "$adb" reverse --remove "tcp:$gh" >/dev/null 2>&1 || true
   "$hc" server stop >/dev/null 2>&1 || true
   chmod -R u+w "$work" 2>/dev/null; rm -rf "$work" "$run" "$state"
 }
@@ -84,6 +86,8 @@ trap cleanup EXIT INT TERM
 
 "$adb" uninstall "$id" >/dev/null 2>&1 || true
 "$adb" install "$old_apk" >/dev/null
+# The phone downloads the app from where the computer says the release is: the same address, through adb.
+"$adb" reverse "tcp:$gh" "tcp:$gh" >/dev/null
 "$adb" shell pm grant "$id" android.permission.POST_NOTIFICATIONS >/dev/null 2>&1 || true
 start_serve
 invite=$("$work/herdr-anywhere" pair --url "http://10.0.2.2:$port" --state "$state" 2>/dev/null | grep -o 'http://[^ ]*#pair=[A-Za-z0-9_-]*' | head -1)

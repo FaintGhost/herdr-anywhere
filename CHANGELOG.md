@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.1.8
+
+Updates are signed.
+
+- Each release carries a list of its files and their SHA-256, signed with a key built into the computer's program. The computer installs a new version, and tells the phone about a new app, only when the signature and the file match.
+- The computer reads new versions from the release's download page and no longer uses GitHub's API, which limits each address to 60 requests an hour.
+
+Updating from 0.1.6 or 0.1.7 works as before: those versions don't check the signature yet, and every version from 0.1.8 on does.
+
+Android: `Herdr-Anywhere.apk`; an installed 0.1.6 or 0.1.7 can update to it from home. Mac: `herdr-anywhere-macos-arm64`.
+
 ## v0.1.7
 
 The computer asks GitHub about new versions only after you say it may.

@@ -6,6 +6,7 @@ package update
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -31,7 +32,10 @@ const (
 	// AppAsset is the Android app in a release.
 	AppAsset = "Herdr-Anywhere.apk"
 
-	defaultAPI = "https://api.github.com"
+	// github.com/<repo>/releases/latest/download/<file> is the newest release's file: a redirect to download/v<version>/<file>,
+	// 404 when that release has no such file (measured 2026-11-06 on v0.1.7). No GitHub API, so no hourly limit.
+	defaultReleases = "https://github.com/" + Repo + "/releases"
+	maxManifest     = 64 << 10
 	// Far above the file (18 MB in 0.1.5), to stop a wrong answer filling the disk.
 	maxBinary = 256 << 20
 	stateFile = "update.json"
@@ -85,6 +89,7 @@ type Release struct {
 	Version string
 	URL     string
 	Digest  string // "sha256:<hex>"
+	Bytes   int64
 	App     App
 }
 
@@ -96,11 +101,26 @@ type App struct {
 	Bytes  int64  `json:"bytes"`
 }
 
-// Client talks to GitHub. API empty means api.github.com.
+// Client reads releases. Releases empty means this repo's on GitHub; Key nil means PublicKey.
 type Client struct {
-	API     string
-	Current string
-	HTTP    *http.Client
+	Releases string
+	Key      ed25519.PublicKey
+	Current  string
+	HTTP     *http.Client
+}
+
+func (c Client) key() ed25519.PublicKey {
+	if c.Key != nil {
+		return c.Key
+	}
+	return PublicKey
+}
+
+func (c Client) releases() string {
+	if c.Releases != "" {
+		return strings.TrimSuffix(c.Releases, "/")
+	}
+	return defaultReleases
 }
 
 func (c Client) http() *http.Client {
@@ -127,46 +147,54 @@ func (c Client) get(ctx context.Context, url string) (*http.Response, error) {
 	return r, nil
 }
 
-// Latest asks for the newest release that isn't a draft or a pre-release.
+// Latest reads the newest release that isn't a draft or a pre-release, and only if the key signed it.
 func (c Client) Latest(ctx context.Context) (Release, error) {
-	api := c.API
-	if api == "" {
-		api = defaultAPI
-	}
-	r, err := c.get(ctx, api+"/repos/"+Repo+"/releases/latest")
+	base := c.releases()
+	body, err := c.read(ctx, base+"/latest/download/"+ManifestFile, maxManifest)
 	if err != nil {
 		return Release{}, err
 	}
-	defer r.Body.Close()
-	var body struct {
-		Tag    string `json:"tag_name"`
-		Assets []struct {
-			Name   string `json:"name"`
-			URL    string `json:"browser_download_url"`
-			Digest string `json:"digest"`
-			Size   int64  `json:"size"`
-		} `json:"assets"`
+	sig, err := c.read(ctx, base+"/latest/download/"+ManifestFile+".sig", 1<<10)
+	if err != nil {
+		return Release{}, fmt.Errorf("the release has no signature: %w", err)
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil {
-		return Release{}, fmt.Errorf("reading the release: %w", err)
+	m, err := Verify(c.key(), body, sig)
+	if err != nil {
+		return Release{}, err
 	}
-	version := strings.TrimPrefix(body.Tag, "v")
-	rel := Release{Version: version}
-	for _, a := range body.Assets {
-		if !strings.HasPrefix(a.Digest, "sha256:") || a.URL == "" {
+	rel := Release{Version: m.Version}
+	at := func(name string) string { return base + "/download/v" + m.Version + "/" + name }
+	for _, f := range m.Files {
+		if _, err := hex.DecodeString(f.SHA256); err != nil || f.SHA256 == "" {
 			continue
 		}
-		switch a.Name {
+		switch f.Name {
 		case Asset:
-			rel.URL, rel.Digest = a.URL, a.Digest
+			rel.URL, rel.Digest, rel.Bytes = at(f.Name), "sha256:"+f.SHA256, f.Bytes
 		case AppAsset:
-			rel.App = App{URL: a.URL, Digest: a.Digest, Bytes: a.Size}
+			rel.App = App{URL: at(f.Name), Digest: "sha256:" + f.SHA256, Bytes: f.Bytes}
 		}
 	}
 	if rel.URL == "" {
-		return Release{}, fmt.Errorf("release %s has no %s with a digest", version, Asset)
+		return Release{}, fmt.Errorf("release %s has no %s", m.Version, Asset)
 	}
 	return rel, nil
+}
+
+func (c Client) read(ctx context.Context, url string, limit int64) ([]byte, error) {
+	r, err := c.get(ctx, url)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+	b, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > limit {
+		return nil, fmt.Errorf("%s is too large", url)
+	}
+	return b, nil
 }
 
 // Apply downloads the release beside exe and puts it in exe's place. It does so only once the file matches the release's
@@ -189,8 +217,8 @@ func (c Client) Apply(ctx context.Context, rel Release, exe string) error {
 	if err != nil {
 		return fmt.Errorf("downloading: %w", err)
 	}
-	if n > maxBinary {
-		return errors.New("the download is too large")
+	if n > maxBinary || (rel.Bytes > 0 && n != rel.Bytes) {
+		return errors.New("the download isn't the size the release says")
 	}
 	if got := "sha256:" + hex.EncodeToString(hash.Sum(nil)); got != rel.Digest {
 		return errors.New("the download doesn't match the release's digest")

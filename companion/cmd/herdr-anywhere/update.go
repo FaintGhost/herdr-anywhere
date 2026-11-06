@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/base64"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -35,17 +38,34 @@ func thisFile() (string, error) {
 	return filepath.EvalSymlinks(exe)
 }
 
-func newUpdates(dir, api string, logger *log.Logger, restart func()) updates {
+// releaseFlags lets tests point at releases of their own, signed with a key of their own.
+func releaseFlags(fs *flag.FlagSet) func() (update.Client, error) {
+	url := fs.String("releases", "", "where releases are (for tests; default this repo on GitHub)")
+	key := fs.String("release-key", "", "the base64 Ed25519 key releases are signed with (for tests; default the built-in one)")
+	return func() (update.Client, error) {
+		c := update.Client{Releases: *url, Current: version}
+		if *key != "" {
+			b, err := base64.StdEncoding.DecodeString(*key)
+			if err != nil || len(b) != ed25519.PublicKeySize {
+				return c, errors.New("--release-key is not a base64 Ed25519 public key")
+			}
+			c.Key = ed25519.PublicKey(b)
+		}
+		return c, nil
+	}
+}
+
+func newUpdates(dir string, client update.Client, logger *log.Logger, restart func()) updates {
 	exe, err := thisFile()
 	if err != nil {
 		logger.Printf("update: can't find this program: %v", err)
 	}
 	first := 30 * time.Second // a serve that starts and stops at once asks nothing
-	if api != "" {
+	if client.Releases != "" {
 		first = 0
 	}
 	return updates{Manager: &update.Manager{
-		Client:   update.Client{API: api, Current: version},
+		Client:   client,
 		Exe:      exe,
 		Installs: err == nil && update.Supported(),
 		Dir:      dir,
@@ -69,11 +89,14 @@ func restartSelf() error {
 func updateCommand(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	fs, _ := newFlags("update", stderr)
 	check := fs.Bool("check", false, "only say whether there is a new version")
-	api := fs.String("update-api", "", "where to ask for new versions (for tests; default api.github.com)")
+	releases := releaseFlags(fs)
 	if err := parse(fs, args); err != nil {
 		return err
 	}
-	c := update.Client{API: *api, Current: version}
+	c, err := releases()
+	if err != nil {
+		return err
+	}
 	rel, err := c.Latest(ctx)
 	if err != nil {
 		return err

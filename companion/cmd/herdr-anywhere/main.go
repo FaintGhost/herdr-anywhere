@@ -33,7 +33,7 @@ import (
 )
 
 // A var so a test can build two versions of this program.
-var version = "0.1.7"
+var version = "0.1.8"
 
 const defaultPort = "7681"
 
@@ -215,7 +215,7 @@ func serve(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	withTailcat := fs.Bool("tailcat", false, "also let paired phones reach this Mac through Tailcat, from any network")
 	web := fs.String("web", "", "serve the PWA from this directory")
 	hcFlag := fs.String("hc", "", "path to herdr-core's hc (default: hc on PATH, else ~/.local/bin/hc)")
-	updateAPI := fs.String("update-api", "", "where to ask for new versions (for tests; default api.github.com)")
+	releases := releaseFlags(fs)
 	if err := parse(fs, args); err != nil {
 		return err
 	}
@@ -250,7 +250,11 @@ func serve(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	}
 
 	restart := make(chan struct{}, 1)
-	updates := newUpdates(st.Dir(), *updateAPI, logger, func() {
+	client, err := releases()
+	if err != nil {
+		return err
+	}
+	updates := newUpdates(st.Dir(), client, logger, func() {
 		select {
 		case restart <- struct{}{}:
 		default:

@@ -64,6 +64,11 @@ herdr-core's API can run any command as you, so whoever holds a device token can
   string, where the token travels.
 - Plain `ws://` over the LAN can be read by anyone on that network, token included. Use it on a network you trust, or
   reach the Mac over an encrypted path such as your tailnet.
+- A release counts only if its `latest.json` is signed by the Ed25519 key built into the companion
+  (`internal/update/manifest.go`). It lists each file's SHA-256 and size; the companion installs a file only if it
+  matches, runs, and says it is that version, and tells phones the app's SHA-256 from the same list. Releases are signed
+  with `go run ./cmd/release-manifest sign -key <key> -version X.Y.Z -out <dir> <files>`; the private key stays off
+  GitHub.
 
 ## Tests
 

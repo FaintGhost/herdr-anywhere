@@ -93,6 +93,8 @@ Through [Tailcat](https://github.com/tailscale/tailcat), which the dialog and `s
 
 Over `--lan`, traffic is plain `ws://`, which anyone on that network can read.
 
+Updates install only what the release's signed list says: the computer checks the list against a key built into it, then each file's SHA-256 and size, and Android also requires the app to carry the same signing key as the installed one.
+
 ## Build from source
 
 The app is TSX on [NSH](https://nsh.dev) 0.3.0, in `app/`. The companion is Go, in `companion/`.
