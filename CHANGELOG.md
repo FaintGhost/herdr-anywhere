@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.11
+
+Nothing changes in the app or on the computer. The tests and the secret scan that every pull request runs pass again.
+
+Android: `Herdr-Anywhere.apk`; an installed 0.1.6 or later can update to it from home. Mac: `herdr-anywhere-macos-arm64`.
+
 ## v0.1.10
 
 - Type in the terminal, from a pane's menu, brings the keyboard up again after the key row's button put it away.

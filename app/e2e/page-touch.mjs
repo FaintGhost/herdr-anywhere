@@ -49,9 +49,11 @@ async function open(opts) {
   await t.send({ t: 'write', data: Array.from({ length: 1000 }, (_, i) => `line ${i}`).join('\r\n') })
   await t.page.waitForTimeout(300)
   const y = () => t.page.evaluate(() => parseFloat(document.querySelector('.scrollbar.vertical .slider').style.top))
+  // The last move comes right before the caller lifts: the page glides only when the finger lifts within 60 ms of its
+  // last move, which a wait after it plus a slow machine (GitHub's macOS runner, 2026-11-06) can pass.
   const stroke = async (from, step, gap = 16, n = 8) => {
     await t.touch('touchStart', 195, from)
-    for (let i = 1; i <= n; i++) { await t.touch('touchMove', 195, from + i * step); await t.page.waitForTimeout(gap) }
+    for (let i = 1; i <= n; i++) { if (i > 1) await t.page.waitForTimeout(gap); await t.touch('touchMove', 195, from + i * step) }
   }
   const watch = async (ms, every = 100) => {
     const out = [await y()]
