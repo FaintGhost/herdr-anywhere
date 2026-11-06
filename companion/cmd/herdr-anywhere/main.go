@@ -32,10 +32,10 @@ import (
 	"herdr-anywhere/companion/internal/tailcat"
 )
 
-const (
-	version     = "0.1.5"
-	defaultPort = "7681"
-)
+// A var so a test can build two versions of this program.
+var version = "0.1.6"
+
+const defaultPort = "7681"
 
 const usage = `herdr-anywhere: reach herdr-core on this Mac from a paired phone
 
@@ -46,6 +46,7 @@ usage:
   herdr-anywhere devices [--json] [--state DIR]
   herdr-anywhere revoke  [--state DIR] <device id>
   herdr-anywhere install-dialog [--app-home DIR] [--state DIR]
+  herdr-anywhere update [--check]
 
 The state dir defaults to ~/.config/herdr-anywhere ($HERDR_ANYWHERE_STATE overrides).
 With serve --tailcat running, pair shows a Tailcat invite the Herdr app scans.
@@ -80,6 +81,8 @@ func runContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 		err = devices(rest, stdout, stderr)
 	case "revoke":
 		err = revoke(rest, stdout, stderr)
+	case "update":
+		err = updateCommand(ctx, rest, stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprint(stdout, usage)
 		return 0
@@ -92,6 +95,11 @@ func runContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 	}
 	var u usageError
 	switch {
+	case errors.Is(err, errRestart):
+		if err := restartSelf(); err != nil {
+			fmt.Fprintf(stderr, "herdr-anywhere: restarting: %v\n", err)
+		}
+		return 1
 	case errors.Is(err, errReported):
 		return 1
 	case errors.As(err, &u):
@@ -207,6 +215,7 @@ func serve(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	withTailcat := fs.Bool("tailcat", false, "also let paired phones reach this Mac through Tailcat, from any network")
 	web := fs.String("web", "", "serve the PWA from this directory")
 	hcFlag := fs.String("hc", "", "path to herdr-core's hc (default: hc on PATH, else ~/.local/bin/hc)")
+	updateAPI := fs.String("update-api", "", "where to ask for new versions (for tests; default api.github.com)")
 	if err := parse(fs, args); err != nil {
 		return err
 	}
@@ -240,9 +249,17 @@ func serve(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		logger.Printf("using %s (%s)", hcPath, hcVersion)
 	}
 
+	restart := make(chan struct{}, 1)
+	updates := newUpdates(st.Dir(), *updateAPI, logger, func() {
+		select {
+		case restart <- struct{}{}:
+		default:
+		}
+	})
 	srv := server.New(server.Config{
 		Store: st, HC: hcPath, HCVersion: hcVersion,
 		Name: computerName(), Version: version, WebDir: *web, Logger: logger,
+		Updates: updates,
 	})
 	defer srv.Close()
 	httpSrv := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second, ErrorLog: logger}
@@ -282,9 +299,13 @@ func serve(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		fmt.Fprintln(stdout, "listening on Tailcat; phones pair by scanning `herdr-anywhere pair`")
 	}
 	fmt.Fprintf(stdout, "state in %s; pair a phone with: herdr-anywhere pair\n", st.Dir())
+	go updates.Run(ctx)
 
+	restarting := false
 	select {
 	case <-ctx.Done():
+	case <-restart:
+		restarting = true
 	case err := <-errc:
 		if !errors.Is(err, http.ErrServerClosed) {
 			return err
@@ -293,7 +314,11 @@ func serve(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	srv.Close() // WebSockets are hijacked: Shutdown does not close them
-	return httpSrv.Shutdown(shutdown)
+	err = httpSrv.Shutdown(shutdown)
+	if restarting {
+		return errRestart
+	}
+	return err
 }
 
 // serveTailcat brings up the Tailcat host, serves handler's routes on it as

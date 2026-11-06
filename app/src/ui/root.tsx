@@ -6,7 +6,7 @@ import type { Store } from '../store.ts'
 import { fileApi, folderApi, parseInvite, type Link, type Linker, type Tunnel } from '../link.ts'
 import type { PrefStore } from '../prefs.ts'
 import { Alerts, type AlertKind } from '../alerts.ts'
-import { allowNotifications, followPage, keepAlive, notifications, notifyFromPage, wantsKeepAlive } from '../page.ts'
+import { followInstallFailures, installApp, allowNotifications, followPage, keepAlive, notifications, notifyFromPage, wantsKeepAlive } from '../page.ts'
 import { HomeScreen } from './home.tsx'
 import { SpaceScreen } from './space.tsx'
 import { SettingsScreen } from './settings.tsx'
@@ -15,6 +15,7 @@ import { NewSheet, RenameSheet, type NewTarget, type RenameTarget } from './shee
 import { PeekSheet } from './peek.tsx'
 import { makeDemo, type Demo } from '../demo.ts'
 import { useSignal } from './kit.tsx'
+import { APP_VERSION, installProblem, Updates } from '../updates.ts'
 import { t } from '../strings/index.ts'
 
 export type RootDeps = {
@@ -82,6 +83,13 @@ function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: 
   const peeking = signal<string | null>(null)
   const folders = folderApi(deps.linker, deps.fetcher)
   store.files = fileApi(deps.linker, deps.fetcher)
+  const updates = new Updates({
+    baseUrl: () => deps.linker.baseUrl(), token: () => deps.linker.link.get()?.token ?? '', conn: store.conn, fetcher: deps.fetcher ?? fetch,
+    os: platform.os, appVersion: APP_VERSION, toast: (t) => store.toast(t), install: installApp,
+  })
+  updates.start()
+  const offInstall = followInstallFailures((m) => store.toast({ title: t('couldntUpdateApp'), body: installProblem(m), level: 'error' }))
+  cleanup(() => { updates.stop(); offInstall() })
   const prefs = useSignal(deps.prefs.prefs)
   store.wants = (k) => (k === 'blocked' ? deps.prefs.prefs.get().alertBlocked : deps.prefs.prefs.get().alertDone)
   // The page (web-host.js) or the Android activity says whether the app is in front; on iOS it is while it runs.
@@ -131,10 +139,10 @@ function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: 
         </NavPage>
       : r.name === 'settings'
       ? <NavPage headerVisible={false} class="bg-sidebar">
-          <SettingsScreen store={store} prefs={deps.prefs} link={props.link} linker={deps.linker} fetcher={deps.fetcher} back={() => nav.pop()} forget={() => { if (props.leaveDemo) props.leaveDemo(); else deps.linker.forget() }} />
+          <SettingsScreen updates={updates} store={store} prefs={deps.prefs} link={props.link} linker={deps.linker} fetcher={deps.fetcher} back={() => nav.pop()} forget={() => { if (props.leaveDemo) props.leaveDemo(); else deps.linker.forget() }} />
         </NavPage>
       : <NavPage headerVisible={false} class="bg-sidebar">
-          <HomeScreen store={store} actions={{
+          <HomeScreen updates={updates} prefs={deps.prefs} store={store} actions={{
             openSpace, openAgent: (a) => openTerminal(a.address), peek: (addr) => peeking.set(addr),
             addAgent: (space) => newTarget.set({ kind: 'tab', space, agent: true }), newMenu: () => newTarget.set({ kind: 'space' }), settings: () => nav.push({ name: 'settings' }),
             rename: (kind, id, current) => renaming.set({ kind, id, current }), leaveDemo: props.leaveDemo,

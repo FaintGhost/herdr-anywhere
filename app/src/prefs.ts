@@ -2,8 +2,8 @@
 import { Signal } from './store.ts'
 
 export type Appearance = 'system' | 'light' | 'dark'
-export type Prefs = { appearance: Appearance; fontSize: number; alertBlocked: boolean; alertDone: boolean; stayConnected: boolean; askedNotifications: boolean }
-export const DEFAULTS: Prefs = { appearance: 'system', fontSize: 13, alertBlocked: true, alertDone: true, stayConnected: true, askedNotifications: false }
+export type Prefs = { appearance: Appearance; fontSize: number; alertBlocked: boolean; alertDone: boolean; stayConnected: boolean; dismissedUpdate: string; askedNotifications: boolean }
+export const DEFAULTS: Prefs = { appearance: 'system', fontSize: 13, alertBlocked: true, alertDone: true, stayConnected: true, dismissedUpdate: '', askedNotifications: false }
 import { FONT_MAX, FONT_MIN } from './ui/terminal-page.ts'
 export { FONT_MAX, FONT_MIN }
 
@@ -35,5 +35,6 @@ function clean(p: Prefs): Prefs {
     alertDone: p.alertDone !== false,
     stayConnected: p.stayConnected !== false,
     askedNotifications: p.askedNotifications === true,
+    dismissedUpdate: typeof p.dismissedUpdate === 'string' ? p.dismissedUpdate : '',
   }
 }

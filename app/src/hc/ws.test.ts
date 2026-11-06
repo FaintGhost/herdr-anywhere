@@ -129,9 +129,79 @@ test('a send the socket refuses never throws: a closing socket still reports its
   q.send(bytes(1))
   q.send(bytes(2))
   expect(why2).toEqual([])
-  const t = timers[timers.length - 1]
-  expect(t.ms).toBe(1000)
+  const t = timers.findLast((t) => t.ms === 5000)!
   t.f()
   expect(why2).toEqual(['network'])
   expect(s2.closedWith?.[0]).toBe(1000)
+})
+
+// NSH's queue held 8 credit frames (104 bytes) when it refused one, measured 2026-11-06 on the emulator; the socket was
+// fine and the next send got through. A full queue ended the connection, about every 2 s while a screen redrew.
+test('a full queue loses nothing: what it refused goes out soon, in order, as one message, and later sends wait their turn', () => {
+  timers.length = 0
+  const p = new SocketPipe('ws://x/hc', 'bin', io)
+  const why: string[] = []
+  p.onClose = (r) => why.push(r)
+  const s = FakeSocket.last
+  s.open()
+  const accept = s.send
+  p.send(bytes(1))
+  let tried = 0
+  s.send = () => { tried++; throw new Error('WebSocket outbound queue is full or closed') }
+  p.send(bytes(2))
+  expect(tried).toBe(1)
+  p.send(bytes(3))
+  expect(tried).toBe(1)
+  const again = () => { const t = timers.findLast((t) => t.ms < 1000)!; const f = t.f; t.f = () => {}; f() }
+  again()
+  expect(tried).toBe(2)
+  s.send = accept
+  again()
+  p.send(bytes(4))
+  expect(s.sent.map((d) => [...new Uint8Array(d)])).toEqual([[1], [2, 3], [4]])
+  // The socket took them: the time it was given to take them no longer runs.
+  timers.findLast((t) => t.ms === 5000)!.f()
+  expect(why).toEqual([])
+})
+
+test('sends made while the socket opens go through the same waiting room', () => {
+  timers.length = 0
+  const p = new SocketPipe('ws://x/hc', 'bin', io)
+  const s = FakeSocket.last
+  for (let i = 1; i <= 3; i++) p.send(bytes(i))
+  const accept = s.send
+  let taken = 0
+  s.send = function (this: FakeSocket, d: any) { if (taken++ === 1) throw new Error('full'); accept.call(this, d) } as any
+  s.open()
+  timers.findLast((t) => t.ms < 1000)!.f()
+  expect(s.sent.map((d) => [...new Uint8Array(d)])).toEqual([[1], [2, 3]])
+})
+
+test('too much waiting ends the pipe rather than the phone\'s memory', () => {
+  timers.length = 0
+  const p = new SocketPipe('ws://x/hc', 'bin', io)
+  const why: string[] = []
+  p.onClose = (r) => why.push(r)
+  const s = FakeSocket.last
+  s.open()
+  s.send = () => { throw new Error('full') }
+  p.send(new Uint8Array(4 << 20))
+  expect(why).toEqual([])
+  p.send(new Uint8Array(5 << 20))
+  expect(why).toEqual(['network'])
+})
+
+test('one long wait is cut into messages the socket accepts', () => {
+  timers.length = 0
+  const p = new SocketPipe('ws://x/hc', 'bin', io)
+  const s = FakeSocket.last
+  s.open()
+  const accept = s.send
+  s.send = () => { throw new Error('full') }
+  for (let i = 0; i < 5; i++) p.send(new Uint8Array(1 << 20).fill(i))
+  s.send = accept
+  for (let i = 0; i < 6; i++) { const t = timers.findLast((t) => t.ms < 1000); if (!t) break; const f = t.f; t.f = () => {}; f() }
+  const sizes = s.sent.map((d) => (d as ArrayBuffer).byteLength)
+  expect(sizes.reduce((a, b) => a + b, 0)).toBe(5 << 20)
+  expect(Math.max(...sizes)).toBe(2 << 20)
 })

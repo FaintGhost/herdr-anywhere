@@ -33,6 +33,8 @@ type Config struct {
 	// Home is what "~" means in /api/folders; empty is this user's home.
 	Home   string
 	Logger *log.Logger
+	// Updates answers about new versions; nil means this companion doesn't know of any.
+	Updates Updates
 	// RevokePoll is how often live sockets are checked against the device
 	// list (default 500 ms), so `revoke` from another process takes effect.
 	RevokePoll time.Duration
@@ -92,6 +94,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/folders", s.folders)
 	mux.HandleFunc("POST /api/folders", s.createFolder)
 	mux.HandleFunc("POST /api/files", s.upload)
+	mux.HandleFunc("POST /api/update", s.update)
+	mux.HandleFunc("POST /api/update/auto", s.updateAuto)
 	mux.HandleFunc("/hc", s.hc)
 	mux.Handle("/", s.static)
 	return s.logRequests(mux)
@@ -197,7 +201,16 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
 	if s.cfg.HCVersion != "" {
 		hc = &s.cfg.HCVersion
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"name": s.cfg.Name, "version": s.cfg.Version, "hc": hc})
+	info := map[string]any{"name": s.cfg.Name, "version": s.cfg.Version, "hc": hc}
+	if u := s.cfg.Updates; u != nil {
+		info["latest"] = u.Latest()
+		if a := u.App(); a.URL != "" {
+			info["app"] = a
+		}
+		info["canUpdate"] = u.CanInstall()
+		info["autoUpdate"] = u.Auto()
+	}
+	writeJSON(w, http.StatusOK, info)
 }
 
 // --- /api/pair -----------------------------------------------------------

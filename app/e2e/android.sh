@@ -143,6 +143,9 @@ for _ in 1 2 3 4 5; do
 done
 [ -n "$above" ] || { echo "FAIL: the key bar (bottom $esc) is under the keyboard (top $((top + inset)))"; exit 1; }
 echo "ok: the key bar sits above the keyboard"
+escs=$("$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep -cF 'content-desc="esc"' || true)
+[ "$escs" = 1 ] || { echo "FAIL: $escs Esc keys on screen with the keyboard up"; exit 1; }
+echo "ok: one Esc on screen"
 
 # The terminal reports idle, then blocked (OSC 7501, as agents do): the app plays Herdr's request sound. Android logs
 # each player the app starts (dumpsys audio, "playback activity"); the emulator has no audio out, so this is the
@@ -166,8 +169,8 @@ done
 [ -n "$played" ] || { echo "FAIL: no player started after the terminal became blocked"; "$adb" shell dumpsys audio | grep -E "uid/pid:$uid/" | tail -3; exit 1; }
 echo "ok: a blocked terminal starts the app's sound player"
 
-# Away from the app (the home screen in front), the terminal asks a question: the notification says who asks, where
-# and what, on the loud channel (dumpsys notification: the record's line names its channel and importance, the lines
+# Away from the app (the home screen in front), the terminal asks a question: the notification says who asks, what,
+# and then where, on the loud channel (dumpsys notification: the record's line names its channel and importance, the lines
 # after it the text).
 "$adb" shell input keyevent 3
 sleep 1
@@ -177,8 +180,8 @@ printf '%s\n' "printf '\033]7501;state=working\033\\\\'; sleep 2; printf '\033]7
 posted() { "$adb" shell dumpsys notification --noredact | grep -A40 "pkg=$id" | grep -E "$1" >/dev/null; }
 record() { "$adb" shell dumpsys notification --noredact | grep -E "NotificationRecord.*pkg=$id .*tag=$term .*$1" >/dev/null; }
 asked=""
-for _ in $(seq 1 15); do posted "android.text=String \(acme-api › .* · Which port\?\)" && { asked=1; break; }; sleep 1; done
-[ -n "$asked" ] || { echo "FAIL: no notification with where it is and what it asks"; "$adb" shell dumpsys notification --noredact | grep -A40 "pkg=$id" | grep -E "android\.(title|text)|channel" | head -6; exit 1; }
+for _ in $(seq 1 15); do posted "android.text=String \(Which port\?" && posted "^acme-api › " && { asked=1; break; }; sleep 1; done
+[ -n "$asked" ] || { echo "FAIL: no notification with what it asks, then where it is"; "$adb" shell dumpsys notification --noredact | grep -A40 "pkg=$id" | grep -E "android\.(title|text)|channel" | head -6; exit 1; }
 posted "android.title=String \(.* needs you\)" || { echo "FAIL: the notification does not say who needs you"; exit 1; }
 record "importance=4 .*channel=needs-you" || { echo "FAIL: a question is not on the needs-you channel (heads-up)"; exit 1; }
 [ -n "$shot" ] && "$adb" exec-out screencap -p > "${shot%.png}-notification.png"
@@ -201,13 +204,14 @@ echo "ok: tapping the notification opens the pane"
 # Away again, the terminal finishes: the notification is the quieter kind.
 "$adb" shell input keyevent 3
 sleep 1
-printf '%s\n' "printf '\033]7501;state=working\033\\\\'; sleep 2; printf '\033]7501;state=done\033\\\\'" > "$work/home/src/acme-api/hm-done.sh"
+printf '%s\n' "printf '\033]7501;state=working\033\\\\'; sleep 2; printf '\033]7501;state=done:msg=$(printf 'Ran the tests' | base64)\033\\\\'" > "$work/home/src/acme-api/hm-done.sh"
 "$hc" send --force "$term" 'sh hm-done.sh' >/dev/null
 done=""
 for _ in $(seq 1 15); do posted "android.title=String \(.* finished\)" && { done=1; break; }; sleep 1; done
 [ -n "$done" ] || { echo "FAIL: no notification when the terminal finished"; exit 1; }
+posted "android.text=String \(Ran the tests" || { echo "FAIL: the finished notification does not say what it did"; "$adb" shell dumpsys notification --noredact | grep -A40 "pkg=$id" | grep -E "android\.(title|text)" | head -4; exit 1; }
 record "importance=2 .*channel=finished" || { echo "FAIL: a finished terminal is not on the quiet channel"; exit 1; }
-echo "ok: notifications away from the app: a question with who, where and what opens its pane; a finish is quieter"
+echo "ok: notifications away from the app: a question with who, what and where opens its pane; a finish says what it did, quieter"
 
 # A new space's folder, picked by browsing: home, then src, then beta-web. The terminal starts there (hc ls: its cwd).
 started_in() {

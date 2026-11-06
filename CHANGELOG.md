@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.1.6
+
+Full-screen programs scroll, a busy terminal no longer knocks the phone offline, and new versions now reach you by themselves.
+
+**Connection**
+
+- A terminal printing quickly no longer drops the connection. It could do so every couple of seconds, which left buttons doing nothing or saying the computer wasn't connected.
+- A new tab tapped while the connection is coming back waits for it and then opens.
+
+**The terminal**
+
+- Swiping scrolls programs that take over the screen, such as Pi, with the same glide as everywhere else.
+- The terminal uses every column that fits. A column was being lost on some screens, which cut Pi's `max` to `ma`.
+- A terminal on the phone's screen takes the phone's width back after a dropped connection, where it used to stay at the width of a narrower pane on the computer.
+- When an agent draws less than the screen holds, the empty rows under its last line give way to the output above it.
+- One Esc on screen.
+- Going to another screen puts the keyboard away, and a resized dark terminal has no white line at its edge.
+
+**Notifications**
+
+- A notification says what the agent asks or did, in its own words, and then which space and tab it is in.
+
+**Updates**
+
+- Home says when a new version is out, and one tap installs it: the computer first, then the app. On Android the system asks you to confirm, and the app says how large the download is first.
+- The computer replaces itself and carries on as the new version, and phones reconnect by themselves. Nothing goes in unless it matches the release's digest and runs as that version.
+- Settings can have the computer install new versions by itself. It's off until you turn it on.
+- `herdr-anywhere update` does the same from a terminal, and `herdr-anywhere update --check` only says whether there is one.
+
+The computer asks GitHub about new releases every 6 hours. The phone reaches GitHub only to download the app after you tap Download.
+
+This is the last update you install by hand. Android: `Herdr-Anywhere.apk`, which updates an installed 0.1.5, and asks once for permission to install updates. Mac: `herdr-anywhere-macos-arm64`.
+
 ## v0.1.5
 
 Herdr Anywhere stays with your agents after you put the phone down, and the terminal now behaves like one on a phone.

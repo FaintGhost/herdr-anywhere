@@ -150,6 +150,8 @@ export class TerminalSession {
       if (this.disposed) return s.detach()
       this.stream = s
       if (!resumed && !this.opts.observe) this.before = this.store.lastSeen(this.address)
+      // A terminal on the phone's screen keeps the phone's width; with the app in the background, the computer's.
+      if (resumed && !this.opts.observe && this.store.appActive) s.focus(true)
       this.attachedOnce = true
       this.state.set('live')
       this.why.set('')

@@ -2,6 +2,8 @@
 import { cleanup, platform, Scroll, signal, Text, View } from 'nsh'
 import { AlertDialog } from 'nsh/base'
 import type { Store } from '../store.ts'
+import { busyWord, runUpdate, useUpdates } from './update.tsx'
+import { APP_VERSION, type Updates } from '../updates.ts'
 import { companionVersion, type Link, type Linker, type Route } from '../link.ts'
 import { FONT_MAX, FONT_MIN, type Appearance, type PrefStore } from '../prefs.ts'
 import { allowNotifications, notifications, type Permission } from '../page.ts'
@@ -43,6 +45,33 @@ const maybeTailnet = (host: string) => /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.
 /** How often the route is asked again: a direct path can come a little after the relay. */
 const ROUTE_EVERY_MS = 10_000
 
+/** A new version, if there is one; whether the computer installs them by itself; which version this app is. */
+function UpdateRows(props: { updates: Updates }) {
+  const state = useUpdates(props.updates)
+  const notice = () => state().notice
+  const busy = () => state().busy
+  const label = () => (notice()?.kind === 'app' || notice()?.kind === 'rebuild' ? t('updateApp') : t('updateComputer'))
+  return (
+    <View>
+      <If when={busy() || notice()}>
+        <Row label={label()} detail={busy() ? busyWord(busy(), state().progress) : t('updateAvailable', { version: notice()?.version ?? '' })}>
+          <If when={!busy()}>
+            <View role="button" testID="settings-update" onPress={() => void runUpdate(props.updates, notice()!)} class="px-2.5 py-1 rounded-[6px] bg-muted active:bg-accent">
+              <Text class="text-[12px] text-foreground">{t('updateNow')}</Text>
+            </View>
+          </If>
+        </Row>
+      </If>
+      <If when={state().info?.canUpdate}>
+        <Row label={t('autoUpdateComputer')} detail={t('autoUpdateDetail')}>
+          <Toggle label={t('autoUpdateComputer')} testID="auto-update" on={state().info?.autoUpdate === true} onChange={(on) => void props.updates.setAuto(on)} />
+        </Row>
+      </If>
+      <If when={platform.os !== 'web'}><Fact label={t('appVersion')} value={APP_VERSION} testID="app-version" /></If>
+    </View>
+  )
+}
+
 function Toggle(props: { on: boolean; label: string; testID: string; onChange: (on: boolean) => void }) {
   return (
     <View role="switch" accessibilityLabel={props.label} accessibilityState={{ checked: props.on }} testID={props.testID} onPress={() => props.onChange(!props.on)}
@@ -52,7 +81,7 @@ function Toggle(props: { on: boolean; label: string; testID: string; onChange: (
   )
 }
 
-export function SettingsScreen(props: { store: Store; prefs: PrefStore; link: Link; linker: Linker; fetcher?: typeof fetch; back: () => void; forget: () => void }) {
+export function SettingsScreen(props: { updates?: Updates; store: Store; prefs: PrefStore; link: Link; linker: Linker; fetcher?: typeof fetch; back: () => void; forget: () => void }) {
   const rev = useRev(props.store)
   const p = useSignal(props.prefs.prefs)
   const conn = useSignal(props.store.conn)
@@ -143,6 +172,7 @@ export function SettingsScreen(props: { store: Store; prefs: PrefStore; link: Li
         <Fact label={t('connection')} value={how()} under={under()} testID="connection" />
         <If when={(rev(), props.store.hello)}><Fact label={t('coreVersion')} value={props.store.hello?.version ?? ''} /></If>
         <If when={companion()}><Fact label={t('companionVersion')} value={companion()} /></If>
+        <If when={props.updates}><UpdateRows updates={props.updates!} /></If>
         <If when={props.link.via === 'demo'} else={
           <Row label={t('forgetComputer')} testID="forget" onPress={() => void forget()}>
             <Text class="text-[13px] text-destructive">{t('forget')}</Text>

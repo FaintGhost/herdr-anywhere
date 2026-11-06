@@ -99,4 +99,7 @@ export const zhHant: Table = {
   noMachine: 'Herdr 裡沒有名為 {machine} 的機器', layoutUnavailable: '這台機器的版面暫時無法使用，等它重新連線後再試。',
   noSpace: '沒有空間 {id}', noSpaceYet: '還沒有空間，請先新增一個', noPaneToSplit: '沒有可分割的窗格', noPane: '沒有窗格 {id}',
   noSpaceToKeep: '沒有可以保留它的空間',
+  // New versions (src/updates.ts).
+  updateAvailable: "{version} 版本可用", updateComputer: "更新電腦", updateApp: "更新 App", updateNow: "更新", updating: "正在更新…", computerUpdated: "電腦已更新到 {version}", couldntUpdateComputer: "無法更新電腦", computerNotBack: "電腦還沒有以 {version} 恢復連線。請檢查電腦上的 herdr-anywhere 是否在執行。", couldntUpdateApp: "無法更新 App", allowInstallTitle: "請允許此 App 安裝更新", allowInstallDetail: "在剛開啟的頁面中開啟，返回後再點一次更新。", updateByHandTitle: "手動更新電腦", updateByHandDetail: "這台電腦還不能自行更新。請在電腦上執行下面的指令，然後重新啟動 herdr-anywhere：", copyCommand: "複製指令", downloadAppTitle: "下載 {size} MB？", downloadAppDetail: "下載完成後，Android 會請你確認安裝。", download: "下載", rebuildTitle: "建置 {version} 版本", rebuildDetail: "iPhone 版需要用你自己的 Apple 帳號建置。步驟在專案的 iPhone 指南裡。", openGuide: "開啟指南", autoUpdateComputer: "自動更新電腦", autoUpdateDetail: "每次有新版本時自動安裝。手機會自動重新連線。", appVersion: "App 版本", downloadingApp: "已下載 {percent}%", dismissUpdate: "暫不更新",
+  updateWrongKey: "這個檔案的簽署和手機上的 App 不同，Android 不允許覆蓋安裝。",
 }

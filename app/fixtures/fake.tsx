@@ -90,6 +90,7 @@ const pipe = (l: Linker) => () => {
 }
 
 const routes = (params.routes ?? 'direct').split(',')
+let updatePosts = 0
 const fakeTunnel: Tunnel = {
   pair: async () => '', scan: async () => '', forget: () => {},
   connect: async () => ({
@@ -117,7 +118,12 @@ mount(() => (
     fetcher: (async (url: string, init: any) => {
       if (url.includes('/api/files')) return answer(200, { path: landed(new URLSearchParams(url.split('?')[1]), init.body.size) })
       if (url.includes('/api/folders')) return folders(url, init)
-      if (url.includes('/api/info')) return { ok: params.info !== 'none', json: async () => (params.info === 'none' ? {} : { version: '9.9.9' }) }
+      if (url.includes('/api/update/auto')) { void Storage.setItem('update-auto', String(init.body)); return answer(200, {}) }
+      if (url.includes('/api/update')) {
+        void Storage.setItem('update-posts', String(++updatePosts))
+        return answer(502, { error: 'the test computer says no' })
+      }
+      if (url.includes('/api/info')) return { ok: params.info !== 'none', json: async () => (params.info === 'none' ? {} : params.info ? JSON.parse(params.info) : { version: '9.9.9' }) }
       const body = JSON.parse(init.body)
       const ok = body.code === 'GOOD-CODE'
       return { ok, status: ok ? 200 : 401, json: async () => (ok ? { token: 'new-token', device: 'd2', name: 'studio' } : { error: 'unknown pairing code' }) }

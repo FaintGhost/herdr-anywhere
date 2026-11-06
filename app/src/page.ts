@@ -59,3 +59,22 @@ export function keepAlive(on: boolean) {
 export function focusTerminalView(): Promise<unknown> {
   return host.available() ? host.call('page.focusTerminal').catch(() => {}) : Promise.resolve()
 }
+
+/** Downloads the Android app and hands it to the system, which asks the person to confirm and refuses a file not signed
+ *  with this app's key. "needsPermission": the system's screen for allowing that opened, and the person comes back. */
+export async function installApp(app: { url: string; digest: string; bytes: number }, progress: (done: number) => void): Promise<'installing' | 'needsPermission'> {
+  if (!host.available()) throw new Error('no host')
+  const off = host.on('page.updateProgress', (d: any) => { if (typeof d?.done === 'number') progress(d.done) })
+  try {
+    const r: any = await host.call('page.installUpdate', { url: app.url, digest: app.digest })
+    return r === 'needsPermission' ? 'needsPermission' : 'installing'
+  } finally {
+    off()
+  }
+}
+
+/** The system refused an update after the person confirmed it. Returns the stop. */
+export function followInstallFailures(failed: (message: string) => void): () => void {
+  if (!host.available()) return () => {}
+  return host.on('page.updateFailed', (d: any) => failed(String(d?.message ?? '')))
+}

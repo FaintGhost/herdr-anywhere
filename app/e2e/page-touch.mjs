@@ -65,7 +65,9 @@ async function open(opts) {
   const steps = flick.slice(1).map((v, i) => Math.abs(v - flick[i]))
   const moving = steps.filter((s) => s > 0)
   check('a flick keeps scrolling after the finger lifts', flick[0] !== flick[flick.length - 1], flick.join(' '))
-  check('it slows down as it goes', moving.length >= 4 && moving[0] > moving[moving.length - 1], steps.join(' '))
+  const moved = (a, b) => steps.slice(a, b).reduce((n, v) => n + v, 0)
+  // The scrollbar moves in whole pixels, so two steps say little: compare the first half second with the next.
+  check('it slows down as it goes', moving.length >= 4 && moved(0, 5) > moved(5, 10), steps.join(' '))
   check('and comes to rest', steps.slice(-5).every((s) => s === 0), steps.join(' '))
 
   await stroke(150, 20)
@@ -101,6 +103,83 @@ async function open(opts) {
   await t.touch('touchEnd')
   await t.page.waitForTimeout(300)
   check('nothing to scroll: no error', !(await t.page.evaluate(() => window.pageError)))
+}
+
+// A full-screen program has no scrollback for the page to move (Pi 1.4.0 runs so, measured 2026-11-06): a drag has to
+// reach the program, as a wheel when it follows the mouse and as arrow keys when it doesn't.
+{
+  const t = await open({ phone: true })
+  const input = () => t.page.evaluate(() => { const d = window.posts.filter((m) => m.t === 'input').map((m) => m.data).join(''); window.posts = window.posts.filter((m) => m.t !== 'input'); return d })
+  // A finger that stops before it lifts, so no flick follows.
+  const run = async (dy) => {
+    await t.page.waitForTimeout(100); await input()
+    await t.touch('touchStart', 195, 300)
+    for (let i = 1; i <= 6; i++) await t.touch('touchMove', 195, 300 + (dy * i) / 6)
+    await t.page.waitForTimeout(150)
+    await t.touch('touchEnd')
+    await t.page.waitForTimeout(100)
+    return input()
+  }
+  const count = (s, seq) => s.split(seq).length - 1
+  await t.send({ t: 'write', data: '\x1b[?1049h\x1b[?1000h\x1b[?1003h\x1b[?1006h\x1b[2J\x1b[Hfull screen' })
+  await t.page.waitForTimeout(100)
+  const back = await run(200)
+  check('a drag down asks a mouse program for what is above', /\x1b\[<64;\d+;\d+M/.test(back) && !/\x1b\[<65;/.test(back), back)
+  const on = await run(-200)
+  check('a drag up asks it for what is below', /\x1b\[<65;\d+;\d+M/.test(on) && !/\x1b\[<64;/.test(on), on)
+  const wheels = count(back, '\x1b[<64;')
+  const bit = await run(60)
+  check('how far it goes follows the finger', count(bit, '\x1b[<64;') < wheels, [count(bit, '\x1b[<64;'), wheels])
+  await t.page.waitForTimeout(100)
+  await input()
+  await t.touch('touchStart', 195, 150)
+  for (let i = 1; i <= 8; i++) { await t.touch('touchMove', 195, 150 + i * 40); await t.page.waitForTimeout(16) }
+  await t.touch('touchEnd')
+  const during = await input()
+  await t.page.waitForTimeout(1500)
+  const after = await input()
+  check('a flick keeps going after the finger lifts', count(after, '\x1b[<64;') > 0, [count(during, '\x1b[<64;'), count(after, '\x1b[<64;')])
+  await t.page.waitForTimeout(1500)
+  check('and comes to rest', (await input()) === '')
+  await t.tap(195, 300)
+  check('a tap is no click in the program', !/\x1b\[</.test(await input()))
+  check('the page never counts as scrolled back', !(await t.away()))
+
+  await t.send({ t: 'write', data: '\x1b[?1003l\x1b[?1000l\x1b[?1006l' })
+  await t.page.waitForTimeout(100)
+  const arrows = await run(120)
+  check('a full-screen program without a mouse gets arrow keys', count(arrows, '\x1b[A') > 1 && !arrows.includes('\x1b[<'), arrows)
+  check('one for each row', Math.abs(count(arrows, '\x1b[A') - 7) <= 1, count(arrows, '\x1b[A'))
+  await t.send({ t: 'write', data: '\x1b[?1h' })
+  await t.page.waitForTimeout(100)
+  check('in the form it asked for', count(await run(-120), '\x1bOB') > 1)
+  await t.send({ t: 'write', data: '\x1b[?1l\x1b[?1049l' })
+  await t.page.waitForTimeout(100)
+  await t.send({ t: 'write', data: Array.from({ length: 300 }, (_, i) => `line ${i}`).join('\r\n') + '\x1b[?1000h\x1b[?1006h' })
+  await t.page.waitForTimeout(200)
+  check('on the main screen a program that follows the mouse gets it too', /\x1b\[<64;/.test(await run(200)))
+  await t.send({ t: 'write', data: '\x1b[?1000l\x1b[?1006l' })
+  await t.page.waitForTimeout(100)
+  check('and without one nothing is sent', (await run(200)) === '')
+  check('the drag moves the page back through its history', await t.away())
+  await t.page.context().close()
+}
+
+// Every column that fits is used: a TUI cuts what doesn't fit, and on a phone its status line often ends at the last one.
+for (const [width, scale] of [[360, 3], [384, 2.8125], [393, 3], [411, 2.625], [412, 2.625], [430, 3], [320, 2]]) {
+  const context = await browser.newContext({ viewport: { width, height: 700 }, hasTouch: true, isMobile: true, deviceScaleFactor: scale })
+  const page = await context.newPage()
+  await page.addInitScript(() => { window.posts = []; window.nsh = { postMessage: (m) => window.posts.push(JSON.parse(m)) } })
+  await page.route('http://terminal.test/', (r) => r.fulfill({ contentType: 'text/html', body: terminalPage({ dark: true, fontSize: 13, scrollback: 2000, phone: true }) }))
+  await page.goto('http://terminal.test/')
+  await page.waitForFunction(() => window.posts.some((m) => m.t === 'ready'))
+  await page.waitForTimeout(100)
+  const m = await page.evaluate(() => {
+    const r = document.querySelector('.xterm-screen').getBoundingClientRect(), cols = [...window.posts].reverse().find((p) => p.cols).cols
+    return { cols, cell: r.width / cols, wide: r.width, inner: innerWidth, posted: window.posts.filter((p) => p.t === 'ready' || p.t === 'size').length }
+  })
+  check(`${width} px at ${scale}: the columns fit, and no more would`, m.wide <= m.inner + 0.01 && m.inner - m.wide < m.cell - 0.01, m)
+  await context.close()
 }
 
 // A pane that loses height to a split takes its rows from the new height; the keyboard's height never does this.
@@ -178,6 +257,40 @@ async function open(opts) {
   await t.page.waitForTimeout(250)
   const top = await t.page.evaluate(() => document.querySelector('.xterm-screen').getBoundingClientRect().top)
   check('a short screen stays where it is under the keyboard', top === 12, top)
+  await t.page.context().close()
+}
+{
+  // A TUI that drew less than before (Claude Code after a tool's output folds up) leaves empty rows under its last
+  // line. The view ends at that line, with the history above it on screen instead of the empty rows.
+  const t = await open({ phone: true })
+  const rows = await t.page.evaluate(() => window.posts.find((m) => m.t === 'ready').rows)
+  const shown = async () => {
+    await t.page.evaluate(() => { window.posts = window.posts.filter((m) => m.t !== 'copied') })
+    await t.send({ t: 'copy' })
+    await t.page.waitForTimeout(60)
+    return (await t.page.evaluate(() => window.posts.find((m) => m.t === 'copied').text)).split('\n')
+  }
+  await t.send({ t: 'write', data: Array.from({ length: 100 }, (_, i) => `line ${i}`).join('\r\n') + '\r\n' + 'drawn\r\n'.repeat(12) })
+  await t.send({ t: 'write', data: '\x1b[12A\x1b[Jprompt' })
+  await t.page.waitForTimeout(150)
+  let s = await shown()
+  check('empty rows under the last line give way to history', s.length === rows && s.at(-1) === 'prompt' && s.at(-2) === 'line 99', { rows, last: s.slice(-2), n: s.length })
+  check('the view at the last line is the live bottom', !(await t.away()))
+  await t.send({ t: 'write', data: '\r\nmore' })
+  await t.page.waitForTimeout(150)
+  s = await shown()
+  check('new lines keep the view at the last line', s.length === rows && s.at(-1) === 'more' && s.at(-2) === 'prompt', { n: s.length, last: s.slice(-2) })
+  await t.drag(200, 200, 200)
+  check('scrolling back from there is away', await t.away())
+  await t.send({ t: 'bottom' })
+  await t.page.waitForTimeout(100)
+  s = await shown()
+  check('latest goes back to the last line', s.length === rows && s.at(-1) === 'more' && !(await t.away()), { n: s.length, last: s.slice(-1) })
+  // A full-screen program owns every row: nothing of the history shows.
+  await t.send({ t: 'write', data: '\x1b[?1049h\x1b[Hfull' })
+  await t.page.waitForTimeout(150)
+  s = await shown()
+  check('a full-screen program keeps its empty rows', s.length === 1 && s[0] === 'full', s.slice(0, 2))
   await t.page.context().close()
 }
 {

@@ -475,3 +475,56 @@ test('an alert turned off in settings plays no sound', async () => {
   await app.wait(1200)
   expect(app.count('id:sound-blocked')).toBe(0)
 })
+
+const NEW_COMPUTER = JSON.stringify({ version: '0.1.5', latest: '9.0.0', canUpdate: true, autoUpdate: false })
+
+test('a new version shows on home, a tap asks the computer, and what it answers shows', async () => {
+  const app = await open('./fixtures/fake.tsx', { host: { params: { scene: 'busy', info: NEW_COMPUTER } } })
+  await app.waitFor('id:update-banner')
+  await app.waitFor('text:Version 9.0.0 is available')
+  await app.press('id:update-now')
+  await app.waitFor('text:the test computer says no')
+  await app.waitFor("text:Couldn't update the computer")
+  expect(app.storage()['update-posts']).toBe('1')
+  await app.waitFor('id:update-banner')
+})
+
+test('"Not now" keeps that version off home, and Settings still offers it', async () => {
+  const app = await open('./fixtures/fake.tsx', { host: { params: { scene: 'busy', info: NEW_COMPUTER } } })
+  await app.waitFor('id:update-banner')
+  await app.press('id:update-later')
+  await app.waitUntil(() => app.count('id:update-banner') === 0)
+  await app.press('id:settings')
+  await app.waitFor('id:settings-update')
+})
+
+test('nothing is offered when everything is current', async () => {
+  const app = await open('./fixtures/fake.tsx', { host: { params: { scene: 'busy', info: JSON.stringify({ version: '0.0.1', latest: '0.0.1', canUpdate: true }) } } })
+  await app.waitFor('text:Needs you')
+  await app.press('id:settings')
+  await app.waitFor('id:auto-update')
+  expect(app.count('id:settings-update')).toBe(0)
+  expect(app.count('id:update-banner')).toBe(0)
+})
+
+test('automatic updates are off until asked, and the computer is told', async () => {
+  const app = await open('./fixtures/fake.tsx', { host: { params: { scene: 'busy', info: NEW_COMPUTER } } })
+  await app.waitFor('text:Needs you')
+  await app.press('id:settings')
+  await app.press('id:auto-update')
+  await app.waitUntil(() => app.storage()['update-auto'] === '{"on":true}')
+})
+
+test('the switcher goes on working after it started an agent', async () => {
+  const app = await busy()
+  await app.waitFor('text:Needs you')
+  await app.press('id:space-sp2')
+  await app.waitFor('id:terminal-t3')
+  for (const key of ['claude', 'shell', 'claude']) {
+    await app.press('id:switcher')
+    await app.waitFor(`id:switch-new-${key}`)
+    await app.press(`id:switch-new-${key}`)
+    await app.waitUntil(() => app.count(`id:switch-new-${key}`) === 0)
+    await app.wait(300)
+  }
+})

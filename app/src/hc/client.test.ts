@@ -192,3 +192,37 @@ function concatBytes(a: Uint8Array, b: Uint8Array) {
   o.set(b, a.length)
   return o
 }
+
+test('a read full of frames answers with one credit, for all of it', async () => {
+  const core = new FakeCore()
+  core.answer = (m) => m.method === 'terminal.attach' ? { channel: 7, terminal: { address: 't' } } : {}
+  const hc = new HcClient(core)
+  await hc.hello()
+  let got = 0
+  await hc.attach({ terminal: 't', cols: 80, rows: 24 }, { data: (b) => { got += b.length }, close: () => {} })
+  core.sent.length = 0
+  const frames = Array.from({ length: 50 }, () => encodeFrame(7, DATA, new Uint8Array(100)))
+  const read = new Uint8Array(frames.reduce((n, f) => n + f.length, 0))
+  let at = 0
+  for (const f of frames) { read.set(f, at); at += f.length }
+  core.onBytes!(read)
+  expect(got).toBe(5000)
+  const credits = core.sent.filter((f) => f.ch === 7 && f.kind === CREDIT)
+  expect(credits.length).toBe(1)
+  expect(new DataView(credits[0].payload.buffer, credits[0].payload.byteOffset).getUint32(0, true)).toBe(5000)
+})
+
+test('frames that came before the reply are credited once they are read', async () => {
+  const core = new FakeCore()
+  core.answer = (m) => {
+    if (m.method !== 'terminal.attach') return {}
+    for (let i = 0; i < 3; i++) core.frame(7, DATA, new Uint8Array(10))
+    return { channel: 7, terminal: { address: 't' } }
+  }
+  const hc = new HcClient(core)
+  await hc.hello()
+  await hc.attach({ terminal: 't', cols: 80, rows: 24 }, { data: () => {}, close: () => {} })
+  await tick()
+  const total = core.sent.filter((f) => f.ch === 7 && f.kind === CREDIT).reduce((n, f) => n + new DataView(f.payload.buffer, f.payload.byteOffset).getUint32(0, true), 0)
+  expect(total).toBe(30)
+})

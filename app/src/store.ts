@@ -10,7 +10,7 @@ import { AgentList, type AgentInfo } from './model/agents.ts'
 import { programOf, agentArgv, INSTALLED_PROBE, parseInstalled, startable, type Program } from './model/programs.ts'
 import { addresses, find, modBlock, panes, terminalOf, type Axis, type Node } from './model/layout.ts'
 import { recentFolders } from './model/folders.ts'
-import { asks, activity } from './model/answers.ts'
+import { activity } from './model/answers.ts'
 import { t as tr, type Key } from './strings/index.ts'
 import { readMenu, type Menu } from './model/menu.ts'
 import { spaceMarks } from './model/marks.ts'
@@ -63,6 +63,8 @@ export class Signal<T> {
 const QUIET_MS = 15_000
 /** A check later than this after the last one: the app was suspended, so nothing could have been heard. */
 const ASLEEP_MS = 5_000
+/** How long something the person just asked for waits for a lost line to come back before it fails. */
+const COMEBACK_MS = 10_000
 
 export class Store {
   readonly model = new Model()
@@ -246,6 +248,18 @@ export class Store {
     return !!this.hc && this.conn.get() === 'ready'
   }
 
+  /** A phone's line drops for a moment often: what the person asks for then waits for it, and has it retried at once. */
+  private whenConnected(): Promise<void> {
+    if (this.connected || !this.wantConnected) return Promise.resolve()
+    return new Promise<void>((resolve) => {
+      let off = () => {}
+      const done = () => { off(); resolve() }
+      off = this.conn.sub((c) => { if (this.connected || c === 'unpaired' || c === 'idle') done() }) as () => void
+      this.io.setTimeout(done, COMEBACK_MS)
+      this.reconnectNow()
+    })
+  }
+
   call<T = any>(method: string, params: object = {}): Promise<T> {
     if (!this.hc) return Promise.reject(new HcError(tr('disconnected'), 'disconnected'))
     return this.hc.call<T>(method, params)
@@ -400,9 +414,12 @@ export class Store {
     const space = pane ? this.model.spaceOf(pane) : undefined
     const tab = pane ? this.model.tabOf(pane) : undefined
     const name = this.terminalName(t)
-    // Herdr's toast says where the agent is; the phone adds what a blocked one asks, since its terminal is a tap away.
+    // What it asks or did, in its own words, then where it is: a notification's first line is what shows when folded.
     const place = space && tab ? `${this.spaceName(space)} › ${Model.tabName(space, tab)}` : undefined
-    const body = [place, kind === 'blocked' ? asks(t.status) : ''].filter(Boolean).join(' · ') || undefined
+    // Any program can report its state; only an agent's title is its summary of the task (a shell's is user@host:path).
+    const p = this.program(t.address)
+    const said = activity(t.status, p.agent ? cleanTitle(t.title) : '', p.name)
+    const body = [said, place].filter(Boolean).join('\n') || undefined
     const toast: Toast = kind === 'blocked'
       ? { id: 0, title: tr('nameNeedsYou', { name }), body, level: 'error', action: { terminal: t.address } }
       : { id: 0, title: tr('nameFinished', { name }), body, level: 'info', action: { terminal: t.address } }
@@ -703,6 +720,7 @@ export class Store {
   }
 
   private async spawn(argv: string[] | undefined, cwd: string, space: string, tab: string, on: string | undefined): Promise<string> {
+    await this.whenConnected()
     this.requireDoc(on)
     const r = await this.call<{ address: string }>('terminal.run', {
       argv: argv ?? [], ...(cwd ? { cwd } : {}), env: ENV, keep: true,

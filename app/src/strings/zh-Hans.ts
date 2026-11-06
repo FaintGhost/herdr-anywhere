@@ -99,4 +99,7 @@ export const zhHans: Table = {
   noMachine: 'Herdr 里没有名为 {machine} 的机器', layoutUnavailable: '这台机器的布局暂时不可用，等它重新连接后再试。',
   noSpace: '没有空间 {id}', noSpaceYet: '还没有空间，请先新建一个', noPaneToSplit: '没有可拆分的窗格', noPane: '没有窗格 {id}',
   noSpaceToKeep: '没有可以保留它的空间',
+  // New versions (src/updates.ts).
+  updateAvailable: "{version} 版本可用", updateComputer: "更新电脑", updateApp: "更新 App", updateNow: "更新", updating: "正在更新…", computerUpdated: "电脑已更新到 {version}", couldntUpdateComputer: "无法更新电脑", computerNotBack: "电脑还没有以 {version} 恢复连接。请检查电脑上的 herdr-anywhere 是否在运行。", couldntUpdateApp: "无法更新 App", allowInstallTitle: "请允许此 App 安装更新", allowInstallDetail: "在刚打开的页面中开启，返回后再点一次更新。", updateByHandTitle: "手动更新电脑", updateByHandDetail: "这台电脑还不能自己更新。请在电脑上运行下面的命令，然后重启 herdr-anywhere：", copyCommand: "复制命令", downloadAppTitle: "下载 {size} MB？", downloadAppDetail: "下载完成后，Android 会请你确认安装。", download: "下载", rebuildTitle: "构建 {version} 版本", rebuildDetail: "iPhone 版需要用你自己的 Apple 账号构建。步骤在项目的 iPhone 指南里。", openGuide: "打开指南", autoUpdateComputer: "自动更新电脑", autoUpdateDetail: "每次有新版本时自动安装。手机会自动重新连接。", appVersion: "App 版本", downloadingApp: "已下载 {percent}%", dismissUpdate: "暂不更新",
+  updateWrongKey: "这个文件的签名和手机上的 App 不同，Android 不允许覆盖安装。",
 }

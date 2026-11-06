@@ -78,6 +78,8 @@ export class HcClient {
   /** Frames on a channel whose reply is still being read (a first paint, the first events come in the same read). */
   private early = new Map<number, { kind: number; payload: Uint8Array }[]>()
   private earlyBytes = 0
+  /** Bytes read per channel and not yet credited: one credit per read, since NSH's send queue is short. */
+  private unsaid = new Map<number, number>()
   private helloWait?: { resolve: (h: Hello) => void; reject: (e: Error) => void }
   private closed = false
   /** Called on any bytes from the computer. */
@@ -123,7 +125,7 @@ export class HcClient {
     let rest = ''
     this.listen(r.channel, (kind, payload) => {
       if (kind !== DATA) return
-      this.send(r.channel, CREDIT, u32(payload.length))
+      this.credit(r.channel, payload.length)
       rest += dec.decode(payload, { stream: true })
       let nl: number
       while ((nl = rest.indexOf('\n')) >= 0) {
@@ -142,7 +144,7 @@ export class HcClient {
     this.listen(ch, (kind, payload) => {
       if (!open) return
       if (kind === DATA) {
-        this.send(ch, CREDIT, u32(payload.length))
+        this.credit(ch, payload.length)
         on.data(payload)
       } else if (kind === CLOSE) {
         open = false
@@ -180,9 +182,22 @@ export class HcClient {
     if (!this.closed) this.pipe.send(encodeFrame(ch, kind, payload))
   }
 
+  private credit(ch: number, bytes: number) {
+    this.unsaid.set(ch, (this.unsaid.get(ch) ?? 0) + bytes)
+  }
+
+  private sayCredits() {
+    for (const [ch, bytes] of this.unsaid) this.send(ch, CREDIT, u32(bytes))
+    this.unsaid.clear()
+  }
+
   private bytes(b: Uint8Array) {
     this.onHeard?.()
-    if (this.framed) return this.parser.push(b)
+    if (this.framed) {
+      this.parser.push(b)
+      this.sayCredits()
+      return
+    }
     // Before framing: the hello reply is one JSON line; anything after it is already framed.
     this.line = concat(this.line, b)
     const nl = this.line.indexOf(10)
@@ -200,6 +215,7 @@ export class HcClient {
     this.framed = true
     wait?.resolve(msg.result)
     if (after.length) this.parser.push(after)
+    this.sayCredits()
   }
 
   private listen(ch: number, h: (kind: number, payload: Uint8Array) => void) {
@@ -211,6 +227,7 @@ export class HcClient {
       this.earlyBytes -= f.payload.length
       if (this.channels.get(ch) === h) h(f.kind, f.payload)
     }
+    this.sayCredits()
   }
 
   private frame(ch: number, kind: number, payload: Uint8Array) {

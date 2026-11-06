@@ -20,6 +20,10 @@ const ROW_KEYS: { key: BarKey | 'ctrl'; label: string }[] = [
   { key: 'ctrlc', label: '^C' }, { key: 'left', label: '←' }, { key: 'up', label: '↑' }, { key: 'down', label: '↓' }, { key: 'right', label: '→' }, { key: 'enter', label: '↵' },
 ]
 /** Ctrl is one tap and goes with the next key, so the keys it changes say what they are about to send. */
+/** One Esc on screen. The composer's and the fallback keys' are there with the keyboard down too, to stop an agent; only
+ *  with choices on screen does the row need its own. */
+export const rowKeys = (mode: 'compose' | 'choices' | 'keys') => ROW_KEYS.filter((k) => k.key !== 'esc' || mode === 'choices')
+
 const WITH_CTRL = new Set<string>(['tab', 'left', 'up', 'down', 'right', 'enter'])
 /** The composer grows with its text up to this, then scrolls. */
 const COMPOSER_MIN = 36
@@ -87,15 +91,15 @@ export function PaneBar(props: { store: Store; session: TerminalSession; program
         </View>
       </If>
       <If when={mode() === 'compose'}>
-        <Composer store={s} session={props.session} hint={hint()} focus={focusFirst || typing() || (blocked() && status()?.kind === 'question' && !menu())}
+        <Composer keepTerminal={() => keyboardFrame().height > 0 && !composing()} store={s} session={props.session} hint={hint()} focus={focusFirst || typing() || (blocked() && status()?.kind === 'question' && !menu())}
           focused={(f) => { composing.set(f); if (f) s.focusComposerOn(undefined) }} />
       </If>
-      <If when={keyboardFrame().height > 0}><KeyRow session={props.session} keepTerminal={() => !composing()} /></If>
+      <If when={keyboardFrame().height > 0}><KeyRow keys={rowKeys(mode())} session={props.session} keepTerminal={() => !composing()} /></If>
     </View>
   )
 }
 
-function Composer(props: { store: Store; session: TerminalSession; hint: string; focus: boolean; focused: (f: boolean) => void }) {
+function Composer(props: { keepTerminal: () => boolean; store: Store; session: TerminalSession; hint: string; focus: boolean; focused: (f: boolean) => void }) {
   const addr = props.session.address
   const text = signal('')
   const pending = useSignal(props.store.pending)
@@ -142,7 +146,11 @@ function Composer(props: { store: Store; session: TerminalSession; hint: string;
         <Text testID="pending" class="px-3 pt-1 text-[11.5px] text-sidebar-foreground">{t('pendingSend', { n: waiting() })}</Text>
       </If>
       <View testID="composer" class="flex-row items-end gap-1.5 px-2 py-1">
-        <Key label="esc" testID="key-esc" onPress={() => props.session.key('esc')} grow={false} />
+        <Key label="esc" testID="key-esc" grow={false} onPress={() => {
+          props.session.key('esc')
+          // Typing in the terminal goes on there, as after the row's keys.
+          if (props.keepTerminal()) props.session.focus()
+        }} />
         <Input testID="compose-input" value={text()} onChange={(t) => text.set(t)} placeholder={props.hint} autoFocus={props.focus}
           multiline submitBehavior="newline" onFocus={() => { props.session.claim(); props.focused(true) }} onBlur={() => props.focused(false)}
           onContentSizeChange={(e) => tall.set(Math.max(COMPOSER_MIN, Math.min(COMPOSER_MAX, e.height + 16)))} style={{ height: text() ? tall() : COMPOSER_MIN }}
@@ -157,7 +165,7 @@ function Composer(props: { store: Store; session: TerminalSession; hint: string;
 }
 
 /** Directly above the keyboard: the keys a phone keyboard lacks, straight to the pane, and one to put it away. */
-function KeyRow(props: { session: TerminalSession; keepTerminal: () => boolean }) {
+function KeyRow(props: { keys: { key: BarKey | 'ctrl'; label: string }[]; session: TerminalSession; keepTerminal: () => boolean }) {
   const ctrl = useSignal(props.session.ctrl)
   const press = (k: BarKey | 'ctrl') => {
     if (k === 'ctrl') props.session.toggleCtrl()
@@ -167,7 +175,7 @@ function KeyRow(props: { session: TerminalSession; keepTerminal: () => boolean }
   }
   return (
     <View testID="key-row" class="flex-row items-center gap-1 px-1.5 pb-1">
-      {ROW_KEYS.map((k) => (
+      {props.keys.map((k) => (
         <View role="button" focusable={false} testID={`row-${k.key}`} accessibilityLabel={k.label} onPress={() => press(k.key)}
           class={`flex-1 h-8 items-center justify-center rounded-[6px] ${k.key === 'ctrl' && ctrl() ? 'bg-primary' : 'bg-secondary active:bg-accent'}`}>
           <Text class={`${k.key === 'enter' ? 'text-[16px]' : 'text-[12px]'} font-mono ${k.key === 'ctrl' && ctrl() ? 'text-primary-foreground' : 'text-foreground'}`}>{ctrl() && WITH_CTRL.has(k.key) ? `^${k.label}` : k.label}</Text>

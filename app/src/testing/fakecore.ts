@@ -1,6 +1,6 @@
 // An in-memory herdr-core speaking the framed protocol, for headless tests of the store and the screens.
 // It keeps terminals, the `herdr-app` documents with compare-and-set versions, and the event stream.
-import { CLOSE, CREDIT, DATA, FrameParser, RESIZE, encodeFrame } from '../hc/frames.ts'
+import { CLOSE, CREDIT, DATA, FOCUS, FrameParser, RESIZE, encodeFrame } from '../hc/frames.ts'
 import type { Pipe } from '../hc/client.ts'
 
 const enc = new TextEncoder()
@@ -26,6 +26,7 @@ export class FakeCore implements Pipe {
   /** Types back what is written, as a terminal in cooked mode does (Enter starts a new prompt): for the demo app. */
   echo = false
   resized: { channel: number; cols: number; rows: number }[] = []
+  focused: number[] = []
   home = '/Users/sam'
   shell = '/bin/zsh'
   installed = ['claude', 'codex']
@@ -122,7 +123,7 @@ export class FakeCore implements Pipe {
   /** Text sent to a terminal (`terminal.send`), for a test to read. */
   onSend?: (terminal: string, text: string, force: boolean) => void
 
-  setStatus(addr: string, state: string | null, app = 'claude-code', extra: { kind?: string; msg?: string } = {}) {
+  setStatus(addr: string, state: string | null, app: string | null = 'claude-code', extra: { kind?: string; msg?: string } = {}) {
     const t = this.terms.get(addr)!
     t.status = state ? { state, app, ...extra } : null
     t.reported = !!state
@@ -164,6 +165,7 @@ export class FakeCore implements Pipe {
         const a = this.attached.get(ch)
         if (this.echo && a) this.out(ch, DATA, data.replace(/\r/g, `\r\n${a}$ `))
       }
+      if (kind === FOCUS) this.focused.push(ch)
       if (kind === RESIZE) {
         const v = new DataView(p.buffer, p.byteOffset)
         this.resized.push({ channel: ch, cols: v.getUint16(0, true), rows: v.getUint16(2, true) })

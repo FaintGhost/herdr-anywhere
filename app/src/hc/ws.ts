@@ -9,7 +9,12 @@ export type SocketIO = { WebSocket: typeof WebSocket; setTimeout: typeof setTime
 
 /** The first answer (hello's) comes in well under this; binary that stays unanswered is binary not getting through. */
 const ANSWER_MS = 8000
-const REFUSED_MS = 1000
+/** NSH's send queue is short (it refused a send with 8 frames in it, 2026-11-06 on the emulator) and empties in moments.
+ *  What it refuses waits here. A socket that takes nothing this long has gone without saying so. */
+const RETRY_MS = 20
+const REFUSED_MS = 5000
+const MAX_WAITING = 8 << 20
+const MAX_MESSAGE = 2 << 20
 
 export function socketUrl(base: string, token: string, enc: Enc): string {
   const u = base.replace(/\/+$/, '').replace(/^http/, 'ws')
@@ -40,12 +45,15 @@ export class SocketPipe implements Pipe {
   private heard = false
   private watchdog?: number
   private refused?: number
+  private again?: number
+  private waiting: Uint8Array[] = []
+  private waitingBytes = 0
 
   constructor(url: string, private enc: Enc, private io: SocketIO = { WebSocket, setTimeout, clearTimeout }) {
     this.ws = new io.WebSocket(url)
     this.ws.binaryType = 'arraybuffer'
     this.ws.onopen = () => {
-      for (const b of this.queue.splice(0)) this.write(b)
+      for (const b of this.queue.splice(0)) this.send(b)
     }
     this.ws.onmessage = (e) => {
       this.heard = true
@@ -58,26 +66,53 @@ export class SocketPipe implements Pipe {
   }
 
   send(b: Uint8Array) {
-    if (this.done || this.refused !== undefined) return
+    if (this.done) return
     if (this.ws.readyState !== 1) this.queue.push(b)
-    else this.write(b)
+    else if (this.waiting.length || !this.write(b)) this.wait(b)
   }
 
   close() {
     this.end('closed')
   }
 
-  private write(b: Uint8Array) {
+  private write(b: Uint8Array): boolean {
     try {
       if (this.enc === 'b64') this.ws.send(toBase64(b))
       else this.ws.send(b.slice().buffer)
     } catch {
-      // NSH's send throws when the socket is closing (before readyState says so) or its queue is full. The close event
-      // brings the code ("pair again" is 4401); without one soon, the bytes are lost and the pipe is no good.
-      if (this.refused === undefined) this.refused = this.io.setTimeout(() => this.end('network'), REFUSED_MS)
-      return
+      // NSH's send throws when its queue is full, and when the socket is closing before readyState says so. A close
+      // brings its code ("pair again" is 4401).
+      return false
     }
     if (this.enc === 'bin' && !this.heard && this.watchdog === undefined) this.watchdog = this.io.setTimeout(() => { if (!this.heard) this.end('binary-unsupported') }, ANSWER_MS)
+    return true
+  }
+
+  private wait(b: Uint8Array) {
+    this.waiting.push(b)
+    this.waitingBytes += b.length
+    if (this.waitingBytes > MAX_WAITING) return this.end('network')
+    if (this.refused === undefined) this.refused = this.io.setTimeout(() => this.end('network'), REFUSED_MS)
+    if (this.again === undefined) this.again = this.io.setTimeout(() => this.drain(), RETRY_MS)
+  }
+
+  /** The bytes are one stream to the computer, so what waited goes out together. */
+  private drain() {
+    this.again = undefined
+    if (this.done) return
+    while (this.waiting.length) {
+      let n = 1
+      let size = this.waiting[0].length
+      while (n < this.waiting.length && size + this.waiting[n].length <= MAX_MESSAGE) size += this.waiting[n++].length
+      const message = new Uint8Array(size)
+      let at = 0
+      for (const b of this.waiting.slice(0, n)) { message.set(b, at); at += b.length }
+      if (!this.write(message)) { this.again = this.io.setTimeout(() => this.drain(), RETRY_MS); return }
+      this.waiting.splice(0, n)
+      this.waitingBytes -= size
+    }
+    this.io.clearTimeout(this.refused)
+    this.refused = undefined
   }
 
   private end(reason: string) {
@@ -85,6 +120,7 @@ export class SocketPipe implements Pipe {
     this.done = true
     this.io.clearTimeout(this.watchdog)
     this.io.clearTimeout(this.refused)
+    this.io.clearTimeout(this.again)
     if (this.ws.readyState < 2) this.ws.close(1000, reason)
     this.onClose?.(reason)
   }

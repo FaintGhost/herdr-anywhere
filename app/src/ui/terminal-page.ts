@@ -7,7 +7,8 @@
 // Android would otherwise draw them from its colour emoji font.
 // A phone has no mouse, so the page reads fingers: the keyboard comes up only when the app asks for it, a drag
 // scrolls back and a flick keeps going and slows down, a flick sideways goes to the next or previous tab, a long press
-// selects a word (dragging extends it), and a tap on a link opens it.
+// selects a word (dragging extends it), and a tap on a link opens it. A full-screen program keeps its own scrollback:
+// its drag reaches it as a mouse wheel, or as arrow keys if it doesn't follow the mouse, as Termux does.
 // Page → app (window.nsh.postMessage, JSON): ready / size {cols, rows} once laid out and on each change,
 // input {data}, copied {text}, selected {text}, swipe {dir}, link {url}, tap, away {away} (scrolled back
 // or at the bottom again), tail {lines} (the last lines up to the cursor, once output settles), text {base, lines} (the
@@ -81,11 +82,30 @@ const BOOT = `(function () {
       if (!away) {
         var h = term.element.querySelector('.xterm-screen').getBoundingClientRect().height / term.rows, end = b.cursorY;
         for (var i = term.rows - 1; i > end; i--) { var l = b.getLine(b.baseY + i); if (l && l.translateToString(true).trim()) { end = i; break; } }
-        y = Math.max(0, Math.min(over, (end + 1) * h - room()));
+        y = Math.max(0, Math.min(over, (end + 1 + b.baseY - b.viewportY) * h - room()));
       }
     }
     box.style.transform = y ? 'translateY(' + (-y) + 'px)' : '';
   }
+  // On a phone the view ends at the screen's last line: empty rows under it give way to the history above. A
+  // full-screen program owns every row.
+  function lastRow() {
+    var b = term.buffer.active, end = b.cursorY;
+    for (var i = term.rows - 1; i > end; i--) { var l = b.getLine(b.baseY + i); if (l && l.translateToString(true).trim()) { end = i; break; } }
+    return end;
+  }
+  function live() {
+    var b = term.buffer.active;
+    if (!cfg.phone || b.type === 'alternate') return b.baseY;
+    return b.baseY - Math.min(b.baseY, term.rows - 1 - lastRow());
+  }
+  // Scrolled back from the live view, or at it again. On a phone only a finger or Latest moves the view; output that
+  // lands while the view sits above the empty rows would otherwise read as scrolling back.
+  function where() {
+    var b = term.buffer.active, a = b.viewportY < live();
+    if (a !== away) { away = a; post({ t: 'away', away: a }); lift(); }
+  }
+  function follow() { if (!away && term.buffer.active.viewportY !== live()) term.scrollToLine(live()); }
   function size() {
     if (cfg.phone) {
       var h = room();
@@ -95,9 +115,15 @@ const BOOT = `(function () {
       box.style.height = tall + 'px';
     }
     try { fit.fit(); } catch (e) {}
+    follow();
     lift();
     var now = term.cols + 'x' + term.rows;
     if (now !== last && term.cols > 0 && term.rows > 0) { var first = !last; last = now; post({ t: first ? 'ready' : 'size', cols: term.cols, rows: term.rows }); }
+  }
+  // Every column that fits. FitAddon keeps room for the ruler, a whole column when the screen is an exact number of them.
+  function columns(cols) {
+    var cell = term.element.querySelector('.xterm-screen').getBoundingClientRect().width / term.cols;
+    return cell > 0 ? Math.max(cols, Math.floor((box.getBoundingClientRect().width + 0.01) / cell)) : cols;
   }
   function setFont(n) { if (n !== term.options.fontSize) { term.options.fontSize = n; size(); } }
   function screenText() {
@@ -188,20 +214,29 @@ const BOOT = `(function () {
     if (to.row < from.row || (to.row === from.row && to.col < from.col)) { s = to; e = from; }
     term.select(s.col, s.row, (e.row - s.row) * term.cols + (e.col - s.col) + 1);
   }
+  // Back in history by this many lines. A full-screen program has none here: xterm turns a wheel into what that program
+  // asked for (its mouse encoding, or arrow keys in its cursor mode).
+  function ownScroll() { return term.modes.mouseTrackingMode !== 'none' || term.buffer.active.type === 'alternate'; }
+  function scrollView(lines, x, y) {
+    if (!ownScroll()) { term.scrollLines(-lines); if (term.buffer.active.viewportY > live()) term.scrollToLine(live()); return where(); }
+    for (var i = Math.abs(lines); i > 0; i--) term.element.dispatchEvent(new WheelEvent('wheel', { deltaY: lines > 0 ? -1 : 1, deltaMode: 1, clientX: x, clientY: y, bubbles: true, cancelable: true }));
+  }
   // After the finger lifts the view keeps its speed (px per ms, down = back in history) and loses it smoothly, the
   // curve native lists use: speed halves about every 225 ms. xterm scrolls whole lines, so what is less than a line waits.
   var gliding = 0;
   function stopGlide() { var was = !!gliding; if (gliding) cancelAnimationFrame(gliding); gliding = 0; return was; }
-  function glide(v, h) {
-    v = Math.max(-8, Math.min(8, v));
+  function glide(v, h, x, y) {
+    // A program answers every wheel over the network, so a flick sends it fewer than the page can scroll by itself.
+    var most = ownScroll() ? 2 : 8;
+    v = Math.max(-most, Math.min(most, v));
     if (Math.abs(v) < 0.25) return;
     var last = performance.now(), carry = 0;
     function step(now) {
       var dt = Math.max(0, now - last);
       last = now; carry += v * dt; v *= Math.exp(-dt / 325);
       var n = Math.trunc(carry / h), from = term.buffer.active.viewportY;
-      if (n) { term.scrollLines(-n); carry -= n * h; }
-      var ended = Math.abs(v) < 0.03 || (n && term.buffer.active.viewportY === from);
+      if (n) { scrollView(n, x, y); carry -= n * h; }
+      var ended = Math.abs(v) < 0.03 || (n && !ownScroll() && term.buffer.active.viewportY === from);
       gliding = ended ? 0 : requestAnimationFrame(step);
     }
     gliding = requestAnimationFrame(step);
@@ -229,7 +264,7 @@ const BOOT = `(function () {
       if (selecting) { selectSpan(selecting, cell(p.clientX, p.clientY)); return; }
       if (moved && Math.abs(dy) > Math.abs(dx)) {
         var h = cell(p.clientX, p.clientY).h, lines = Math.trunc((dy - scrolled) / h);
-        if (lines) { term.scrollLines(-lines); scrolled += lines * h; }
+        if (lines) { scrollView(lines, p.clientX, p.clientY); scrolled += lines * h; }
         dragging = true;
         trail.push({ y: p.clientY, at: e.timeStamp });
         while (trail.length > 2 && e.timeStamp - trail[0].at > 100) trail.shift();
@@ -244,7 +279,7 @@ const BOOT = `(function () {
       if (selecting) { selecting = null; var text = term.getSelection(); if (text) post({ t: 'selected', text: text }); return; }
       if (dragging && trail.length > 1 && e.timeStamp - trail[trail.length - 1].at < 60) {
         var a = trail[0], z = trail[trail.length - 1];
-        glide((z.y - a.y) / (z.at - a.at), cell(p.clientX, p.clientY).h);
+        glide((z.y - a.y) / (z.at - a.at), cell(p.clientX, p.clientY).h, p.clientX, p.clientY);
         return;
       }
       if (Math.abs(dx) > 70 && Math.abs(dx) > 2 * Math.abs(dy) && ms < 600 && scrolled === 0) { post({ t: 'swipe', dir: dx < 0 ? 'next' : 'prev' }); return; }
@@ -268,6 +303,10 @@ const BOOT = `(function () {
     term.unicode.activeVersion = '15-graphemes';
     fit = new FitAddon.FitAddon();
     term.loadAddon(fit);
+    if (cfg.phone) {
+      var propose = fit.proposeDimensions.bind(fit);
+      fit.proposeDimensions = function () { var d = propose(); if (d) d.cols = columns(d.cols); return d; };
+    }
     term.open(box);
     // Opening the page must not bring the keyboard up.
     if (term.textarea) {
@@ -280,17 +319,13 @@ const BOOT = `(function () {
     term.onData(function (d) { post({ t: 'input', data: d }); });
     // Scrolled back or at the bottom again; and, once output settles, the last lines up to the cursor.
     var settle = null;
-    function where() {
-      var b = term.buffer.active, a = b.viewportY < b.baseY;
-      if (a !== away) { away = a; post({ t: 'away', away: a }); lift(); }
-    }
+    term.onScroll(function () { if (!cfg.phone) where(); });
+    term.onWriteParsed(function () { follow(); where(); settled(); lift(); });
     function lines(from, to) { var b = term.buffer.active, out = []; for (var i = from; i < to; i++) { var l = b.getLine(i); out.push(l ? l.translateToString(true) : ''); } return out; }
     function settled() {
       clearTimeout(settle);
       settle = setTimeout(function () { var b = term.buffer.active, end = b.baseY + b.cursorY + 1; post({ t: 'tail', lines: lines(Math.max(0, end - 20), end) }); }, 600);
     }
-    term.onScroll(where);
-    term.onWriteParsed(function () { where(); settled(); lift(); });
     // Which keys the program asked for (kitty keyboard protocol): the way it reads Ctrl with Enter or Tab.
     term.parser.registerOscHandler(8, hyperlink);
     term.parser.registerCsiHandler({ prefix: '>', final: 'u' }, function (p) { kitty.push(p[0] || 0); return false; });
@@ -331,7 +366,7 @@ const BOOT = `(function () {
       else if (m.t === 'focus') keyboard();
       else if (m.t === 'copy') post({ t: 'copied', text: screenText() });
       else if (m.t === 'refit') { setTimeout(function () { tall = room(); size(); }, 150); }
-      else if (m.t === 'bottom') { stopGlide(); term.scrollToBottom(); where(); }
+      else if (m.t === 'bottom') { stopGlide(); term.scrollToLine(live()); where(); }
       else if (m.t === 'text') post({ t: 'text', base: 0, lines: lines(0, term.buffer.active.length) });
       else if (m.t === 'mark') mark(m.line, m.label);
       else if (m.t === 'key') {

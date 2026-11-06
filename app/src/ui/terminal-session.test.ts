@@ -95,6 +95,32 @@ test('after the line comes back the terminal attaches again as resumed', async (
   expect(s.state.get()).toBe('live')
 })
 
+// herdr-core, measured 2026-11-06 with two viewers: attaching as resumed leaves the size with the other viewer, and focus
+// takes it. A phone in use that kept the Mac's 33 columns after a dropped line wrapped everything at them.
+async function backAfterLoss(before: (store: Store) => void) {
+  const { cores, r, s, store, timers } = await setup()
+  s.page(JSON.stringify({ t: 'ready', cols: 48, rows: 40 }))
+  await settle()
+  before(store)
+  await settle()
+  cores[1].terms.set(r.terminal, { ...cores[0].terms.get(r.terminal)! })
+  cores[1].docs = cores[0].docs
+  cores[0].drop('network')
+  await settle()
+  timers.shift()!()
+  await settle(30)
+  expect(store.conn.get()).toBe('ready')
+  return cores[1].focused.length
+}
+
+test('a terminal on the phone screen takes the size back when the line returns, touched or not', async () => {
+  expect(await backAfterLoss(() => {})).toBe(1)
+})
+
+test('a phone with the app in the background leaves the size with the computer when the line returns', async () => {
+  expect(await backAfterLoss((store) => { store.appActive = false })).toBe(0)
+})
+
 test('copy asks the page for its text and gives it back; paste goes through the page so bracketed paste holds', async () => {
   const { s, posted } = await setup()
   s.page(JSON.stringify({ t: 'ready', cols: 80, rows: 24 }))

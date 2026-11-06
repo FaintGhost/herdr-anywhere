@@ -10,8 +10,13 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.ClipData;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.database.Cursor;
@@ -19,16 +24,21 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
+import android.provider.Settings;
 import com.longbridge.nsh.NshHostReply;
 import com.longbridge.nsh.NshView;
 import com.longbridge.nsh.Standalone;
 import io.github.jtwang.tailpocket.TailPocketBridge;
 import io.github.jtwang.tailpocket.nsh.TailPocketNsh;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -79,6 +89,8 @@ public class MainActivity extends Activity {
     view.handle("page.allowNotifications", (data, reply) -> runOnUiThread(() -> allow(reply)));
     view.handle("page.pickFiles", (data, reply) -> runOnUiThread(() -> pickFiles(data, reply)));
     view.handle("page.uploadFile", this::uploadFile);
+    view.handle("page.installUpdate", this::installUpdate);
+    listenForInstall();
     view.handle("page.keepAlive", (data, reply) -> runOnUiThread(() -> {
       keepAlive = data instanceof Map && Boolean.TRUE.equals(((Map<?, ?>) data).get("on"));
       applyKeepAlive();
@@ -302,5 +314,104 @@ public class MainActivity extends Activity {
     CoroutineScopeKt.cancel(scope, null);
     view.destroy();
     super.onDestroy();
+  }
+
+  // --- A new version of this app ---------------------------------------------------------------------------------
+
+  private static final String INSTALL_STATUS = "io.jingtao.herdranywhere.INSTALL_STATUS";
+  private NshHostReply installing;
+
+  /** Downloads the release's APK and hands it to the system, which asks the person to confirm. Android refuses a file
+   *  not signed with this app's key, so the address the computer gave can't put anything else here. */
+  private void installUpdate(Object data, NshHostReply reply) {
+    if (!(data instanceof Map)) { reply.reject("bad request"); return; }
+    Map<?, ?> a = (Map<?, ?>) data;
+    String url = String.valueOf(a.get("url")), digest = String.valueOf(a.get("digest"));
+    if (!getPackageManager().canRequestPackageInstalls()) {
+      runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName()))));
+      reply.resolve("needsPermission");
+      return;
+    }
+    new Thread(() -> {
+      File apk = new File(getCacheDir(), "update.apk");
+      try {
+        download(url, digest, apk);
+        PackageInfo info = getPackageManager().getPackageArchiveInfo(apk.getPath(), 0);
+        if (info == null || !getPackageName().equals(info.packageName)) throw new IllegalStateException("not this app");
+        PackageInstaller installer = getPackageManager().getPackageInstaller();
+        PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+        params.setAppPackageName(getPackageName());
+        int id = installer.createSession(params);
+        try (PackageInstaller.Session session = installer.openSession(id)) {
+          try (InputStream in = new FileInputStream(apk); OutputStream out = session.openWrite("app.apk", 0, apk.length())) {
+            byte[] chunk = new byte[256 * 1024];
+            for (int n; (n = in.read(chunk)) >= 0; ) out.write(chunk, 0, n);
+            session.fsync(out);
+          }
+          installing = reply;
+          Intent status = new Intent(INSTALL_STATUS).setPackage(getPackageName());
+          session.commit(PendingIntent.getBroadcast(this, id, status, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE).getIntentSender());
+        }
+      } catch (Exception e) {
+        Log.w("Herdr", "update: " + e);
+        installing = null;
+        reply.reject(String.valueOf(e.getMessage()));
+      } finally {
+        apk.delete();
+      }
+    }).start();
+  }
+
+  private void download(String url, String digest, File to) throws Exception {
+    HttpURLConnection http = (HttpURLConnection) new URL(url).openConnection();
+    try {
+      if (http.getResponseCode() != 200) throw new IllegalStateException("download: " + http.getResponseCode());
+      long total = http.getContentLengthLong(), done = 0, told = 0;
+      MessageDigest sha = MessageDigest.getInstance("SHA-256");
+      try (InputStream in = http.getInputStream(); OutputStream out = new FileOutputStream(to)) {
+        byte[] chunk = new byte[256 * 1024];
+        for (int n; (n = in.read(chunk)) >= 0; ) {
+          out.write(chunk, 0, n);
+          sha.update(chunk, 0, n);
+          done += n;
+          if (total > 0 && done - told > total / 50) {
+            told = done;
+            view.send("page.updateProgress", Collections.singletonMap("done", (double) done / total));
+          }
+        }
+      }
+      StringBuilder hex = new StringBuilder("sha256:");
+      for (byte b : sha.digest()) hex.append(String.format("%02x", b));
+      if (!hex.toString().equals(digest)) throw new IllegalStateException("the download doesn't match the release's digest");
+    } finally {
+      http.disconnect();
+    }
+  }
+
+  /** The system answers the commit here: first that the person must confirm, later how it ended. */
+  private void listenForInstall() {
+    BroadcastReceiver receiver = new BroadcastReceiver() {
+      @Override
+      public void onReceive(Context context, Intent intent) {
+        int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
+        NshHostReply reply = installing;
+        installing = null;
+        if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+          Intent confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT);
+          if (confirm != null) startActivity(confirm);
+          if (reply != null) reply.resolve("installing");
+          return;
+        }
+        String message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
+        Log.i("Herdr", "update: status " + status + " " + message);
+        if (reply != null && status != PackageInstaller.STATUS_SUCCESS) reply.reject(String.valueOf(message));
+        // The person said no: nothing to report. Anything else, such as a file signed with another key, is worth saying.
+        else if (status != PackageInstaller.STATUS_SUCCESS && status != PackageInstaller.STATUS_FAILURE_ABORTED)
+          view.send("page.updateFailed", Collections.singletonMap("message", String.valueOf(message)));
+      }
+    };
+    IntentFilter filter = new IntentFilter(INSTALL_STATUS);
+    if (Build.VERSION.SDK_INT >= 33) registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
+    else registerReceiver(receiver, filter);
   }
 }

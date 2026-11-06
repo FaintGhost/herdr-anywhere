@@ -99,4 +99,7 @@ export const ja: Table = {
   noMachine: 'Herdr に {machine} というマシンはありません', layoutUnavailable: 'このマシンのレイアウトは利用できません。再接続してからやり直してください。',
   noSpace: 'スペース {id} はありません', noSpaceYet: 'スペースがまだありません。先に作成してください', noPaneToSplit: '分割するペインがありません', noPane: 'ペイン {id} はありません',
   noSpaceToKeep: '残す先のスペースがありません',
+  // New versions (src/updates.ts).
+  updateAvailable: "バージョン {version} があります", updateComputer: "コンピュータを更新", updateApp: "アプリを更新", updateNow: "更新", updating: "更新中…", computerUpdated: "コンピュータは {version} になりました", couldntUpdateComputer: "コンピュータを更新できません", computerNotBack: "{version} で接続が戻っていません。コンピュータで herdr-anywhere が動いているか確認してください。", couldntUpdateApp: "アプリを更新できません", allowInstallTitle: "このアプリに更新のインストールを許可してください", allowInstallDetail: "開いた画面でオンにして戻り、もう一度「更新」をタップしてください。", updateByHandTitle: "コンピュータを手動で更新", updateByHandDetail: "このコンピュータはまだ自分で更新できません。次のコマンドを実行し、herdr-anywhere を再起動してください：", copyCommand: "コマンドをコピー", downloadAppTitle: "{size} MB をダウンロードしますか？", downloadAppDetail: "ダウンロード後、Android がインストールの確認を求めます。", download: "ダウンロード", rebuildTitle: "バージョン {version} をビルド", rebuildDetail: "iPhone ではご自身の Apple アカウントでアプリをビルドします。手順はプロジェクトの iPhone ガイドにあります。", openGuide: "ガイドを開く", autoUpdateComputer: "コンピュータを自動更新", autoUpdateDetail: "新しいリリースが出るたびにインストールします。スマートフォンは自動で再接続します。", appVersion: "アプリのバージョン", downloadingApp: "{percent}% ダウンロード済み", dismissUpdate: "今はしない",
+  updateWrongKey: "このファイルの署名はスマートフォンのアプリと異なるため、Android は上書きインストールしません。",
 }

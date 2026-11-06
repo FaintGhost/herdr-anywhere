@@ -155,6 +155,52 @@ test('closing the last tab closes its space; the agents list follows status', as
   expect(core.doc()).toEqual({ spaces: [] })
 })
 
+test('a new tab asked for while the line is down starts once it is back, and asks it to hurry', async () => {
+  const cores = [new FakeCore(), new FakeCore()]
+  let n = 0
+  const store = new Store({ pipe: () => cores[n++], setInterval: (() => 0) as any, clearInterval: (() => {}) as any,
+    setTimeout: (() => 0) as any })
+  await store.connect()
+  await store.newSpace({ name: 'mine' })
+  await settle()
+  const space = store.model.spaces[0].id
+  const before = store.model.spaces[0].tabs.length
+  cores[1].docs = cores[0].docs
+  cores[0].drop('network')
+  await settle()
+  expect(store.conn.get()).toBe('reconnecting')
+  await store.newTab({ space })
+  expect(store.conn.get()).toBe('ready')
+  expect(cores[1].calls.some((c) => c.method === 'terminal.run')).toBe(true)
+  expect(store.model.spaces[0].tabs.length).toBe(before + 1)
+})
+
+test('a new tab that the line never comes back for fails as not connected', async () => {
+  const fired: (() => void)[] = []
+  const core = new FakeCore()
+  let first = true
+  const store = new Store({
+    pipe: () => { if (!first) throw new Error('no route'); first = false; return core },
+    setInterval: (() => 0) as any, clearInterval: (() => {}) as any,
+    setTimeout: ((f: () => void) => { fired.push(f); return fired.length }) as any,
+    now: () => 1_000_000,
+  })
+  await store.connect()
+  await store.newSpace({ name: 'mine' })
+  await settle()
+  const space = store.model.spaces[0].id
+  core.drop('network')
+  await settle()
+  let failed = ''
+  let finished = false
+  const asked = store.newTab({ space }).catch((e) => { failed = e.kind }).finally(() => { finished = true })
+  await settle()
+  expect(finished).toBe(false)
+  for (const f of fired.splice(0)) f()
+  await asked
+  expect(failed).toBe('disconnected')
+})
+
 test('losing the line reconnects and resubscribes', async () => {
   const cores = [new FakeCore(), new FakeCore()]
   let n = 0
@@ -327,10 +373,52 @@ test("a blocked agent's toast and its agents row say what it asks", async () => 
   await settle()
   core.setStatus(r.terminal, 'blocked', 'claude-code', { kind: 'permission', msg: 'approve Write: /Users/sam/src/demo-app/hello.txt' })
   await settle()
-  expect(toasts).toEqual(['Claude Code needs you | demo-app › 1 · Write: /Users/sam/src/demo-app/hello.txt'])
+  expect(toasts).toEqual(['Claude Code needs you | Write: /Users/sam/src/demo-app/hello.txt\ndemo-app › 1'])
   const a = store.agents()[0]
   expect([a.kind, a.msg, a.named]).toEqual(['permission', 'approve Write: /Users/sam/src/demo-app/hello.txt', false])
   expect(store.agentsView().detail.get(r.terminal)).toBe('Hello.txt file creation')
+})
+
+test("a finished agent's alert says what it did, then where it is", async () => {
+  const { core, store } = setup()
+  const toasts: string[] = []
+  store.onAlert = (_k, t) => toasts.push(`${t.title} | ${t.body}`)
+  await store.connect()
+  const r = await store.newSpace({ argv: ['claude'], folder: '/Users/sam/src/demo-app' })
+  await settle()
+  core.emit('title', r.terminal, { title: '✳ Hello.txt file creation' })
+  core.setStatus(r.terminal, 'working')
+  await settle()
+  core.setStatus(r.terminal, 'done')
+  await settle()
+  core.setStatus(r.terminal, 'working')
+  await settle()
+  core.setStatus(r.terminal, 'done', 'claude-code', { msg: 'Wrote hello.txt' })
+  await settle()
+  expect(toasts).toEqual(['Claude Code finished | Hello.txt file creation\ndemo-app › 1', 'Claude Code finished | Wrote hello.txt\ndemo-app › 1'])
+})
+
+test("any program that reports its state gets its words in the alert; a shell's title stays out", async () => {
+  const { core, store } = setup()
+  const toasts: string[] = []
+  store.onAlert = (_k, t) => toasts.push(`${t.title} | ${t.body}`)
+  await store.connect()
+  const r = await store.newSpace({ argv: ['sh', 'ask.sh'], folder: '/Users/sam/src/demo-app' })
+  await settle()
+  core.emit('title', r.terminal, { title: 'sam@laptop:~/src/demo-app' })
+  core.setStatus(r.terminal, 'working', null)
+  await settle()
+  core.setStatus(r.terminal, 'blocked', null, { kind: 'question', msg: 'Which port?' })
+  await settle()
+  core.setStatus(r.terminal, 'working', null)
+  await settle()
+  core.setStatus(r.terminal, 'done', null)
+  await settle()
+  core.setStatus(r.terminal, 'working', null)
+  await settle()
+  core.setStatus(r.terminal, 'done', null, { msg: 'Ran the tests' })
+  await settle()
+  expect(toasts.map((t) => t.split(' | ')[1])).toEqual(['Which port?\ndemo-app › 1', 'demo-app › 1', 'Ran the tests\ndemo-app › 1'])
 })
 
 test("answering a blocked agent presses its prompt's keys in its terminal; a reply then types the text", async () => {
