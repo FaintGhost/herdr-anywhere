@@ -515,6 +515,42 @@ test('automatic updates are off until asked, and the computer is told', async ()
   await app.waitUntil(() => app.storage()['update-auto'] === '{"on":true}')
 })
 
+const ASKING = JSON.stringify({ version: '0.1.7', latest: '', canUpdate: true, autoUpdate: false, checks: 'ask' })
+
+test('whether the computer may check for new versions is asked the second time the app opens, and yes tells it', async () => {
+  const first = await open('./fixtures/fake.tsx', { host: { params: { scene: 'busy', info: ASKING } } })
+  await first.waitFor('text:Needs you')
+  await first.wait(500)
+  expect(first.count('id:checks-question')).toBe(0)
+  const second = await open('./fixtures/fake.tsx', { host: { params: { scene: 'busy', info: ASKING, opened: '1' } } })
+  await second.waitFor('id:checks-question')
+  await second.waitFor('text:Check for new versions?')
+  await second.press('id:checks-yes')
+  await second.waitUntil(() => second.storage()['update-checks'] === '{"on":true}')
+  await second.waitUntil(() => second.count('id:checks-question') === 0)
+})
+
+test('no to the question is an answer too: it is not asked again', async () => {
+  const app = await open('./fixtures/fake.tsx', { host: { params: { scene: 'busy', info: ASKING, opened: '3' } } })
+  await app.press('id:checks-no')
+  await app.waitUntil(() => app.storage()['update-checks'] === '{"on":false}')
+  await app.waitUntil(() => app.count('id:checks-question') === 0)
+})
+
+test('Settings: daily checks, Check now, and installing by itself only while checks are on', async () => {
+  const app = await open('./fixtures/fake.tsx', { host: { params: { scene: 'busy', info: JSON.stringify({ version: '0.1.7', latest: '', canUpdate: true, autoUpdate: false, checks: 'off' }) } } })
+  await app.waitFor('text:Needs you')
+  await app.press('id:settings')
+  await app.waitFor('id:update-checks')
+  expect(app.count('id:auto-update')).toBe(0)
+  await app.press('id:update-check')
+  await app.waitFor('id:settings-update')
+  expect(app.storage()['update-check-posts']).toBe('1')
+  await app.press('id:update-checks')
+  await app.waitUntil(() => app.storage()['update-checks'] === '{"on":true}')
+  await app.waitFor('id:auto-update')
+})
+
 test('the switcher goes on working after it started an agent', async () => {
   const app = await busy()
   await app.waitFor('text:Needs you')

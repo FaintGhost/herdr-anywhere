@@ -16,6 +16,8 @@ import { FakeFolders } from '../src/testing/fake-folders.ts'
 // Recorded where a test can read it, as pairLinkUsed below: the test's own Keyboard is another bundle's.
 const putAway = Keyboard.dismiss
 let keyboardAway = 0
+let checkPosts = 0
+let said: { checks?: string; autoUpdate?: boolean } = {} // what the phone told the computer, as the computer would answer it
 Keyboard.dismiss = () => { void Storage.setItem('keyboard-away', String(++keyboardAway)); putAway() }
 
 const scene = String((host.params as any)?.scene ?? 'busy')
@@ -23,6 +25,8 @@ const opened = scene.startsWith('link')
 const params = (host.params ?? {}) as Record<string, string | undefined>
 const paired = params.via === 'tailpocket' ? { url: 'tailpocket:', via: 'tailpocket' } : { url: params.url ?? 'http://192.0.2.10:7681' }
 const memory = new Map<string, string>(opened ? [] : [['link', JSON.stringify({ ...paired, token: 'synthetic-token', device: 'd1', name: 'studio', enc: 'bin' })]])
+// `opened`: how many times the app opened before (the question about checking for new versions waits for the second).
+if (params.opened) memory.set('prefs', JSON.stringify({ opened: Number(params.opened) }))
 const io = { load: async (k: string) => memory.get(k) ?? null, save: (k: string, v: string) => void memory.set(k, v), remove: (k: string) => void memory.delete(k) }
 
 export const core = new FakeCore()
@@ -118,12 +122,14 @@ mount(() => (
     fetcher: (async (url: string, init: any) => {
       if (url.includes('/api/files')) return answer(200, { path: landed(new URLSearchParams(url.split('?')[1]), init.body.size) })
       if (url.includes('/api/folders')) return folders(url, init)
-      if (url.includes('/api/update/auto')) { void Storage.setItem('update-auto', String(init.body)); return answer(200, {}) }
+      if (url.includes('/api/update/auto')) { const on = JSON.parse(init.body).on; said = { ...said, autoUpdate: on, ...(on ? { checks: 'on' } : {}) }; void Storage.setItem('update-auto', String(init.body)); return answer(200, {}) }
+      if (url.includes('/api/update/checks')) { const on = JSON.parse(init.body).on; said = { ...said, checks: on ? 'on' : 'off', ...(on ? {} : { autoUpdate: false }) }; void Storage.setItem('update-checks', String(init.body)); return answer(200, { checks: JSON.parse(init.body).on ? 'on' : 'off' }) }
+      if (url.includes('/api/update/check')) { void Storage.setItem('update-check-posts', String(++checkPosts)); return answer(200, { latest: '9.0.0' }) }
       if (url.includes('/api/update')) {
         void Storage.setItem('update-posts', String(++updatePosts))
         return answer(502, { error: 'the test computer says no' })
       }
-      if (url.includes('/api/info')) return { ok: params.info !== 'none', json: async () => (params.info === 'none' ? {} : params.info ? JSON.parse(params.info) : { version: '9.9.9' }) }
+      if (url.includes('/api/info')) return { ok: params.info !== 'none', json: async () => (params.info === 'none' ? {} : params.info ? { ...JSON.parse(params.info), ...said } : { version: '9.9.9' }) }
       const body = JSON.parse(init.body)
       const ok = body.code === 'GOOD-CODE'
       return { ok, status: ok ? 200 : 401, json: async () => (ok ? { token: 'new-token', device: 'd2', name: 'studio' } : { error: 'unknown pairing code' }) }

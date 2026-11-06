@@ -2,8 +2,10 @@
 import { Signal } from './store.ts'
 
 export type Appearance = 'system' | 'light' | 'dark'
-export type Prefs = { appearance: Appearance; fontSize: number; alertBlocked: boolean; alertDone: boolean; stayConnected: boolean; dismissedUpdate: string; askedNotifications: boolean }
-export const DEFAULTS: Prefs = { appearance: 'system', fontSize: 13, alertBlocked: true, alertDone: true, stayConnected: true, dismissedUpdate: '', askedNotifications: false }
+export type Prefs = { appearance: Appearance; fontSize: number; alertBlocked: boolean; alertDone: boolean; stayConnected: boolean; dismissedUpdate: string; askedNotifications: boolean
+  /** How many times the app has opened: the question about checking for new versions waits for the second. */
+  opened: number }
+export const DEFAULTS: Prefs = { appearance: 'system', fontSize: 13, alertBlocked: true, alertDone: true, stayConnected: true, dismissedUpdate: '', askedNotifications: false, opened: 0 }
 import { FONT_MAX, FONT_MIN } from './ui/terminal-page.ts'
 export { FONT_MAX, FONT_MIN }
 
@@ -36,5 +38,6 @@ function clean(p: Prefs): Prefs {
     stayConnected: p.stayConnected !== false,
     askedNotifications: p.askedNotifications === true,
     dismissedUpdate: typeof p.dismissedUpdate === 'string' ? p.dismissedUpdate : '',
+    opened: Math.max(0, Math.floor(Number(p.opened) || 0)),
   }
 }

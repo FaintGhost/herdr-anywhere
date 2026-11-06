@@ -96,6 +96,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/files", s.upload)
 	mux.HandleFunc("POST /api/update", s.update)
 	mux.HandleFunc("POST /api/update/auto", s.updateAuto)
+	mux.HandleFunc("POST /api/update/checks", s.updateChecks)
+	mux.HandleFunc("POST /api/update/check", s.updateCheck)
 	mux.HandleFunc("/hc", s.hc)
 	mux.Handle("/", s.static)
 	return s.logRequests(mux)
@@ -209,6 +211,7 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
 		}
 		info["canUpdate"] = u.CanInstall()
 		info["autoUpdate"] = u.Auto()
+		info["checks"] = u.Checks()
 	}
 	writeJSON(w, http.StatusOK, info)
 }

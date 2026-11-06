@@ -64,6 +64,7 @@ type companionInfo struct {
 	Latest     string `json:"latest"`
 	CanUpdate  bool   `json:"canUpdate"`
 	AutoUpdate bool   `json:"autoUpdate"`
+	Checks     string `json:"checks"`
 }
 
 func waitInfo(t *testing.T, url string, ok func(companionInfo) bool) companionInfo {
@@ -117,8 +118,20 @@ func TestAPhoneUpdatesARunningCompanion(t *testing.T) {
 	}
 	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
 
+	// Nothing goes to GitHub until a phone answers yes.
+	waitInfo(t, url, func(i companionInfo) bool { return i.Version == "0.0.1" })
+	time.Sleep(time.Second)
+	if info := waitInfo(t, url, func(companionInfo) bool { return true }); info.Latest != "" || info.Checks != "ask" {
+		t.Fatalf("before an answer: %+v", info)
+	}
+	yes, _ := http.NewRequest(http.MethodPost, url+"/api/update/checks", strings.NewReader(`{"on":true}`))
+	yes.Header.Set("Authorization", "Bearer "+token)
+	if r, err := http.DefaultClient.Do(yes); err != nil || r.StatusCode != http.StatusOK {
+		t.Fatalf("answering yes: %v %v", err, r)
+	}
+
 	info := waitInfo(t, url, func(i companionInfo) bool { return i.Latest == "0.0.2" })
-	if info.Version != "0.0.1" {
+	if info.Version != "0.0.1" || info.Checks != "on" {
 		t.Fatalf("%+v", info)
 	}
 	if want := update.Supported(); info.CanUpdate != want {

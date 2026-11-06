@@ -50,7 +50,7 @@ func newUpdates(dir, api string, logger *log.Logger, restart func()) updates {
 		Installs: err == nil && update.Supported(),
 		Dir:      dir,
 		First:    first,
-		Every:    6 * time.Hour,
+		Every:    24 * time.Hour,
 		Restart:  restart,
 		Logf:     logger.Printf,
 	}, restart: restart}

@@ -17,6 +17,11 @@ type Updates interface {
 	CanInstall() bool
 	Auto() bool
 	SetAuto(bool) error
+	// Checks is "ask", "on" or "off": whether the computer asks GitHub each day.
+	Checks() string
+	SetChecks(bool) error
+	// CheckNow asks GitHub once and returns the newest version.
+	CheckNow(context.Context) (string, error)
 	ApplyLatest(context.Context) (string, error)
 	// Restart runs the new file. Called after the phone has its answer.
 	Restart()
@@ -54,7 +59,53 @@ func (s *Server) update(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// onOff reads a paired phone's {"on": bool}, answering for it when that fails.
+func (s *Server) onOff(w http.ResponseWriter, r *http.Request) (Updates, bool, bool) {
+	if !s.device(w, r) {
+		return nil, false, false
+	}
+	u := s.cfg.Updates
+	if u == nil {
+		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "updates aren't available"})
+		return nil, false, false
+	}
+	var body struct {
+		On *bool `json:"on"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&body); err != nil || body.On == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "on is required"})
+		return nil, false, false
+	}
+	return u, *body.On, true
+}
+
 func (s *Server) updateAuto(w http.ResponseWriter, r *http.Request) {
+	u, on, ok := s.onOff(w, r)
+	if !ok {
+		return
+	}
+	if err := u.SetAuto(on); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"on": on})
+}
+
+// updateChecks stores the person's answer: whether the computer asks GitHub about new releases each day.
+func (s *Server) updateChecks(w http.ResponseWriter, r *http.Request) {
+	u, on, ok := s.onOff(w, r)
+	if !ok {
+		return
+	}
+	if err := u.SetChecks(on); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"checks": u.Checks()})
+}
+
+// updateCheck asks GitHub once, now, because the person tapped Check.
+func (s *Server) updateCheck(w http.ResponseWriter, r *http.Request) {
 	if !s.device(w, r) {
 		return
 	}
@@ -63,16 +114,12 @@ func (s *Server) updateAuto(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "updates aren't available"})
 		return
 	}
-	var body struct {
-		On *bool `json:"on"`
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&body); err != nil || body.On == nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "on is required"})
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	v, err := u.CheckNow(ctx)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
-	if err := u.SetAuto(*body.On); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]bool{"on": *body.On})
+	writeJSON(w, http.StatusOK, map[string]string{"latest": v})
 }

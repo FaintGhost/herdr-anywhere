@@ -169,7 +169,7 @@ export function Root(props: { deps: RootDeps }) {
   const demo = signal<Demo | null>(null)
   const leaveDemo = () => { demo()?.stop(); demo.set(null) }
   effect(() => setColorScheme(prefs().appearance))
-  Promise.all([deps.linker.load(), deps.prefs.load()]).finally(() => loaded.set(true))
+  Promise.all([deps.linker.load(), deps.prefs.load().then(() => deps.prefs.set({ opened: deps.prefs.prefs.get().opened + 1 }))]).finally(() => loaded.set(true))
   // A store per link: pairing again with another computer starts over.
   let made: { key: string; store: Store } | undefined
   const store = computed(() => {

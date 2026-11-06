@@ -44,6 +44,29 @@ export async function runUpdate(u: Updates, notice: Notice) {
 export const busyWord = (busy: 'computer' | 'app' | null, progress: number) =>
   busy === 'app' ? t('downloadingApp', { percent: Math.round(progress * 100) }) : t('updating')
 
+/** Asked once, from the second time the app opens: may the computer ask GitHub about new versions each day? */
+export function ChecksQuestion(props: { updates: Updates; prefs: PrefStore }) {
+  const state = useUpdates(props.updates)
+  const prefs = useSignal(props.prefs.prefs)
+  const shown = () => { state(); return props.updates.asksChecks(prefs().opened) }
+  return (
+    <If when={shown()}>
+      <View testID="checks-question" class="mx-3 mt-1 mb-1 rounded-(--radius) bg-muted pl-3 pr-1.5 py-2 gap-1">
+        <Text class="text-[13px] leading-[18px] font-medium text-foreground pr-1.5">{t('checksQuestion')}</Text>
+        <Text class="text-[12px] leading-[17px] text-muted-foreground pr-1.5">{t('checksQuestionDetail')}</Text>
+        <View class="flex-row justify-end gap-2 mt-1">
+          <View role="button" testID="checks-no" onPress={() => void props.updates.setChecks(false)} class="px-2 py-2 rounded-[6px] active:bg-accent">
+            <Text class="text-[13px] text-muted-foreground">{t('checksNo')}</Text>
+          </View>
+          <View role="button" testID="checks-yes" onPress={() => void props.updates.setChecks(true)} class="px-3 py-2 rounded-[6px] bg-background active:bg-accent">
+            <Text class="text-[13px] font-medium text-foreground">{t('checksYes')}</Text>
+          </View>
+        </View>
+      </View>
+    </If>
+  )
+}
+
 export function UpdateBanner(props: { updates: Updates; prefs: PrefStore }) {
   const state = useUpdates(props.updates)
   const prefs = useSignal(props.prefs.prefs)

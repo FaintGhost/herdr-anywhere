@@ -293,6 +293,9 @@ func TestRunChecksAtOnceAndThenOnSchedule(t *testing.T) {
 	bin := script("0.1.5")
 	srv, checks := fakeGitHub(t, "v0.1.5", bin, digestOf(bin))
 	m := manager(t, srv, installed(t), func() {})
+	if err := m.SetChecks(true); err != nil {
+		t.Fatal(err)
+	}
 	m.Every = 20 * time.Millisecond
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -330,5 +333,141 @@ func TestNothingInstallsWhereNoReleasedFileRuns(t *testing.T) {
 	}
 	if m.Latest() != "0.1.6" {
 		t.Fatalf("the notice still needs the version: %q", m.Latest())
+	}
+}
+
+// Nothing leaves the computer until the person says yes: a program that phones home on its own looks like malware.
+func TestRunAsksGitHubNothingUntilThePersonSaysYes(t *testing.T) {
+	bin := script("0.1.6")
+	srv, checks := fakeGitHub(t, "v0.1.6", bin, digestOf(bin))
+	m := manager(t, srv, installed(t), func() {})
+	m.Every = 10 * time.Millisecond
+	if m.Checks() != "ask" {
+		t.Fatalf("checks = %q before anyone answered", m.Checks())
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go m.Run(ctx)
+	time.Sleep(100 * time.Millisecond)
+	if checks.Load() != 0 {
+		t.Fatalf("asked GitHub %d times before the person said yes", checks.Load())
+	}
+	if err := m.SetChecks(true); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for checks.Load() < 2 {
+		if time.Now().After(deadline) {
+			t.Fatalf("%d checks after yes", checks.Load())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if err := m.SetChecks(false); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(30 * time.Millisecond)
+	after := checks.Load()
+	time.Sleep(100 * time.Millisecond)
+	if checks.Load() != after {
+		t.Fatalf("still asking after no: %d then %d", after, checks.Load())
+	}
+}
+
+// The phone checks the moment the person says yes; the schedule that wakes on the same yes doesn't ask again.
+func TestAYesThatTheAppCheckedOnAsksGitHubOnce(t *testing.T) {
+	bin := script("0.1.6")
+	srv, checks := fakeGitHub(t, "v0.1.6", bin, digestOf(bin))
+	m := manager(t, srv, installed(t), func() {})
+	m.First = 20 * time.Millisecond
+	m.Every = time.Hour
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go m.Run(ctx)
+	time.Sleep(50 * time.Millisecond)
+	if err := m.SetChecks(true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.CheckNow(ctx); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(150 * time.Millisecond)
+	if checks.Load() != 1 {
+		t.Fatalf("asked GitHub %d times for one yes", checks.Load())
+	}
+}
+
+func TestTheAnswerSurvivesARestart(t *testing.T) {
+	m := &Manager{Dir: t.TempDir()}
+	if err := m.SetChecks(false); err != nil {
+		t.Fatal(err)
+	}
+	if got := (&Manager{Dir: m.Dir}).Checks(); got != "off" {
+		t.Fatalf("checks = %q", got)
+	}
+}
+
+// Installing by itself needs checking; no checks means nothing installs by itself.
+func TestAutoAndChecksGoTogether(t *testing.T) {
+	m := &Manager{Dir: t.TempDir()}
+	if err := m.SetAuto(true); err != nil {
+		t.Fatal(err)
+	}
+	if m.Checks() != "on" || !m.Auto() {
+		t.Fatalf("auto on: checks %q, auto %v", m.Checks(), m.Auto())
+	}
+	if err := m.SetChecks(false); err != nil {
+		t.Fatal(err)
+	}
+	if m.Checks() != "off" || m.Auto() {
+		t.Fatalf("checks off: checks %q, auto %v", m.Checks(), m.Auto())
+	}
+}
+
+// 0.1.6 wrote only {"auto": true}: whoever turned that on said yes to checking.
+func TestA016AutoChoiceCountsAsYes(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, stateFile), []byte(`{"auto":true}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := (&Manager{Dir: dir}).Checks(); got != "on" {
+		t.Fatalf("checks = %q", got)
+	}
+	if err := os.WriteFile(filepath.Join(dir, stateFile), []byte(`{"auto":false}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := (&Manager{Dir: dir}).Checks(); got != "ask" {
+		t.Fatalf("checks = %q", got)
+	}
+}
+
+// The person asks now: one question to GitHub, whatever the daily choice, and nothing installs.
+func TestCheckNowAsksOnceAndInstallsNothing(t *testing.T) {
+	bin := script("0.1.6")
+	srv, checks := fakeGitHub(t, "v0.1.6", bin, digestOf(bin))
+	exe := installed(t)
+	m := manager(t, srv, exe, func() { t.Error("restarted") })
+	if err := m.SetChecks(false); err != nil {
+		t.Fatal(err)
+	}
+	v, err := m.CheckNow(context.Background())
+	if err != nil || v != "0.1.6" || checks.Load() != 1 || m.Latest() != "0.1.6" {
+		t.Fatalf("CheckNow = %q, %v; %d checks; latest %q", v, err, checks.Load(), m.Latest())
+	}
+	if got, _ := os.ReadFile(exe); string(got) != string(script("0.1.5")) {
+		t.Fatalf("installed: %q", got)
+	}
+}
+
+// What the last check found is kept: after the computer updates itself, phones still learn of the new app at once.
+func TestWhatACheckFoundSurvivesARestart(t *testing.T) {
+	bin := script("0.1.6")
+	srv, _ := fakeGitHub(t, "v0.1.6", bin, digestOf(bin))
+	m := manager(t, srv, installed(t), func() {})
+	if _, err := m.CheckNow(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	again := &Manager{Dir: m.Dir}
+	if again.Latest() != "0.1.6" || again.App().URL == "" {
+		t.Fatalf("after a restart: latest %q, app %+v", again.Latest(), again.App())
 	}
 }

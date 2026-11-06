@@ -1,6 +1,7 @@
 #!/bin/sh
 # Updating, the whole way on Android: a phone and a computer on the old version, a release that says there is a new one
-# (a stand-in for GitHub, on this machine), the notice on home, the computer replacing itself, then the app: the system's
+# (a stand-in for GitHub, on this machine), nothing asked of it until the person says yes the second time the app
+# opens, the notice on home, the computer replacing itself, then the app: the system's
 # permission screen, a download that doesn't match, a file signed with another key, and the real install.
 # Usage: ANDROID_SERIAL=emulator-5554 e2e/android-update.sh OLD.apk NEW.apk OTHER-KEY.apk OLD-COMPANION NEW-COMPANION NEW-VERSION [folder for screenshots]
 # NEW.apk is NEW-VERSION with a higher build number, signed like OLD.apk; OTHER-KEY.apk is the same file under another key.
@@ -30,7 +31,7 @@ cp "$old_bin" "$work/herdr-anywhere"
 # What api.github.com answers for this repo (measured 2026-11-06), and the files. $work/scenario picks the app's file.
 cat > "$work/gh.py" <<'EOF'
 import hashlib, http.server, json, os, sys
-port, version, mac, good, other, scenario = sys.argv[1:7]
+port, version, mac, good, other, scenario, asked = sys.argv[1:8]
 def digest(p):
     h = hashlib.sha256()
     with open(p, 'rb') as f:
@@ -46,6 +47,7 @@ class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         s = open(scenario).read().strip()
         if self.path.endswith('/releases/latest'):
+            with open(asked, 'a') as f: f.write('asked\n')
             app = {'good': good_d, 'bad-digest': 'sha256:' + '0' * 64, 'other-key': other_d}[s]
             b = json.dumps({'tag_name': 'v' + version, 'assets': [
                 {'name': 'herdr-anywhere-macos-arm64', 'browser_download_url': f'http://127.0.0.1:{port}/mac', 'digest': mac_d, 'size': os.path.getsize(mac)},
@@ -58,7 +60,8 @@ class H(http.server.BaseHTTPRequestHandler):
 http.server.ThreadingHTTPServer(('127.0.0.1', int(port)), H).serve_forever()
 EOF
 echo good > "$work/scenario"
-python3 "$work/gh.py" "$gh" "$new_version" "$new_bin" "$new_apk" "$other_apk" "$work/scenario" &
+: > "$work/asked"
+python3 "$work/gh.py" "$gh" "$new_version" "$new_bin" "$new_apk" "$other_apk" "$work/scenario" "$work/asked" &
 gh_pid=$!
 
 serve_pid=""
@@ -114,6 +117,20 @@ while [ -n "$rest" ]; do
   sleep 0.5
 done
 tap pair
+
+echo "--- nothing goes to GitHub until the person says yes"
+wait_for 'resource-id="space-spupd"' 60
+sleep 5
+[ ! -s "$work/asked" ] || { echo "FAIL: the computer asked GitHub before anyone said yes"; exit 1; }
+xml | grep -qF 'resource-id="checks-question"' && { echo "FAIL: asked the first time the app opened"; exit 1; }
+echo "ok: the first time the app opens, nothing is asked of the person or of GitHub"
+"$adb" shell am force-stop "$id"
+"$adb" shell am start -W -n "$id/.MainActivity" >/dev/null
+wait_for "Check for new versions?" 60
+snap question
+tap checks-yes
+[ "$(info checks)" = "on" ] || { sleep 2; [ "$(info checks)" = "on" ] || { echo "FAIL: the computer says checks $(info checks)"; exit 1; }; }
+echo "ok: the second time it asks, and yes reaches the computer"
 
 echo "--- the notice, on the old version"
 wait_for "Version $new_version is available" 60

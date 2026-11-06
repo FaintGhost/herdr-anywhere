@@ -40,12 +40,14 @@ at once.
 
 | Route | What |
 |---|---|
-| `GET /api/info` | `{"name","version","hc","latest","canUpdate","autoUpdate","app"}`; no auth, no secrets. `latest` is the newest release, which the computer asks GitHub for every 6 hours, `""` until it has an answer. `app` is `{"url","digest","bytes"}` for the Android app in that release |
+| `GET /api/info` | `{"name","version","hc","latest","canUpdate","autoUpdate","checks","app"}`; no auth, no secrets. `checks` is `"ask"` until a phone answers whether the computer may ask GitHub about new releases, then `"on"` (once a day) or `"off"`. `latest` is the newest release the last check found, `""` before any. `app` is `{"url","digest","bytes"}` for the Android app in that release |
 | `POST /api/pair` | `{"code","device"}` → `{"token","device","name"}`; 401 unknown code, 410 expired or used, 429 after 10 failures a minute from one IP |
 | `GET /api/folders?path=` | A folder's subfolders, for picking a space's folder: `{"path","home","parent","git","folders":[{"name","git"}]}`, hidden ones left out unless `hidden=1` (then marked `"hidden":true`); `~` and empty mean home. 404 `{"missing":true,"path","existing"}` when it does not exist (`existing` is the nearest folder above that does), 400 for a file or a relative path. `Authorization: Bearer <token>` |
 | `POST /api/folders` | `{"path"}` → `{"path","created"}`: makes the folder and its missing parents, after the phone asked; 409 when part of the path is a file. Same auth |
 | `POST /api/update` | Paired phones. Installs the newest release, answers `{"version"}`, then runs it as the same process. 409 when there is nothing newer or an update is under way, 501 where no released file runs, 502 when the download fails or doesn't match the release's digest, which leaves the old file in place |
-| `POST /api/update/auto` | Paired phones. `{"on":true}` installs new releases without asking; off until set, kept in the state dir |
+| `POST /api/update/auto` | Paired phones. `{"on":true}` installs new releases without asking, and turns daily checks on; off until set, kept in the state dir |
+| `POST /api/update/checks` | Paired phones. `{"on":true}` lets the computer ask GitHub about new releases once a day; `{"on":false}` stops it and turns off installing by itself. Answers `{"checks"}` |
+| `POST /api/update/check` | Paired phones. Asks GitHub once, now, and answers `{"latest"}`; installs nothing. 502 when GitHub can't be reached |
 | `POST /api/files?name=[&on=machine]` | A photo or file from the phone, the raw bytes as the body, up to 2 GB: `{"path","bytes"}`, its path on that computer for the agent to read. It lands in `~/.cache/herdr-anywhere/uploads`, kept 7 days. 413 when too large, 502 when the machine can't be reached |
 | `GET /hc?token=…[&enc=b64]` | WebSocket to `hc connect`: binary messages both ways, or base64 text with `enc=b64`. 401 bad token, 403 foreign `Origin`, 503 no hc. Closes with 4401 on revoke, "core closed" when hc exits |
 | anything else | files from `--web` |

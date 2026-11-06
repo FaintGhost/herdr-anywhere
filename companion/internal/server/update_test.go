@@ -17,6 +17,8 @@ type fakeUpdates struct {
 	latest   string
 	can      bool
 	auto     bool
+	checks   string
+	looked   atomic.Int32
 	err      error
 	applied  atomic.Int32
 	restarts atomic.Int32
@@ -29,7 +31,24 @@ func (f *fakeUpdates) Latest() string        { return f.latest }
 func (f *fakeUpdates) CanInstall() bool      { return f.can }
 func (f *fakeUpdates) Auto() bool            { return f.auto }
 func (f *fakeUpdates) SetAuto(on bool) error { f.auto = on; return nil }
-func (f *fakeUpdates) Restart()              { f.restarts.Add(1) }
+func (f *fakeUpdates) Checks() string {
+	if f.checks == "" {
+		return "ask"
+	}
+	return f.checks
+}
+func (f *fakeUpdates) SetChecks(on bool) error {
+	f.checks = map[bool]string{true: "on", false: "off"}[on]
+	return nil
+}
+func (f *fakeUpdates) CheckNow(context.Context) (string, error) {
+	f.looked.Add(1)
+	if f.err != nil {
+		return "", f.err
+	}
+	return f.latest, nil
+}
+func (f *fakeUpdates) Restart() { f.restarts.Add(1) }
 func (f *fakeUpdates) ApplyLatest(context.Context) (string, error) {
 	f.applied.Add(1)
 	if f.err != nil {
@@ -62,7 +81,7 @@ func TestInfoSaysWhatIsNew(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &info); err != nil {
 		t.Fatal(err)
 	}
-	if info["latest"] != "0.1.6" || info["canUpdate"] != true || info["autoUpdate"] != false {
+	if info["latest"] != "0.1.6" || info["canUpdate"] != true || info["autoUpdate"] != false || info["checks"] != "ask" {
 		t.Fatalf("%v", info)
 	}
 	app, _ := info["app"].(map[string]any)
@@ -148,5 +167,36 @@ func TestACompanionWithoutUpdatesSaysSo(t *testing.T) {
 	_, body := get(t, f.srv.URL+"/api/info")
 	if strings.Contains(body, "latest") {
 		t.Fatalf("%s", body)
+	}
+}
+
+func TestThePhoneAnswersWhetherToCheck(t *testing.T) {
+	u := &fakeUpdates{latest: "0.1.6", can: true}
+	f := newFixture(t, func(c *Config) { c.Updates = u })
+	if code, _ := postJSON(t, f.srv.URL+"/api/update/checks", "", `{"on":true}`); code != http.StatusUnauthorized {
+		t.Fatalf("unpaired: %d", code)
+	}
+	_, token := f.pair(t)
+	if code, _ := postJSON(t, f.srv.URL+"/api/update/checks", token, `{}`); code != http.StatusBadRequest {
+		t.Fatalf("%d", code)
+	}
+	if code, body := postJSON(t, f.srv.URL+"/api/update/checks", token, `{"on":false}`); code != http.StatusOK || body["checks"] != "off" || u.checks != "off" {
+		t.Fatalf("%d %v %q", code, body, u.checks)
+	}
+}
+
+func TestThePhoneCanAskForOneCheckNow(t *testing.T) {
+	u := &fakeUpdates{latest: "0.1.7", can: true}
+	f := newFixture(t, func(c *Config) { c.Updates = u })
+	if code, _ := postJSON(t, f.srv.URL+"/api/update/check", "", ""); code != http.StatusUnauthorized {
+		t.Fatalf("unpaired: %d", code)
+	}
+	_, token := f.pair(t)
+	if code, body := postJSON(t, f.srv.URL+"/api/update/check", token, ""); code != http.StatusOK || body["latest"] != "0.1.7" || u.looked.Load() != 1 {
+		t.Fatalf("%d %v %d", code, body, u.looked.Load())
+	}
+	u.err = errors.New("no network")
+	if code, body := postJSON(t, f.srv.URL+"/api/update/check", token, ""); code != http.StatusBadGateway || body["error"] != "no network" {
+		t.Fatalf("%d %v", code, body)
 	}
 }

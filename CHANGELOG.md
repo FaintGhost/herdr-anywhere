@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.1.7
+
+The computer asks GitHub about new versions only after you say it may.
+
+- The second time you open the app, it asks whether the computer may check for new versions. Until you say yes, the computer sends nothing to GitHub.
+- After a yes it checks once a day, where 0.1.6 checked every 6 hours by itself.
+- Settings can turn the daily check on or off, or check right away. Installing new versions by itself still waits for you to turn it on, and turns the check on with it.
+- If you turned on automatic updates in 0.1.6, that counts as a yes.
+
+Android: `Herdr-Anywhere.apk`; an installed 0.1.6 can update to it from home. Mac: `herdr-anywhere-macos-arm64`.
+
 ## v0.1.6
 
 Full-screen programs scroll, a busy terminal no longer knocks the phone offline, and new versions now reach you by themselves.

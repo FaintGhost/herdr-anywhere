@@ -11,7 +11,7 @@ import { shownOrder, type Option } from '../model/menu.ts'
 import type { Space } from '../model/model.ts'
 import { addresses } from '../model/layout.ts'
 import { gitTail } from '../model/marks.ts'
-import { UpdateBanner } from './update.tsx'
+import { ChecksQuestion, UpdateBanner } from './update.tsx'
 import type { Updates } from '../updates.ts'
 import type { PrefStore } from '../prefs.ts'
 import { ChoiceRow, ConnBanner, Glyph, IconButton, ProgramIcon, SpaceBadge, StatusMark, statusLabel, useRev } from './kit.tsx'
@@ -284,7 +284,7 @@ export function HomeScreen(props: { store: Store; actions: HomeActions; updates?
       </View>
       <ConnBanner store={props.store} />
       <Scroll class="flex-1" contentClass="pb-6">
-        <If when={props.updates && props.prefs}><UpdateBanner updates={props.updates!} prefs={props.prefs!} /></If>
+        <If when={props.updates && props.prefs}><ChecksQuestion updates={props.updates!} prefs={props.prefs!} /><UpdateBanner updates={props.updates!} prefs={props.prefs!} /></If>
         <If when={props.actions.leaveDemo}>
           <View testID="demo-notice" class="mx-3 mt-1 mb-1 flex-row items-center gap-3 rounded-(--radius) bg-muted pl-3 pr-1 py-1">
             <Text class="flex-1 text-[13px] leading-[18px] text-muted-foreground">{t('demoNotice')}</Text>

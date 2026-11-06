@@ -221,13 +221,13 @@ type Manager struct {
 	Client Client
 	// Exe is the file to replace.
 	Exe string
-	// Dir holds the person's choice.
+	// Dir holds the person's choices and what the last check found.
 	Dir string
 	// Installs says a released file can run here (Supported, outside tests).
 	Installs bool
-	// First is how long after starting to ask for the first time.
+	// First is how long after starting to ask for the first time, once the person said yes.
 	First time.Duration
-	// Every is how often to ask.
+	// Every is how often to ask, once the person said yes.
 	Every time.Duration
 	// Restart runs the new file. It's called once the old one is replaced by an automatic update; after a person's
 	// request the caller calls it, having answered first.
@@ -235,48 +235,32 @@ type Manager struct {
 	Logf    func(string, ...any)
 
 	mu       sync.Mutex
-	latest   string
-	app      App
-	failed   string // the version an automatic update already failed on
+	failed   string    // the version an automatic update already failed on
+	looked   time.Time // when GitHub last answered, on schedule or asked from a phone
 	applying bool
+	wake     chan struct{}
 }
 
-func (m *Manager) logf(f string, a ...any) {
-	if m.Logf != nil {
-		m.Logf(f, a...)
-	}
+// saved is update.json: the person's answers, and what the last check found.
+type saved struct {
+	Auto bool `json:"auto"`
+	// Checks is "on" or "off" once the person answered; absent until then.
+	Checks string `json:"checks,omitempty"`
+	Latest string `json:"latest,omitempty"`
+	App    *App   `json:"app,omitempty"`
 }
 
-// Latest is the newest released version seen, or "" before the first answer.
-func (m *Manager) Latest() string {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.latest
-}
-
-// App is the Android app in the newest release seen.
-func (m *Manager) App() App {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.app
-}
-
-// Auto says the person wants new versions installed without asking. Off until they say so: this runs what a release
-// publishes, on their computer, with no one looking.
-func (m *Manager) Auto() bool {
+func (m *Manager) load() saved {
+	var s saved
 	b, err := os.ReadFile(filepath.Join(m.Dir, stateFile))
-	if err != nil {
-		return false
+	if err == nil && json.Unmarshal(b, &s) != nil {
+		s = saved{}
 	}
-	var s struct {
-		Auto bool `json:"auto"`
-	}
-	return json.Unmarshal(b, &s) == nil && s.Auto
+	return s
 }
 
-// SetAuto stores the person's choice.
-func (m *Manager) SetAuto(on bool) error {
-	b, err := json.Marshal(map[string]bool{"auto": on})
+func (m *Manager) save(s saved) error {
+	b, err := json.Marshal(s)
 	if err != nil {
 		return err
 	}
@@ -295,17 +279,135 @@ func (m *Manager) SetAuto(on bool) error {
 	return os.Rename(tmp.Name(), filepath.Join(m.Dir, stateFile))
 }
 
+// change applies f to update.json, one change at a time.
+func (m *Manager) change(f func(*saved)) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s := m.load()
+	f(&s)
+	return m.save(s)
+}
+
+func (m *Manager) logf(f string, a ...any) {
+	if m.Logf != nil {
+		m.Logf(f, a...)
+	}
+}
+
+// Latest is the newest released version the last check found, or "" before any.
+func (m *Manager) Latest() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.load().Latest
+}
+
+// App is the Android app in that release.
+func (m *Manager) App() App {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if a := m.load().App; a != nil {
+		return *a
+	}
+	return App{}
+}
+
+// Checks is whether the person wants the computer to ask GitHub about new releases each day: "ask" until they answer,
+// then "on" or "off". Nothing is asked before "on": a program that phones home by itself looks like malware.
+// 0.1.6 had no such question; whoever turned on its automatic updates said yes to checking.
+func (m *Manager) Checks() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s := m.load()
+	switch {
+	case s.Checks == "on" || s.Checks == "off":
+		return s.Checks
+	case s.Auto:
+		return "on"
+	}
+	return "ask"
+}
+
+// SetChecks stores the answer. No also turns off installing by itself, which needs checking.
+func (m *Manager) SetChecks(on bool) error {
+	err := m.change(func(s *saved) {
+		s.Checks = map[bool]string{true: "on", false: "off"}[on]
+		s.Auto = s.Auto && on
+	})
+	if err == nil {
+		m.poke()
+	}
+	return err
+}
+
+// Auto says the person wants new versions installed without asking. Off until they say so: this runs what a release
+// publishes, on their computer, with no one looking.
+func (m *Manager) Auto() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.load().Auto
+}
+
+// SetAuto stores the person's choice. Installing by itself means checking, so on is a yes to that too.
+func (m *Manager) SetAuto(on bool) error {
+	err := m.change(func(s *saved) {
+		s.Auto = on
+		if on {
+			s.Checks = "on"
+		}
+	})
+	if err == nil {
+		m.poke()
+	}
+	return err
+}
+
+// poke tells Run that the answer changed.
+func (m *Manager) poke() {
+	m.mu.Lock()
+	w := m.wake
+	m.mu.Unlock()
+	if w != nil {
+		select {
+		case w <- struct{}{}:
+		default:
+		}
+	}
+}
+
+// look asks GitHub once and keeps what it found, for phones and for after a restart.
+func (m *Manager) look(ctx context.Context) (Release, error) {
+	rel, err := m.Client.Latest(ctx)
+	if err != nil {
+		return rel, err
+	}
+	m.mu.Lock()
+	m.looked = time.Now()
+	m.mu.Unlock()
+	app := rel.App
+	return rel, m.change(func(s *saved) {
+		s.Latest = rel.Version
+		s.App = &app
+		if app.URL == "" {
+			s.App = nil
+		}
+	})
+}
+
+// CheckNow asks once, at the person's request, whatever the daily choice, and installs nothing.
+func (m *Manager) CheckNow(ctx context.Context) (string, error) {
+	rel, err := m.look(ctx)
+	return rel.Version, err
+}
+
 // Check asks once, and with Auto on installs what it finds.
 func (m *Manager) Check(ctx context.Context) {
-	rel, err := m.Client.Latest(ctx)
+	seen := m.Latest()
+	rel, err := m.look(ctx)
 	if err != nil {
 		m.logf("update: can't check for a new version: %v", err)
 		return
 	}
 	m.mu.Lock()
-	seen := m.latest
-	m.latest = rel.Version
-	m.app = rel.App
 	tried := m.failed == rel.Version
 	m.mu.Unlock()
 	newer := Newer(rel.Version, m.Client.Current)
@@ -335,7 +437,7 @@ func (m *Manager) ApplyLatest(ctx context.Context) (string, error) {
 	if !m.Installs {
 		return "", ErrNotHere
 	}
-	rel, err := m.Client.Latest(ctx)
+	rel, err := m.look(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -365,20 +467,39 @@ func (m *Manager) install(ctx context.Context, rel Release) error {
 	return m.Client.Apply(ctx, rel, m.Exe)
 }
 
-// Run asks after m.First and then every m.Every, until ctx ends.
+// Run asks after m.First and then every m.Every while the person's answer is yes, until ctx ends. A new answer counts
+// from its own moment: a yes asks after m.First.
 func (m *Manager) Run(ctx context.Context) {
 	every := m.Every
 	if every <= 0 {
-		every = 6 * time.Hour
+		every = 24 * time.Hour
 	}
+	wake := make(chan struct{}, 1)
+	m.mu.Lock()
+	m.wake = wake
+	m.mu.Unlock()
 	wait := m.First
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-wake:
+			wait = m.First
+			continue
 		case <-time.After(wait):
 		}
-		m.Check(ctx)
 		wait = every
+		if m.Checks() != "on" {
+			continue
+		}
+		// A phone that just checked already asked; installing by itself still needs its own look.
+		m.mu.Lock()
+		since := time.Since(m.looked)
+		m.mu.Unlock()
+		if since < every && !m.Auto() {
+			wait = every - since
+			continue
+		}
+		m.Check(ctx)
 	}
 }

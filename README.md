@@ -18,7 +18,7 @@ The connection is encrypted end to end. There is no account to create and no ser
 - **Live terminals.** Each pane streams from herdr-core as it does to the desktop app. Swiping scrolls and keeps gliding, in full-screen programs like Pi too. A key bar above the keyboard has what a phone keyboard lacks: Esc, Tab, Ctrl, the arrows, paste and copy.
 - **Start work.** Open a new tab or space with a shell or any agent Herdr knows, and split panes side by side.
 - **Stays connected on Android.** The app keeps its connection in the background, with a quiet notification saying so, and an agent's question reaches you as a notification. Settings can turn this off.
-- **Updates itself.** Home says when a new version is out, and one tap installs it on the computer, then on the phone. Settings can have the computer update by itself. The computer asks GitHub about releases every 6 hours; the phone reaches GitHub only to download the app after you tap Download.
+- **Updates itself.** Home says when a new version is out, and one tap installs it on the computer, then on the phone. The app asks first whether the computer may check: after a yes it asks GitHub once a day, and Settings can turn that off, check right away, or have the computer install new versions by itself. The phone reaches GitHub only to download the app after you tap Download.
 - **Your phone's language.** English, Simplified and Traditional Chinese, Spanish, Korean, Japanese and Russian, following the phone.
 
 ## Try it

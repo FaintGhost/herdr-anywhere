@@ -15,6 +15,7 @@ function setup(o: { info?: any; os?: 'android' | 'ios' | 'web'; app?: string; an
   const installs: any[] = []
   const fetcher = (async (url: string, init?: any) => {
     calls.push({ method: init?.method ?? 'GET', url, auth: init?.headers?.authorization ?? '', body: init?.body })
+    if (url.endsWith('/api/update/checks') && box.info) box.info = { ...box.info, checks: JSON.parse(init.body).on ? 'on' : 'off' }
     const a = o.answers?.[url.replace('http://c', '')]
     if (a) return { ok: a.status < 300, status: a.status, json: async () => a.body }
     if (url.endsWith('/api/info')) {
@@ -216,4 +217,58 @@ test('the system\'s words for a file under another key become plain ones', async
   await u.refresh()
   await u.updateApp()
   expect((toasts[0] as any).body).toBe(installProblem('INSTALL_FAILED_UPDATE_INCOMPATIBLE'))
+})
+
+test('the computer asks GitHub nothing until a phone answers; the question waits for the second time the app opens', async () => {
+  const { u, calls } = setup({ info: { version: '0.1.7', latest: '', canUpdate: true, autoUpdate: false, checks: 'ask' } })
+  await u.refresh()
+  expect(u.asksChecks(1)).toBe(false)
+  expect(u.asksChecks(2)).toBe(true)
+  await u.setChecks(true)
+  const post = calls.find((c) => c.url.endsWith('/api/update/checks'))
+  expect([post?.method, post?.body, post?.auth]).toEqual(['POST', '{"on":true}', 'Bearer tok'])
+  expect(u.info.get()?.checks).toBe('on')
+  expect(u.asksChecks(2)).toBe(false)
+})
+
+test('a yes checks right away, so a new version shows without waiting for the next connection; a no asks nothing', async () => {
+  const { u, calls } = setup({ info: { version: '0.1.7', latest: '', canUpdate: true, autoUpdate: false, checks: 'ask' }, app: '0.1.7',
+    answers: { '/api/update/check': { status: 200, body: { latest: '0.1.8' } } } })
+  await u.refresh()
+  await u.setChecks(true)
+  expect(calls.filter((c) => c.url.endsWith('/api/update/check')).length).toBe(1)
+  expect(u.notice()).toEqual({ kind: 'computer', version: '0.1.8' })
+  const no = setup({ info: { version: '0.1.7', latest: '', canUpdate: true, autoUpdate: false, checks: 'ask' } })
+  await no.u.refresh()
+  await no.u.setChecks(false)
+  expect(no.calls.filter((c) => c.url.endsWith('/api/update/check')).length).toBe(0)
+})
+
+test('no to checking turns installing by itself off too; a computer from before the question is never asked', async () => {
+  const { u } = setup({ info: { version: '0.1.7', latest: '0.1.7', canUpdate: true, autoUpdate: true, checks: 'on' } })
+  await u.refresh()
+  await u.setChecks(false)
+  expect([u.info.get()?.checks, u.info.get()?.autoUpdate]).toEqual(['off', false])
+  const old = setup({ info: { version: '0.1.6', latest: '0.1.6', canUpdate: true, autoUpdate: false } })
+  await old.u.refresh()
+  expect(old.u.info.get()?.checks).toBe(null)
+  expect(old.u.asksChecks(5)).toBe(false)
+})
+
+test('Check asks the computer to ask GitHub once, and what it found shows at once', async () => {
+  const { u, calls } = setup({ info: { version: '0.1.7', latest: '', canUpdate: true, checks: 'off', app: APP }, app: '0.1.7',
+    answers: { '/api/update/check': { status: 200, body: { latest: '0.1.8' } } } })
+  await u.refresh()
+  await u.checkNow()
+  expect(calls.filter((c) => c.url.endsWith('/api/update/check')).map((c) => [c.method, c.auth])).toEqual([['POST', 'Bearer tok']])
+  expect(u.checked.get()).toEqual({ latest: '0.1.8' })
+  expect(u.notice()).toEqual({ kind: 'computer', version: '0.1.8' })
+})
+
+test('a check that fails says why', async () => {
+  const { u } = setup({ info: { version: '0.1.7', latest: '', canUpdate: true, checks: 'off' },
+    answers: { '/api/update/check': { status: 502, body: { error: 'no network' } } } })
+  await u.refresh()
+  await u.checkNow()
+  expect(u.checked.get()).toEqual({ error: 'no network' })
 })

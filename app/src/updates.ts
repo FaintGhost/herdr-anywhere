@@ -1,5 +1,6 @@
-// Whether a new version is out, and installing it. The computer asks GitHub (companion/internal/update); the phone asks
-// only the computer, and reaches GitHub only to download the app when the person says so.
+// Whether a new version is out, and installing it. The computer asks GitHub (companion/internal/update), and only once
+// the person said yes or tapped Check; the phone asks only the computer, and reaches GitHub only to download the app
+// when the person says so.
 import manifest from '../nsh.json'
 import { Signal, type Conn } from './store.ts'
 import { t } from './strings/index.ts'
@@ -8,7 +9,12 @@ export const APP_VERSION: string = (manifest as any).version
 
 export type { Conn }
 export type AppFile = { url: string; digest: string; bytes: number }
-export type CompanionInfo = { version: string; latest: string; knowsReleases: boolean; canUpdate: boolean; autoUpdate: boolean; app: AppFile | null }
+/** checks: whether the computer may ask GitHub each day, "ask" until someone answers; null from a computer before 0.1.7,
+ *  which asked without a question. */
+export type CompanionInfo = { version: string; latest: string; knowsReleases: boolean; canUpdate: boolean; autoUpdate: boolean
+  checks: 'ask' | 'on' | 'off' | null; app: AppFile | null }
+/** What the last Check found, or why it couldn't. */
+export type Checked = { latest: string } | { error: string }
 /** What the person can do now: one at a time, the computer first, so the app keeps its connection while that happens. */
 export type Notice = { kind: 'computer' | 'computerByHand' | 'app' | 'rebuild'; version: string }
 export type InstallResult = 'installing' | 'needsPermission'
@@ -41,6 +47,7 @@ function readInfo(body: any): CompanionInfo | null {
     knowsReleases: 'latest' in body,
     canUpdate: body.canUpdate === true,
     autoUpdate: body.autoUpdate === true,
+    checks: body.checks === 'ask' || body.checks === 'on' || body.checks === 'off' ? body.checks : null,
     app: typeof a?.url === 'string' && typeof a?.digest === 'string' ? { url: a.url, digest: a.digest, bytes: Number(a.bytes) || 0 } : null,
   }
 }
@@ -50,6 +57,8 @@ export class Updates {
   readonly busy = new Signal<'computer' | 'app' | null>(null)
   /** How much of the app has downloaded, 0 to 1. */
   readonly progress = new Signal(0)
+  readonly checked = new Signal<Checked | null>(null)
+  readonly checking = new Signal(false)
   private off?: () => void
 
   constructor(private d: {
@@ -148,6 +157,39 @@ export class Updates {
   async setAuto(on: boolean) {
     const r = await this.post('/api/update/auto', JSON.stringify({ on }))
     const i = this.info.get()
-    if (r.ok && i) this.info.set({ ...i, autoUpdate: on })
+    if (r.ok && i) this.info.set({ ...i, autoUpdate: on, ...(on && i.checks ? { checks: 'on' as const } : {}) })
+  }
+
+  /** Whether to ask now if the computer may check each day: not the first time the app opens, as Sparkle does. */
+  asksChecks(opened: number): boolean {
+    return this.info.get()?.checks === 'ask' && opened >= 2
+  }
+
+  /** The person's answer. No also stops installing by itself, which needs checking. A yes checks at once, so a new version shows now. */
+  async setChecks(on: boolean) {
+    const r = await this.post('/api/update/checks', JSON.stringify({ on }))
+    const i = this.info.get()
+    if (r.ok && i) this.info.set({ ...i, checks: on ? 'on' : 'off', autoUpdate: i.autoUpdate && on })
+    if (r.ok && on) await this.checkNow()
+  }
+
+  /** One question to GitHub, through the computer, now. */
+  async checkNow() {
+    if (this.checking.get()) return
+    this.checking.set(true)
+    try {
+      const r = await this.post('/api/update/check')
+      const body: any = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(body.error ?? t('refusedStatus', { status: r.status }))
+      const latest = String(body.latest ?? '')
+      this.checked.set({ latest })
+      await this.refresh()
+      const i = this.info.get()
+      if (i && latest) this.info.set({ ...i, latest })
+    } catch (e: any) {
+      this.checked.set({ error: String(e?.message ?? e) })
+    } finally {
+      this.checking.set(false)
+    }
   }
 }

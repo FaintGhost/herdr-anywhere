@@ -51,6 +51,15 @@ function UpdateRows(props: { updates: Updates }) {
   const notice = () => state().notice
   const busy = () => state().busy
   const label = () => (notice()?.kind === 'app' || notice()?.kind === 'rebuild' ? t('updateApp') : t('updateComputer'))
+  const checking = useSignal(props.updates.checking)
+  const checked = useSignal(props.updates.checked)
+  const checkedWord = () => {
+    if (checking()) return t('checking')
+    const c = checked()
+    if (!c) return undefined
+    if ('error' in c) return t('couldntCheck', { error: c.error })
+    return notice() ? undefined : t('upToDate')
+  }
   return (
     <View>
       <If when={busy() || notice()}>
@@ -62,7 +71,17 @@ function UpdateRows(props: { updates: Updates }) {
           </If>
         </Row>
       </If>
-      <If when={state().info?.canUpdate}>
+      <If when={state().info?.checks}>
+        <Row label={t('checksDaily')} detail={t('checksDailyDetail')}>
+          <Toggle label={t('checksDaily')} testID="update-checks" on={state().info?.checks === 'on'} onChange={(on) => void props.updates.setChecks(on)} />
+        </Row>
+        <Row label={t('newVersions')} detail={checkedWord()}>
+          <View role="button" testID="update-check" onPress={() => void props.updates.checkNow()} class="px-2.5 py-1 rounded-[6px] bg-muted active:bg-accent">
+            <Text class="text-[12px] text-foreground">{t('checkNow')}</Text>
+          </View>
+        </Row>
+      </If>
+      <If when={state().info?.canUpdate && state().info?.checks !== 'off' && state().info?.checks !== 'ask'}>
         <Row label={t('autoUpdateComputer')} detail={t('autoUpdateDetail')}>
           <Toggle label={t('autoUpdateComputer')} testID="auto-update" on={state().info?.autoUpdate === true} onChange={(on) => void props.updates.setAuto(on)} />
         </Row>

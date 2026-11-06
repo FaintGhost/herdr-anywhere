@@ -56,6 +56,24 @@ for (const scheme of ['dark', 'light'] as const) {
   }, 60000)
 }
 
+for (const scheme of ['dark', 'light'] as const) {
+  test(`the question about checking for new versions, and its rows in Settings, ${scheme}`, async () => {
+    const info = JSON.stringify({ version: '0.1.7', latest: '', canUpdate: true, autoUpdate: false, checks: 'ask' })
+    const app = await open('../fixtures/fake.tsx', { host: { params: { scene: 'busy', info, opened: '1' } }, colorScheme: scheme })
+    await app.waitFor('id:checks-question')
+    await app.press('id:settings')
+    await app.waitFor(`id:look-${scheme}`)
+    await app.press(`id:look-${scheme}`)
+    await app.scroll('id:update-check', 3000).catch(() => {})
+    await app.wait(300)
+    await app.screenshot(`e2e/shots/checks-settings-${scheme}.png`)
+    await app.press('id:back')
+    await app.waitFor('id:checks-question')
+    await app.wait(300)
+    await app.screenshot(`e2e/shots/checks-home-${scheme}.png`)
+  }, 60000)
+}
+
 test('wide: a pane header says what its agent is doing', async () => {
   const app = await open('../fixtures/fake.tsx', { width: 1100, height: 760, host: { params: { scene: 'busy' } } })
   await app.waitFor('text:Needs you')
