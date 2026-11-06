@@ -398,6 +398,45 @@ test("a finished agent's alert says what it did, then where it is", async () => 
   expect(toasts).toEqual(['Claude Code finished | Hello.txt file creation\ndemo-app › 1', 'Claude Code finished | Wrote hello.txt\ndemo-app › 1'])
 })
 
+// Claude Code 2.1.319, measured 2026-11-06 in a scratch herdr-core session (hc events): status done with
+// no msg, then the turn, then done again with msg "replied 'the sky is blue.' with no tools, as asked".
+test('a finished alert is told again, quietly, when the agent says what it did a moment later', async () => {
+  const { core, store } = setup()
+  const rung: string[] = []
+  store.onAlert = (k, t, again) => rung.push(`${again ? 'again ' : ''}${k}: ${t.body}`)
+  await store.connect()
+  const r = await store.newSpace({ argv: ['claude'], folder: '/Users/sam/src/demo-app' })
+  await settle()
+  core.emit('title', r.terminal, { title: '✳ Sky color reply' })
+  core.setStatus(r.terminal, 'working')
+  await settle()
+  core.setStatus(r.terminal, 'done')
+  await settle()
+  core.setStatus(r.terminal, 'done', 'claude-code', { msg: "replied 'the sky is blue.'" })
+  await settle()
+  core.setStatus(r.terminal, 'done', 'claude-code', { msg: "replied 'the sky is blue.'" })
+  await settle()
+  expect(rung).toEqual(['done: Sky color reply\ndemo-app › 1', "again done: replied 'the sky is blue.'\ndemo-app › 1"])
+})
+
+test('words that come after the agent moved on are not put on the old alert', async () => {
+  const { core, store } = setup()
+  const rung: string[] = []
+  store.onAlert = (k, t, again) => rung.push(`${again ? 'again ' : ''}${k}: ${t.body}`)
+  await store.connect()
+  const r = await store.newSpace({ argv: ['claude'], folder: '/Users/sam/src/demo-app' })
+  await settle()
+  core.setStatus(r.terminal, 'working')
+  await settle()
+  core.setStatus(r.terminal, 'done')
+  await settle()
+  core.setStatus(r.terminal, 'working')
+  await settle()
+  core.setStatus(r.terminal, 'working', 'claude-code', { msg: 'reading files' })
+  await settle()
+  expect(rung.filter((x) => x.startsWith('again'))).toEqual([])
+})
+
 test("any program that reports its state gets its words in the alert; a shell's title stays out", async () => {
   const { core, store } = setup()
   const toasts: string[] = []
@@ -598,4 +637,29 @@ test("an agent's activity follows its reports: its title while it works, what it
   const sh = await store.newSpace({})
   expect(store.activityOf(sh.terminal)).toBe('')
   store.disconnect()
+})
+
+test("a program started from the phone answers colour queries with the phone's theme from its start", async () => {
+  const { core, store } = setup()
+  await store.connect()
+  store.display = { fg: '#d2d4d9', bg: '#17191d', cursor: '#d2d4d9' }
+  await store.newSpace({ argv: ['opencode'] })
+  await settle()
+  const run = core.calls.find((c) => c.method === 'terminal.run')!.params
+  expect(run.display).toEqual({ fg: '#d2d4d9', bg: '#17191d', cursor: '#d2d4d9' })
+})
+
+test('an agent that never reports its state (OpenCode) still shows among the agents, with no state; a shell does not', async () => {
+  const { core, store } = setup()
+  const doc = { spaces: [] as any[] }
+  // What herdr-core answers (hc get, 2026-11-06): OpenCode in the foreground, no status, never reported.
+  core.addSpace(doc, 'sp1', `${core.home}/src/api`, '', [{ id: 'tb1', argv: ['opencode'], foreground: true }, { id: 'tb2', argv: ['zsh'] }])
+  core.docs.set('', { value: doc, version: 1 })
+  await store.connect()
+  await settle()
+  expect(store.agents().map((a) => [a.address, a.status, a.programName])).toEqual([['t1', undefined, 'OpenCode']])
+  expect(store.counts()).toEqual({ agents: 1, needsYou: 0 })
+  core.setStatus('t1', 'working', 'opencode')
+  await settle()
+  expect(store.agents().map((a) => [a.address, a.status])).toEqual([['t1', 'working']])
 })

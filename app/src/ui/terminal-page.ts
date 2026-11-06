@@ -331,10 +331,14 @@ const BOOT = `(function () {
     term.parser.registerCsiHandler({ prefix: '>', final: 'u' }, function (p) { kitty.push(p[0] || 0); return false; });
     term.parser.registerCsiHandler({ prefix: '<', final: 'u' }, function () { kitty.pop(); return false; });
     term.parser.registerCsiHandler({ prefix: '=', final: 'u' }, function (p) { kitty[Math.max(0, kitty.length - 1)] = p[0] || 0; return false; });
-    function held(name, plain) {
+    // Shift and Ctrl held from the key bar, as xterm writes modified keys (1 + 1 for Shift + 4 for Ctrl); Shift+Tab
+    // alone is back-tab, which every program knows.
+    function held(name, plain, shift, ctrl) {
+      var mod = 1 + (shift ? 1 : 0) + (ctrl ? 4 : 0);
+      if (name === 'tab' && shift && !ctrl) return '\\x1b[Z';
       var code = name === 'enter' ? 13 : name === 'tab' ? 9 : 0;
-      if (code) return kitty[kitty.length - 1] ? '\\x1b[' + code + ';5u' : '\\x1b[27;5;' + code + '~';
-      return CSI[name] ? '\\x1b[1;5' + CSI[name] : plain;
+      if (code) return kitty[kitty.length - 1] ? '\\x1b[' + code + ';' + mod + 'u' : '\\x1b[27;' + mod + ';' + code + '~';
+      return CSI[name] ? '\\x1b[1;' + mod + CSI[name] : plain;
     }
     var marked = null;
     function mark(line, label) {
@@ -372,7 +376,7 @@ const BOOT = `(function () {
       else if (m.t === 'key') {
         var seq = m.name === 'esc' ? '\\x1b' : m.name === 'tab' ? '\\t' : m.name === 'btab' ? '\\x1b[Z' : m.name === 'enter' ? '\\r' : m.name === 'ctrlc' ? '\\x03' : m.name === 'pgup' ? '\\x1b[5~' : m.name === 'pgdn' ? '\\x1b[6~'
           : CSI[m.name] ? (term.modes.applicationCursorKeysMode ? '\\x1bO' : '\\x1b[') + CSI[m.name] : '';
-        if (m.ctrl) seq = held(m.name, seq);
+        if (m.ctrl || m.shift) seq = held(m.name, seq, m.shift, m.ctrl);
         if (seq) post({ t: 'input', data: seq });
       }
     });
@@ -442,7 +446,7 @@ export class PageChannel {
   }
   /** A new attachment repaints from scratch. */
   reset() { this.dec = new TextDecoder(); this.queue = [{ t: 'reset' }]; this.schedule() }
-  send(message: { t: 'key'; name: BarKey; ctrl?: boolean } | { t: 'paste'; data: string } | { t: 'theme'; dark: boolean } | { t: 'fontSize'; size: number } | { t: 'focus' } | { t: 'copy' }
+  send(message: { t: 'key'; name: BarKey; ctrl?: boolean; shift?: boolean } | { t: 'paste'; data: string } | { t: 'theme'; dark: boolean } | { t: 'fontSize'; size: number } | { t: 'focus' } | { t: 'copy' }
     | { t: 'bottom' } | { t: 'refit' } | { t: 'text' } | { t: 'mark'; line: number; label: string }) {
     if (this.open) this.post(JSON.stringify(message))
   }

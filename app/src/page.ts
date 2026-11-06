@@ -33,8 +33,9 @@ export async function allowNotifications(): Promise<Permission> {
 
 /** Posts the system's notification for an alert; the page posts it only while it is not in front. A finished agent's
  *  (`done`) is the quieter kind where the host has one (Android: a channel without sound). */
-export function notifyFromPage(n: { title: string; body?: string; terminal?: string; kind: 'blocked' | 'done' }) {
-  if (host.available()) host.call('page.notify', { title: n.title, body: n.body ?? null, terminal: n.terminal ?? null, kind: n.kind }).catch(() => {})
+/** `quiet`: new words for the notification already posted for this terminal; nothing when it was dismissed. */
+export function notifyFromPage(n: { title: string; body?: string; terminal?: string; kind: 'blocked' | 'done'; quiet?: boolean }) {
+  if (host.available()) host.call('page.notify', { title: n.title, body: n.body ?? null, terminal: n.terminal ?? null, kind: n.kind, quiet: !!n.quiet }).catch(() => {})
 }
 
 /** Follows whether the page is in front (`front`), and taps on its notifications (`open`). Returns the stop. */

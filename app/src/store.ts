@@ -8,6 +8,7 @@ import { captureDoc, replaceDoc, captureView, applyView, type View } from './mod
 import { Terminals, cleanTitle, type Term } from './model/terminals.ts'
 import { AgentList, type AgentInfo } from './model/agents.ts'
 import { programOf, agentArgv, INSTALLED_PROBE, parseInstalled, startable, type Program } from './model/programs.ts'
+const AGENT_KEYS = new Set(startable().map((p) => p.key))
 import { addresses, find, modBlock, panes, terminalOf, type Axis, type Node } from './model/layout.ts'
 import { recentFolders } from './model/folders.ts'
 import { activity } from './model/answers.ts'
@@ -36,6 +37,8 @@ export type StoreIO = {
 const REFUSED_MS = 3000
 const ENV = { TERM: 'xterm-256color', COLORTERM: 'truecolor', TERM_PROGRAM: 'herdr' }
 const BORN_GRACE_MS = 5000
+/** How many left terminals the phone keeps its width on (Store.hold). */
+const HELD_MAX = 6
 /** The pipe's close reasons (src/hc/ws.ts), as the status line says them. A socket that never opened is told apart by
  *  how soon it closed: a refused connection (the computer is up, nothing listens: the companion stopped) closes at once,
  *  one to a computer that is asleep or away only when the connect times out. */
@@ -86,7 +89,11 @@ export class Store {
   viewingTab = false
   /** Tabs this phone draws whole, every pane on screen; the others show the focused pane. Forgotten when the app restarts. */
   shownWhole = new Set<string>()
-  onAlert?: (kind: 'blocked' | 'done', toast: Toast) => void
+  /** An alert, or (`again`) new words for the last one of its terminal, to be put on its notification without a sound. */
+  onAlert?: (kind: 'blocked' | 'done', toast: Toast, again?: boolean) => void
+  /** Each terminal's last alert while its state stays the one it rang for: Claude Code says what it did a moment after
+   *  it reports done (store.test.ts "told again"). */
+  private rung = new Map<string, { kind: 'blocked' | 'done'; state: string; body?: string }>()
   /** Which alerts the person wants (Settings › Alerts). */
   wants: (kind: 'blocked' | 'done') => boolean = () => true
 
@@ -215,6 +222,7 @@ export class Store {
   private lost(reason: string) {
     this.stopLoops()
     this.hc = undefined
+    this.held.clear()
     if (!this.wantConnected) return
     if (reason === 'unpaired') {
       this.wantConnected = false
@@ -380,7 +388,8 @@ export class Store {
     for (const t of this.terms.list()) {
       const word = t.reported && t.status?.state ? t.status.state : undefined
       const prev = this.model.agents.get(t.address)?.word
-      if (!this.model.setWord(t.address, word, t.status?.app ?? undefined, looking(t.address))) continue
+      if (!this.model.setWord(t.address, word, t.status?.app ?? undefined, looking(t.address))) { this.ringAgain(t); continue }
+      this.rung.delete(t.address)
       changed = true
       if (this.firstSync) continue
       const sub = !!t.parent && this.model.paneOf(t.address) === undefined
@@ -410,6 +419,27 @@ export class Store {
   }
 
   private ring(kind: 'blocked' | 'done', t: Term) {
+    const toast = this.alertToast(kind, t)
+    const pane = this.model.paneOf(t.address)
+    const tab = pane ? this.model.tabOf(pane) : undefined
+    if (tab?.settled !== undefined) this.model.unsettle(tab.id)
+    if (!this.wants(kind)) return
+    if (t.status?.state) this.rung.set(t.address, { kind, state: t.status.state, body: toast.body })
+    if (!(this.appActive && this.viewingTab && this.model.visibleAddresses().includes(t.address))) this.toast(toast)
+    this.onAlert?.(kind, toast)
+  }
+
+  /** Same state, new words: the last alert of this terminal says them. */
+  private ringAgain(t: Term) {
+    const r = this.rung.get(t.address)
+    if (!r || t.status?.state !== r.state) return
+    const toast = this.alertToast(r.kind, t)
+    if (toast.body === r.body) return
+    r.body = toast.body
+    this.onAlert?.(r.kind, toast, true)
+  }
+
+  private alertToast(kind: 'blocked' | 'done', t: Term): Toast {
     const pane = this.model.paneOf(t.address)
     const space = pane ? this.model.spaceOf(pane) : undefined
     const tab = pane ? this.model.tabOf(pane) : undefined
@@ -420,13 +450,9 @@ export class Store {
     const p = this.program(t.address)
     const said = activity(t.status, p.agent ? cleanTitle(t.title) : '', p.name)
     const body = [said, place].filter(Boolean).join('\n') || undefined
-    const toast: Toast = kind === 'blocked'
+    return kind === 'blocked'
       ? { id: 0, title: tr('nameNeedsYou', { name }), body, level: 'error', action: { terminal: t.address } }
       : { id: 0, title: tr('nameFinished', { name }), body, level: 'info', action: { terminal: t.address } }
-    if (tab?.settled !== undefined) this.model.unsettle(tab.id)
-    if (!this.wants(kind)) return
-    if (!(this.appActive && this.viewingTab && this.model.visibleAddresses().includes(t.address))) this.toast(toast)
-    this.onAlert?.(kind, toast)
   }
 
   private reconcile(live: Map<string, Term>): boolean {
@@ -566,7 +592,8 @@ export class Store {
     return this.model.rollup(s.tabs.flatMap((c) => addresses(c.root)))
   }
 
-  /** Terminals whose program reports a status, in space, tab, pane order (herdr's `agents()`). */
+  /** Terminals whose program reports a status, in space, tab, pane order (herdr's `agents()`), and the agents that never
+   *  report one (OpenCode before 2.2 prints no OSC 7501), known by what they run. */
   agents(): AgentInfo[] {
     const out: AgentInfo[] = []
     const focusedPane = this.viewingTab ? this.model.focusedPane() : undefined
@@ -574,8 +601,9 @@ export class Store {
       const a = terminalOf(n)
       const t = a ? this.terms.get(a) : undefined
       const st = a ? this.model.status(a) : undefined
-      if (!a || !t || !st || t.state !== 'live') continue
+      if (!a || !t || t.state !== 'live') continue
       const p = this.program(a)
+      if (!st && !AGENT_KEYS.has(p.key)) continue
       out.push({
         address: a, pane: n.id, space: s.id, space_name: this.spaceName(s), tab: c.id, tab_name: c.name || String(ti + 1), named: !!c.name,
         status: st, app: t.status?.app ?? null, title: cleanTitle(t.title), seq: this.model.agents.get(a)?.seq ?? 0,
@@ -725,6 +753,7 @@ export class Store {
     const r = await this.call<{ address: string }>('terminal.run', {
       argv: argv ?? [], ...(cwd ? { cwd } : {}), env: ENV, keep: true,
       labels: { 'herdr.space': local(space, on), 'herdr.tab': local(tab, on) }, ...(on ? { on } : {}),
+      ...(this.display ? { display: this.display } : {}),
     })
     const addr = on && !r.address.includes('/') ? `${on}/${r.address}` : r.address
     this.born.set(addr, this.io.now())
@@ -943,6 +972,34 @@ export class Store {
     this.model.addTab(space.id, newTab(tab, '', this.model.freshId('p', space.machine), addr))
     this.model.active = space.id
     this.changed()
+  }
+
+  /** The phone's terminal colours (`#rrggbb`), for programs it starts: herdr-core answers their colour queries with them. */
+  display?: { fg: string; bg: string; cursor: string }
+
+  /** Attachments to terminals the phone left, newest last. herdr-core sizes a terminal to its last used viewer and,
+   *  when that one detaches, to the last used of those left: leaving would hand the width to an idle split on the
+   *  computer, and what an agent prints meanwhile stays that narrow in its history (measured 2026-11-06 on the emulator). Kept, a
+   *  left terminal stays the phone's width until someone uses another viewer. */
+  private held = new Map<string, Stream>()
+
+  /** The phone left this terminal: keep its attachment (its output unread) for the last HELD_MAX terminals. */
+  hold(addr: string, s: Stream) {
+    this.release(addr)
+    this.held.set(addr, s)
+    for (const [a, old] of this.held) {
+      if (this.held.size <= HELD_MAX) break
+      this.held.delete(a)
+      old.detach()
+    }
+  }
+
+  /** Let go of a left terminal's attachment: the phone attached to it again, or it ended. */
+  release(addr: string) {
+    const s = this.held.get(addr)
+    if (!s) return
+    this.held.delete(addr)
+    s.detach()
   }
 
   async attach(addr: string, size: { cols: number; rows: number }, on: StreamHandlers, opts: { observe?: boolean; resumed?: boolean; display?: any } = {}): Promise<Stream> {

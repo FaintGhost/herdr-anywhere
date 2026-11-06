@@ -4,6 +4,7 @@
 // title opens the switcher, and a flick across the terminal goes to the next or previous tab.
 import { cleanup, computed, effect, keyboardFrame, safeAreaInsets, Scroll, signal, Text, View, windowSize } from 'nsh'
 import { AlertDialog, Sheet } from 'nsh/base'
+import { keyboardGone } from './keyboard.ts'
 import type { Store } from '../store.ts'
 import { layoutRects } from '../store.ts'
 import { addresses, find, panes, terminalOf, type Node } from '../model/layout.ts'
@@ -127,7 +128,7 @@ function PhoneSpace(props: { store: Store; spaceId: string; tab: Tab; actions: S
   return (
     <View class="flex-1 bg-background">
       <PhoneHeader store={s} spaceId={props.spaceId} tab={props.tab} node={node()} actions={props.actions} back={props.back} menu={props.menu}
-        openSwitcher={() => switching.set(true)} />
+        openSwitcher={() => void keyboardGone().then(() => switching.set(true))} />
       <ConnBanner store={s} />
       <If when={whole()} else={
         <View class="flex-1">
@@ -181,7 +182,7 @@ function PhoneHeader(props: { store: Store; spaceId: string; tab: Tab; node: Nod
           <Text class="text-[11.5px] font-medium text-chart-2">{t('plusWaiting', { n: waiting().length })}</Text>
         </View>
       </If>
-      <IconButton name="plus" label={t('addAgent')} testID="add-agent" onPress={() => props.actions.addAgent(props.spaceId)} />
+      <IconButton name="plus" label={t('addAgent')} testID="add-agent" onPress={() => void keyboardGone().then(() => props.actions.addAgent(props.spaceId))} />
       <IconButton name="more" label={t('paneActions')} testID="space-more" onPress={props.menu} />
     </View>
   )
@@ -201,10 +202,19 @@ function Switcher(props: { store: Store; spaceId: string; open: { (): boolean; s
       { key: 'shell', name: t('shell'), icon: 'terminal', argv: undefined as string[] | undefined }]
   }
   const close = () => props.open.set(false)
+  // NSH 0.3.0 on Android sizes a sheet's scroll content far past its rows (measured 2026-11-06: 2743×2378 px around rows
+  // laid out at 1016×740, read with dumpsys activity), so a drag scrolled them out of sight and left the sheet blank.
+  // Rows that fit don't scroll at all; rows that don't stop at the last one.
+  const viewport = signal(0)
+  const rows = signal(0)
+  let scroller: any
+  const clamp = (y: number) => { const end = Math.max(0, rows() - viewport()); if (y > end + 1) scroller?.scrollTo({ y: end, animated: false }) }
   const row = 'flex-row items-center gap-2.5 h-11 px-2 rounded-[8px] active:bg-sidebar-accent'
   return (
     <Sheet open={props.open()} side="bottom" onOpenChange={(o) => props.open.set(o)} popupClass="bg-popover rounded-t-[14px] px-3 pt-3 pb-[env(safe-area-inset-bottom)]">
-      <Scroll class="max-h-[520px]" contentClass="pb-2">
+      <Scroll ref={(r: any) => { scroller = r }} class="max-h-[520px]" scrollable={rows() > viewport() + 1} onLayout={(b) => viewport.set(b.size.height)}
+        scrollEventThrottle={16} onScroll={(e) => clamp(e.offset.y)} onMomentumEnd={(e) => clamp(e.y)} onScrollDragEnd={(e) => clamp(e.y)}>
+      <View class="pb-2" onLayout={(b) => rows.set(b.size.height)}>
         <Text class="px-2 pb-1 text-[11.5px] font-medium text-sidebar-foreground">{(rev(), space() ? s.spaceName(space()!) : '')}</Text>
         <Each of={space()?.tabs ?? []} key={(c) => c.id}>{(c) => (
           <View>
@@ -251,6 +261,7 @@ function Switcher(props: { store: Store; spaceId: string; open: { (): boolean; s
           <Glyph name="folder" size={16} />
           <Text class="flex-1 text-[13.5px] text-muted-foreground">{t('anotherFolder')}</Text>
         </View>
+      </View>
       </Scroll>
     </Sheet>
   )

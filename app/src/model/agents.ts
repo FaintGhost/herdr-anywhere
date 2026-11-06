@@ -12,7 +12,8 @@ export type AgentInfo = {
   tab_name: string
   /** The tab has a name someone gave it (else tab_name is its number). */
   named: boolean
-  status: Shown
+  /** None for an agent that never reports its state, as OpenCode before 2.2 doesn't. */
+  status: Shown | undefined
   app: string | null
   title: string
   seq: number
@@ -121,7 +122,7 @@ export class AgentList {
   private track(list: AgentInfo[], now: number) {
     let dirty = false
     for (const a of list) {
-      const s = a.status === 'done' ? 'idle' : a.status
+      const s = a.status === 'done' ? 'idle' : a.status ?? ''
       if (this.changed[a.address]?.s === s) continue
       this.changed[a.address] = { s, at: now }
       dirty = true
@@ -135,12 +136,12 @@ export class AgentList {
   private hold(list: AgentInfo[]) {
     const cur = list.find((a) => a.focused)
     const same = cur && cur.address === this.held?.address
-    if (!same || cur!.status !== 'idle') this.held = cur ? { address: cur.address, rank: RANK[cur.status] ?? 0 } : null
+    if (!same || cur!.status !== 'idle') this.held = cur ? { address: cur.address, rank: RANK[cur.status ?? ''] ?? 0 } : null
   }
 
   private rank(a: AgentInfo) {
     const sawDone = a.address === this.held?.address && this.held.rank === RANK.done && a.status === 'idle'
-    return sawDone ? RANK.done : RANK[a.status] ?? 0
+    return sawDone ? RANK.done : RANK[a.status ?? ''] ?? 0
   }
 
   private prunePins(all: any[]) {

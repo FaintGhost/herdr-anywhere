@@ -66,3 +66,14 @@ test('the app reads and asks for the permission through the page', async () => {
   delete (globalThis as any).Notification
   expect(b.host.call('page.notifications')).toBe('unsupported')
 })
+
+test('new words for a posted notification replace it without a sound; a closed one stays closed', () => {
+  const b = browser()
+  b.page.visibilityState = 'hidden'
+  b.host.call('page.notify', { title: 'Claude Code finished', body: 'Sky color reply', terminal: 't1' })
+  expect(b.host.call('page.notify', { title: 'Claude Code finished', body: 'replied', terminal: 't1', quiet: true })).toBe(true)
+  expect(b.posted.map((n) => [n.options.body, n.options.tag, !!n.options.silent])).toEqual([['Sky color reply', 't1', false], ['replied', 't1', true]])
+  b.posted[1].onclick()
+  expect(b.host.call('page.notify', { title: 'Claude Code finished', body: 'later', terminal: 't1', quiet: true })).toBe(false)
+  expect(b.posted.length).toBe(2)
+})

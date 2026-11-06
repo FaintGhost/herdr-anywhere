@@ -14,11 +14,16 @@ export class Alerts {
   private next = 0
   private setTimeout: typeof setTimeout
 
-  constructor(private io: { notify?: (t: Toast, kind: AlertKind) => void; setTimeout?: typeof setTimeout } = {}) {
+  constructor(private io: { notify?: (t: Toast, kind: AlertKind, quiet?: boolean) => void; setTimeout?: typeof setTimeout } = {}) {
     this.setTimeout = io.setTimeout ?? globalThis.setTimeout.bind(globalThis)
   }
 
-  ring(kind: AlertKind, toast: Toast, front: boolean) {
+  /** `again`: new words for the last alert of its terminal, put on its notification without a sound. */
+  ring(kind: AlertKind, toast: Toast, front: boolean, again = false) {
+    if (again) {
+      if (!front) this.io.notify?.(toast, kind, true)
+      return
+    }
     const sound = { id: ++this.next, kind }
     this.sounds.set([...this.sounds.get(), sound])
     // A player that never says it ended (a sound that can't load) must not stay forever.

@@ -8,11 +8,12 @@ function setup() {
   const timers: { f: () => void; ms: number }[] = []
   const notified: string[] = []
   const kinds: string[] = []
+  const quiet: boolean[] = []
   const alerts = new Alerts({
-    notify: (t, kind) => { notified.push(t.title); kinds.push(kind) },
+    notify: (t, kind, q) => { notified.push(t.title); kinds.push(kind); quiet.push(!!q) },
     setTimeout: ((f: () => void, ms: number) => { timers.push({ f, ms }); return 0 }) as any,
   })
-  return { alerts, timers, notified, kinds }
+  return { alerts, timers, notified, kinds, quiet }
 }
 
 test("every alert plays Herdr's sound for it, as the desktop does", () => {
@@ -46,4 +47,14 @@ test('the notification says which kind it is, so a finished agent can post a qui
   alerts.ring('blocked', toast('Claude Code needs you'), false)
   alerts.ring('done', toast('Codex finished'), false)
   expect(kinds).toEqual(['blocked', 'done'])
+})
+
+test("new words for an alert change its notification without a sound, and only while the app isn't in front", () => {
+  const { alerts, notified, quiet } = setup()
+  alerts.ring('done', toast('Claude Code finished'), false)
+  alerts.ring('done', toast('Claude Code finished'), false, true)
+  alerts.ring('done', toast('Claude Code finished'), true, true)
+  expect(alerts.sounds.get().length).toBe(1)
+  expect(notified.length).toBe(2)
+  expect(quiet).toEqual([false, true])
 })

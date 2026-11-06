@@ -147,6 +147,18 @@ escs=$("$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep -cF 'content-desc="e
 [ "$escs" = 1 ] || { echo "FAIL: $escs Esc keys on screen with the keyboard up"; exit 1; }
 echo "ok: one Esc on screen"
 
+# Shift is held from the key row for the next key: Shift then Tab sends back-tab (ESC [ Z), which Claude Code reads as
+# its mode switch. cat -v on the computer writes the line that arrives.
+"$adb" shell input text "'head -1 | cat -v > hm-keys'"
+"$adb" shell input keyevent 66
+sleep 1
+tap row-shift
+tap row-tab
+tap row-enter
+for _ in $(seq 1 10); do grep -qF '^[[Z' "$work/home/src/acme-api/hm-keys" 2>/dev/null && break; sleep 1; done
+grep -qF '^[[Z' "$work/home/src/acme-api/hm-keys" 2>/dev/null || { echo "FAIL: Shift then Tab did not send back-tab ($(cat -v "$work/home/src/acme-api/hm-keys" 2>/dev/null))"; ls "$work/home/src/acme-api"; "$hc" read "$("$hc" ls --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["terminals"][0]["address"])')" | tail -8; exit 1; }
+echo "ok: Shift then Tab from the key row sends back-tab"
+
 # The terminal reports idle, then blocked (OSC 7501, as agents do): the app plays Herdr's request sound. Android logs
 # each player the app starts (dumpsys audio, "playback activity"); the emulator has no audio out, so this is the
 # player starting, not a sound heard.
@@ -201,15 +213,18 @@ for _ in $(seq 1 10); do screen_has "resource-id=\"terminal-$term\"" && screen_h
 [ -n "$opened" ] || { echo "FAIL: tapping the notification did not open the pane of $term"; exit 1; }
 echo "ok: tapping the notification opens the pane"
 
-# Away again, the terminal finishes: the notification is the quieter kind.
+# Away again, the terminal finishes: the notification is the quieter kind. As Claude Code does (2.1.319, measured
+# 2026-11-06), it reports done with no words first and says what it did a few seconds later: the notification takes them.
 "$adb" shell input keyevent 3
 sleep 1
-printf '%s\n' "printf '\033]7501;state=working\033\\\\'; sleep 2; printf '\033]7501;state=done:msg=$(printf 'Ran the tests' | base64)\033\\\\'" > "$work/home/src/acme-api/hm-done.sh"
+printf '%s\n' "printf '\033]7501;state=working\033\\\\'; sleep 2; printf '\033]7501;state=done\033\\\\'; sleep 4; printf '\033]7501;state=done:msg=$(printf 'Ran the tests' | base64)\033\\\\'" > "$work/home/src/acme-api/hm-done.sh"
 "$hc" send --force "$term" 'sh hm-done.sh' >/dev/null
 done=""
 for _ in $(seq 1 15); do posted "android.title=String \(.* finished\)" && { done=1; break; }; sleep 1; done
 [ -n "$done" ] || { echo "FAIL: no notification when the terminal finished"; exit 1; }
-posted "android.text=String \(Ran the tests" || { echo "FAIL: the finished notification does not say what it did"; "$adb" shell dumpsys notification --noredact | grep -A40 "pkg=$id" | grep -E "android\.(title|text)" | head -4; exit 1; }
+said=""
+for _ in $(seq 1 15); do posted "android.text=String \(Ran the tests" && { said=1; break; }; sleep 1; done
+[ -n "$said" ] || { echo "FAIL: the finished notification does not say what it did"; "$adb" shell dumpsys notification --noredact | grep -A40 "pkg=$id" | grep -E "android\.(title|text)" | head -4; exit 1; }
 record "importance=2 .*channel=finished" || { echo "FAIL: a finished terminal is not on the quiet channel"; exit 1; }
 echo "ok: notifications away from the app: a question with who, what and where opens its pane; a finish says what it did, quieter"
 
@@ -228,6 +243,18 @@ to_home() {
 }
 "$adb" shell am start -n "$activity" >/dev/null
 sleep 1
+# The switcher sheet: its rows fit, so a drag leaves them where they are (NSH 0.3.0 sized the sheet's scroll content far
+# past its rows, and a drag left the sheet blank; measured 2026-11-06).
+tap switcher
+sleep 2
+before=$(at switch-new-folder)
+"$adb" shell input swipe 540 2100 540 1600 300
+sleep 2
+after=$(at switch-new-folder)
+[ -n "$before" ] && [ "$before" = "$after" ] || { echo "FAIL: a drag moved the switcher's rows (from '$before' to '$after')"; exit 1; }
+"$adb" shell input keyevent KEYCODE_BACK
+sleep 1
+echo "ok: a drag on the switcher leaves its rows in place"
 to_home # from the pane the notification opened
 tap new
 # New space opens on the folder browser; the program comes after the folder.

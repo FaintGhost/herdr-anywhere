@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.1.9
+
+Fixes from using the phone every day.
+
+- A terminal keeps the phone's width after you leave it, until you use it on the computer. Before, leaving handed the width to a narrow split on the computer, and what an agent wrote meanwhile stayed narrow in its history.
+- The sheet for switching tabs and starting agents no longer scrolls into a blank area.
+- Opening that sheet with the keyboard up puts the keyboard away first, so it no longer covers the sheet.
+- OpenCode follows the phone's dark or light theme, and shows on home.
+- A finished notification shows what the agent says it did, which Claude Code sends a few seconds after it finishes.
+- The key row has a Shift key that applies to the next key, as Ctrl does. Shift then Tab replaces the Shift+Tab key.
+
+Android: `Herdr-Anywhere.apk`; an installed 0.1.6 or later can update to it from home. Mac: `herdr-anywhere-macos-arm64`.
+
 ## v0.1.8
 
 Updates are signed.

@@ -15,16 +15,17 @@ import { ChoiceRow, Glyph, useRev, useSignal } from './kit.tsx'
 import { t } from '../strings/index.ts'
 
 
-const ROW_KEYS: { key: BarKey | 'ctrl'; label: string }[] = [
-  { key: 'esc', label: 'esc' }, { key: 'btab', label: '⇧tab' }, { key: 'tab', label: 'tab' }, { key: 'ctrl', label: 'ctrl' },
+type RowKey = BarKey | 'ctrl' | 'shift'
+const ROW_KEYS: { key: RowKey; label: string }[] = [
+  { key: 'esc', label: 'esc' }, { key: 'shift', label: '⇧' }, { key: 'tab', label: 'tab' }, { key: 'ctrl', label: 'ctrl' },
   { key: 'ctrlc', label: '^C' }, { key: 'left', label: '←' }, { key: 'up', label: '↑' }, { key: 'down', label: '↓' }, { key: 'right', label: '→' }, { key: 'enter', label: '↵' },
 ]
-/** Ctrl is one tap and goes with the next key, so the keys it changes say what they are about to send. */
+/** Shift and Ctrl are one tap each and go with the next key, so the keys they change say what they are about to send. */
 /** One Esc on screen. The composer's and the fallback keys' are there with the keyboard down too, to stop an agent; only
  *  with choices on screen does the row need its own. */
 export const rowKeys = (mode: 'compose' | 'choices' | 'keys') => ROW_KEYS.filter((k) => k.key !== 'esc' || mode === 'choices')
 
-const WITH_CTRL = new Set<string>(['tab', 'left', 'up', 'down', 'right', 'enter'])
+const WITH_MODS = new Set<string>(['tab', 'left', 'up', 'down', 'right', 'enter'])
 /** The composer grows with its text up to this, then scrolls. */
 const COMPOSER_MIN = 36
 const COMPOSER_MAX = 132
@@ -165,10 +166,14 @@ function Composer(props: { keepTerminal: () => boolean; store: Store; session: T
 }
 
 /** Directly above the keyboard: the keys a phone keyboard lacks, straight to the pane, and one to put it away. */
-function KeyRow(props: { keys: { key: BarKey | 'ctrl'; label: string }[]; session: TerminalSession; keepTerminal: () => boolean }) {
+function KeyRow(props: { keys: { key: RowKey; label: string }[]; session: TerminalSession; keepTerminal: () => boolean }) {
   const ctrl = useSignal(props.session.ctrl)
-  const press = (k: BarKey | 'ctrl') => {
+  const shift = useSignal(props.session.shift)
+  const held = (k: RowKey) => (k === 'ctrl' && ctrl()) || (k === 'shift' && shift())
+  const label = (k: { key: RowKey; label: string }) => WITH_MODS.has(k.key) ? `${shift() ? '⇧' : ''}${ctrl() ? '^' : ''}${k.label}` : k.label
+  const press = (k: RowKey) => {
     if (k === 'ctrl') props.session.toggleCtrl()
+    else if (k === 'shift') props.session.toggleShift()
     else props.session.key(k)
     // Typing in the terminal goes on there after a key (Enter included); typing in the composer stays in it.
     if (props.keepTerminal()) props.session.focus()
@@ -177,8 +182,8 @@ function KeyRow(props: { keys: { key: BarKey | 'ctrl'; label: string }[]; sessio
     <View testID="key-row" class="flex-row items-center gap-1 px-1.5 pb-1">
       {props.keys.map((k) => (
         <View role="button" focusable={false} testID={`row-${k.key}`} accessibilityLabel={k.label} onPress={() => press(k.key)}
-          class={`flex-1 h-8 items-center justify-center rounded-[6px] ${k.key === 'ctrl' && ctrl() ? 'bg-primary' : 'bg-secondary active:bg-accent'}`}>
-          <Text class={`${k.key === 'enter' ? 'text-[16px]' : 'text-[12px]'} font-mono ${k.key === 'ctrl' && ctrl() ? 'text-primary-foreground' : 'text-foreground'}`}>{ctrl() && WITH_CTRL.has(k.key) ? `^${k.label}` : k.label}</Text>
+          class={`flex-1 h-8 items-center justify-center rounded-[6px] ${held(k.key) ? 'bg-primary' : 'bg-secondary active:bg-accent'}`}>
+          <Text class={`${k.key === 'enter' || k.key === 'shift' ? 'text-[16px]' : 'text-[12px]'} font-mono ${held(k.key) ? 'text-primary-foreground' : 'text-foreground'}`}>{label(k)}</Text>
         </View>
       ))}
       <View role="button" focusable={false} testID="hide-keyboard" accessibilityLabel={t('hideKeyboard')} onPress={() => Keyboard.dismiss()}

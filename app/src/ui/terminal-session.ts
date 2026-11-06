@@ -5,7 +5,7 @@ import type { Store } from '../store.ts'
 import type { CloseReason, Stream } from '../hc/client.ts'
 import { Signal } from '../store.ts'
 import { focusTerminalView } from '../page.ts'
-import { PageChannel, ctrlKey, readPageMessage, type BarKey } from './terminal-page.ts'
+import { PageChannel, ctrlKey, readPageMessage, xtermTheme, type BarKey } from './terminal-page.ts'
 import { findSince, sinceLabel, tailOf } from '../model/seen.ts'
 import { t, type Key } from '../strings/index.ts'
 
@@ -28,6 +28,7 @@ export class TerminalSession {
   readonly state = new Signal<SessionState>('waiting')
   readonly why = new Signal('')
   readonly ctrl = new Signal(false)
+  readonly shift = new Signal(false)
   private claimedAt = 0
   /** Scrolled back from the live bottom. */
   readonly away = new Signal(false)
@@ -44,6 +45,7 @@ export class TerminalSession {
   private before?: { at: number; tail: string[] }
   private lines?: string[]
   private marking = false
+  private dark?: boolean
 
   constructor(private store: Store, readonly address: string, post: (m: string) => void, later?: (f: () => void, ms: number) => number,
     private opts: { observe?: boolean; on?: Gestures } = {}) {
@@ -67,6 +69,10 @@ export class TerminalSession {
       if (!this.opts.observe) this.stream?.resize(m.cols, m.rows)
     } else if (m.t === 'input') {
       let d = m.data
+      if (this.shift.get()) {
+        if (d.length === 1) d = d.toUpperCase()
+        this.shift.set(false)
+      }
       if (this.ctrl.get()) {
         d = ctrlKey(d)
         this.ctrl.set(false)
@@ -102,8 +108,10 @@ export class TerminalSession {
 
   key(name: BarKey) {
     const ctrl = this.ctrl.get()
+    const shift = this.shift.get()
     if (ctrl) this.ctrl.set(false)
-    this.channel.send({ t: 'key', name, ...(ctrl ? { ctrl } : {}) })
+    if (shift) this.shift.set(false)
+    this.channel.send({ t: 'key', name, ...(ctrl ? { ctrl } : {}), ...(shift ? { shift } : {}) })
     this.claim()
   }
   /** The person is on this viewer: the terminal takes its size back from another one (herdr-core: the last active viewer sets it). */
@@ -113,12 +121,25 @@ export class TerminalSession {
     this.stream?.focus(true)
   }
   toggleCtrl() { this.ctrl.set(!this.ctrl.get()) }
+  toggleShift() { this.shift.set(!this.shift.get()) }
   paste(text: string) { this.channel.send({ t: 'paste', data: text }) }
   focus() {
     this.stream?.focus(true)
     void focusTerminalView().then(() => this.channel.send({ t: 'focus' }))
   }
-  setTheme(dark: boolean) { this.channel.send({ t: 'theme', dark }) }
+  /** The page's colours, and herdr-core's answer when a program asks the terminal's colours (OpenCode picks its theme
+   *  from it): a change while attached attaches again, since herdr-core takes a viewer's colours only on attach. */
+  setTheme(dark: boolean) {
+    const was = this.dark
+    this.dark = dark
+    this.channel.send({ t: 'theme', dark })
+    if (was !== undefined && was !== dark && this.stream) {
+      const s = this.stream
+      this.stream = undefined
+      s.detach()
+      void this.attach()
+    }
+  }
   setFontSize(size: number) { this.channel.send({ t: 'fontSize', size }) }
 
   /** The selection, or the screen's text without one. */
@@ -133,7 +154,9 @@ export class TerminalSession {
     this.disposed = true
     if (this.lines && !this.opts.observe) this.store.saw(this.address, tailOf(this.lines))
     this.off()
-    this.stream?.detach()
+    // A left terminal keeps the phone's width (Store.hold); one only watched never had it.
+    if (this.stream && !this.opts.observe) this.store.hold(this.address, this.stream)
+    else this.stream?.detach()
     this.stream = undefined
   }
 
@@ -144,11 +167,13 @@ export class TerminalSession {
       const resumed = this.attachedOnce
       this.channel.reset()
       const s = await this.store.attach(this.address, this.size, {
-        data: (b) => this.channel.write(b),
+        data: (b) => { if (!this.disposed) this.channel.write(b) },
         close: (r) => this.closed(r),
-      }, { ...(resumed ? { resumed: true } : {}), ...(this.opts.observe ? { observe: true } : {}) })
+      }, { ...(resumed ? { resumed: true } : {}), ...(this.opts.observe ? { observe: true } : {}), ...(this.display() ? { display: this.display() } : {}) })
       if (this.disposed) return s.detach()
       this.stream = s
+      // Attached at the phone's size, it no longer needs the attachment it left behind.
+      if (!this.opts.observe) this.store.release(this.address)
       if (!resumed && !this.opts.observe) this.before = this.store.lastSeen(this.address)
       // A terminal on the phone's screen keeps the phone's width; with the app in the background, the computer's.
       if (resumed && !this.opts.observe && this.store.appActive) s.focus(true)
@@ -167,9 +192,17 @@ export class TerminalSession {
     }
   }
 
+  private display() {
+    if (this.dark === undefined) return undefined
+    const th = xtermTheme(this.dark)
+    return { fg: th.foreground, bg: th.background, cursor: th.cursor }
+  }
+
   private closed(r: CloseReason) {
+    // Only this session detaches, and it lets go of the stream first: a late close must not drop the next one.
+    if (r.reason === 'detached') return
     this.stream = undefined
-    if (this.disposed || r.reason === 'detached') return
+    if (this.disposed) return this.store.release(this.address)
     if (r.reason === 'disconnected') {
       this.state.set('lost')
       this.why.set(t('reconnecting'))

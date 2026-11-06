@@ -9,6 +9,7 @@ import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.service.notification.StatusBarNotification;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
@@ -137,6 +138,9 @@ public class MainActivity extends Activity {
     String terminal = a.get(TERMINAL) instanceof String ? (String) a.get(TERMINAL) : "";
     String body = a.get("body") instanceof String ? (String) a.get("body") : null;
     boolean done = "done".equals(a.get("kind"));
+    // New words for the notification of this terminal (src/page.ts notifyFromPage): only onto one still shown, silently.
+    boolean quiet = Boolean.TRUE.equals(a.get("quiet"));
+    if (quiet && !showing(terminal)) return false;
     Intent tap = new Intent(this, MainActivity.class).putExtra(TERMINAL, terminal).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
     PendingIntent open = PendingIntent.getActivity(this, terminal.hashCode(), tap,
         PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
@@ -148,9 +152,16 @@ public class MainActivity extends Activity {
         .setCategory(done ? Notification.CATEGORY_STATUS : Notification.CATEGORY_MESSAGE)
         .setContentIntent(open)
         .setAutoCancel(true)
+        .setOnlyAlertOnce(quiet)
         .build();
     getSystemService(NotificationManager.class).notify(terminal, 1, n);
     return true;
+  }
+
+  private boolean showing(String terminal) {
+    for (StatusBarNotification s : getSystemService(NotificationManager.class).getActiveNotifications())
+      if (terminal.equals(s.getTag()) && s.getId() == 1) return true;
+    return false;
   }
 
   /** The browser's words (src/page.ts Permission): Android 13+ asks once; before it, notifications are on unless turned off. */

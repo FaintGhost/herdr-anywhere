@@ -45,6 +45,23 @@ test('typing goes to the terminal; Ctrl from the key bar applies to the next key
   expect(s.ctrl.get()).toBe(false)
 })
 
+test('Shift from the key bar goes with the next key only: a bar key asks the page, a typed letter is capital', async () => {
+  const { core, s, posted } = await setup()
+  s.page(JSON.stringify({ t: 'ready', cols: 80, rows: 24 }))
+  await settle()
+  s.toggleShift()
+  expect(s.shift.get()).toBe(true)
+  s.key('tab')
+  s.key('tab')
+  s.toggleShift()
+  s.page(JSON.stringify({ t: 'input', data: 'a' }))
+  s.page(JSON.stringify({ t: 'input', data: 'a' }))
+  await settle()
+  expect(posted.filter((m: any) => m.t === 'key')).toEqual([{ t: 'key', name: 'tab', shift: true }, { t: 'key', name: 'tab' }])
+  expect(core.written.map((w) => w.data)).toEqual(['A', 'a'])
+  expect(s.shift.get()).toBe(false)
+})
+
 test('a key from the bar with Ctrl held asks the page for the combination, once', async () => {
   const { s, posted } = await setup()
   s.page(JSON.stringify({ t: 'ready', cols: 80, rows: 24 }))
@@ -197,4 +214,75 @@ test('a pane never looked at before gets no mark', async () => {
   s.page(JSON.stringify({ t: 'tail', lines: ['x'] }))
   await settle()
   expect(posted.filter((m) => m.t === 'text' || m.t === 'mark').length).toBe(0)
+})
+
+test("attaching tells herdr-core the phone's colours, so a program that asks gets the phone's theme", async () => {
+  const { core, s } = await setup()
+  s.setTheme(true)
+  s.page(JSON.stringify({ t: 'ready', cols: 80, rows: 24 }))
+  await settle()
+  const at = core.calls.find((c) => c.method === 'terminal.attach')!.params
+  expect(at.display).toEqual({ fg: '#d2d4d9', bg: '#17191d', cursor: '#d2d4d9' })
+})
+
+test('switching the theme while attached attaches again with the new colours', async () => {
+  const { core, s } = await setup()
+  s.setTheme(true)
+  s.page(JSON.stringify({ t: 'ready', cols: 80, rows: 24 }))
+  await settle()
+  s.setTheme(true)
+  await settle()
+  expect(core.calls.filter((c) => c.method === 'terminal.attach').length).toBe(1)
+  s.setTheme(false)
+  await settle()
+  const attaches = core.calls.filter((c) => c.method === 'terminal.attach')
+  expect(attaches.length).toBe(2)
+  expect(attaches[1].params.display).toEqual({ fg: '#25272c', bg: '#ffffff', cursor: '#25272c' })
+})
+
+// History width (2026-11-06): a phone that left a terminal gave its width back to the computer's idle 32-column split,
+// so whatever Claude Code printed meanwhile stayed 32 columns wide in the history.
+test("leaving a terminal keeps the phone's width on it until someone uses another viewer", async () => {
+  const { core, r, s } = await setup()
+  const computer = core.view(r.terminal, 32, 30)
+  s.page(JSON.stringify({ t: 'ready', cols: 54, rows: 37 }))
+  await settle()
+  expect(core.sizeOf(r.terminal)).toEqual({ cols: 54, rows: 37 })
+  s.dispose()
+  await settle()
+  expect(core.sizeOf(r.terminal)).toEqual({ cols: 54, rows: 37 })
+  computer.use()
+  expect(core.sizeOf(r.terminal)).toEqual({ cols: 32, rows: 30 })
+})
+
+test('opening a terminal again leaves the phone one attachment to it, and a left one shows nothing', async () => {
+  const { core, store, r, s, posted } = await setup()
+  s.page(JSON.stringify({ t: 'ready', cols: 54, rows: 37 }))
+  await settle()
+  s.dispose()
+  await settle()
+  const before = posted.length
+  core.output(r.terminal, 'meanwhile')
+  await settle()
+  expect(posted.length).toBe(before)
+  const again = new TerminalSession(store, r.terminal, () => {}, (f) => { queueMicrotask(f); return 1 })
+  again.page(JSON.stringify({ t: 'ready', cols: 54, rows: 37 }))
+  await settle()
+  expect(core.viewers(r.terminal)).toBe(1)
+  expect(core.sizeOf(r.terminal)).toEqual({ cols: 54, rows: 37 })
+})
+
+test('the phone keeps hold of the last few terminals it left, not all of them', async () => {
+  const { core, store } = await setup()
+  const left: string[] = []
+  for (let i = 0; i < 7; i++) {
+    const r = await store.newSpace({})
+    const s = new TerminalSession(store, r.terminal, () => {}, (f) => { queueMicrotask(f); return 1 })
+    s.page(JSON.stringify({ t: 'ready', cols: 54, rows: 37 }))
+    await settle()
+    s.dispose()
+    await settle()
+    left.push(r.terminal)
+  }
+  expect(left.map((a) => core.viewers(a))).toEqual([0, 1, 1, 1, 1, 1, 1])
 })

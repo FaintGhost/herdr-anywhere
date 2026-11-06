@@ -5,14 +5,21 @@
 const front = () => typeof document === 'undefined' || (document.visibilityState === 'visible' && document.hasFocus())
 const permission = () => (typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
 
+// The notifications on screen, by terminal: new words (`quiet`) replace one still there, silently.
+const shown = new Map()
 function notify(player, a) {
   if (front() || permission() !== 'granted' || typeof a?.title !== 'string') return false
-  const options = { body: a.body ?? undefined, tag: a.terminal ?? undefined }
+  if (a.quiet && !(a.terminal && shown.has(a.terminal))) return false
+  const options = { body: a.body ?? undefined, tag: a.terminal ?? undefined, silent: !!a.quiet }
   try {
     const n = new Notification(a.title, options)
+    const gone = () => { if (shown.get(a.terminal) === n) shown.delete(a.terminal) }
+    if (a.terminal) shown.set(a.terminal, n)
+    n.onclose = gone
     n.onclick = () => {
       if (typeof focus === 'function') focus()
       n.close()
+      gone()
       if (a.terminal) player.hostEvent('page.open', { terminal: a.terminal })
     }
   } catch {

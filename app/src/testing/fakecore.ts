@@ -38,6 +38,29 @@ export class FakeCore implements Pipe {
   private nextCh = 1
   private eventCh?: number
   private attached = new Map<number, string>()
+  /** Each viewer's size and when it was last used (attach, typing, resize, focus). herdr-core sizes a terminal to its
+   *  last used viewer, and to the last used of those left when that one detaches (measured 2026-11-06,
+   *  on the emulator: the phone leaving gave the width back to a 32-column viewer that never typed). */
+  private viewing = new Map<number, { cols: number; rows: number; observe: boolean; used: number }>()
+  private uses = 0
+  /** A viewer that isn't the app (the computer's), at this size; `use` it to stand for typing there. */
+  view(addr: string, cols: number, rows: number) {
+    const ch = this.nextCh++
+    this.attached.set(ch, addr)
+    this.viewing.set(ch, { cols, rows, observe: false, used: ++this.uses })
+    return { use: () => { this.viewing.get(ch)!.used = ++this.uses }, detach: () => { this.attached.delete(ch); this.viewing.delete(ch) } }
+  }
+  /** The terminal's size now, by herdr-core's rule above. */
+  sizeOf(addr: string) {
+    let best: { cols: number; rows: number; used: number } | undefined
+    for (const [ch, a] of this.attached) {
+      const v = this.viewing.get(ch)
+      if (a === addr && v && !v.observe && (!best || v.used > best.used)) best = v
+    }
+    return best && { cols: best.cols, rows: best.rows }
+  }
+  /** How many viewers a terminal has. */
+  viewers(addr: string) { return [...this.attached.values()].filter((a) => a === addr).length }
   private parser = new FrameParser((ch, kind, p) => this.frame(ch, kind, p))
   closed = false
 
@@ -153,6 +176,11 @@ export class FakeCore implements Pipe {
     return this.docs.get(machine ?? '')?.value ?? null
   }
 
+  private used(ch: number) {
+    const v = this.viewing.get(ch)
+    if (v && !v.observe) v.used = ++this.uses
+  }
+
   output(addr: string, text: string) {
     for (const [ch, a] of this.attached) if (a === addr) this.out(ch, DATA, text)
   }
@@ -162,15 +190,20 @@ export class FakeCore implements Pipe {
       if (kind === DATA) {
         const data = dec.decode(p)
         this.written.push({ channel: ch, data })
+        this.used(ch)
         const a = this.attached.get(ch)
         if (this.echo && a) this.out(ch, DATA, data.replace(/\r/g, `\r\n${a}$ `))
       }
-      if (kind === FOCUS) this.focused.push(ch)
+      if (kind === FOCUS) { this.focused.push(ch); this.used(ch) }
       if (kind === RESIZE) {
         const v = new DataView(p.buffer, p.byteOffset)
-        this.resized.push({ channel: ch, cols: v.getUint16(0, true), rows: v.getUint16(2, true) })
+        const size = { cols: v.getUint16(0, true), rows: v.getUint16(2, true) }
+        this.resized.push({ channel: ch, ...size })
+        const w = this.viewing.get(ch)
+        if (w) Object.assign(w, size)
+        this.used(ch)
       }
-      if (kind === CLOSE && this.attached.delete(ch)) this.out(ch, CLOSE, new Uint8Array(0))
+      if (kind === CLOSE && this.attached.delete(ch)) { this.viewing.delete(ch); this.out(ch, CLOSE, new Uint8Array(0)) }
       return
     }
     if (kind !== DATA) return
@@ -210,6 +243,7 @@ export class FakeCore implements Pipe {
         if (t.state !== 'live') return fail('finished', 'it finished')
         const ch = this.nextCh++
         this.attached.set(ch, t.address)
+        this.viewing.set(ch, { cols: pr.cols, rows: pr.rows, observe: !!pr.observe, used: ++this.uses })
         ok({ channel: ch, terminal: t })
         // A terminal with a screen of its own (`screens`) draws it, as the program would; else a prompt.
         const screen = this.screens.get(t.address)

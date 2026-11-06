@@ -1,6 +1,6 @@
 // The app: pairing on first launch, then home ⇄ space ⇄ settings over one live store, with alerts and sheets
 // over every screen.
-import { cleanup, computed, effect, Keyboard, platform, safeAreaInsets, setColorScheme, signal, Text, Video, View } from 'nsh'
+import { cleanup, colorScheme, computed, effect, Keyboard, platform, safeAreaInsets, setColorScheme, signal, Text, Video, View } from 'nsh'
 import { createNavStack, NavPage, NavStack } from 'nsh/base'
 import type { Store } from '../store.ts'
 import { fileApi, folderApi, parseInvite, type Link, type Linker, type Tunnel } from '../link.ts'
@@ -8,6 +8,7 @@ import type { PrefStore } from '../prefs.ts'
 import { Alerts, type AlertKind } from '../alerts.ts'
 import { followInstallFailures, installApp, allowNotifications, followPage, keepAlive, notifications, notifyFromPage, wantsKeepAlive } from '../page.ts'
 import { HomeScreen } from './home.tsx'
+import { xtermTheme } from './terminal-page.ts'
 import { SpaceScreen } from './space.tsx'
 import { SettingsScreen } from './settings.tsx'
 import { PairScreen } from './pair.tsx'
@@ -93,12 +94,14 @@ function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: 
   const prefs = useSignal(deps.prefs.prefs)
   store.wants = (k) => (k === 'blocked' ? deps.prefs.prefs.get().alertBlocked : deps.prefs.prefs.get().alertDone)
   // The page (web-host.js) or the Android activity says whether the app is in front; on iOS it is while it runs.
-  const alerts = new Alerts({ notify: (t, kind) => notifyFromPage({ title: t.title, body: t.body, terminal: t.action?.terminal, kind }) })
-  store.onAlert = (kind, toast) => alerts.ring(kind, toast, store.appActive)
+  const alerts = new Alerts({ notify: (t, kind, quiet) => notifyFromPage({ title: t.title, body: t.body, terminal: t.action?.terminal, kind, quiet }) })
+  store.onAlert = (kind, toast, again) => alerts.ring(kind, toast, store.appActive, again)
   const offPage = followPage({ front: (f) => { store.appActive = f }, open: (a) => openTerminal(a) })
   const offConn = store.conn.sub((c) => { if (c === 'unpaired') props.unpaired() })
   const conn = useSignal(store.conn)
   effect(() => keepAlive(wantsKeepAlive(conn(), prefs().stayConnected)))
+  // A program started from the phone asks the terminal's colours as it starts (OpenCode picks light or dark from them).
+  effect(() => { const th = xtermTheme(colorScheme() === 'dark'); store.display = { fg: th.foreground, bg: th.background, cursor: th.cursor } })
   // Android 13 and later post nothing until this is allowed, and an agent's question is why the app has notifications.
   // A browser asks only from a tap, so there Settings has the button. The sample data has nobody to hear from.
   effect(() => {
