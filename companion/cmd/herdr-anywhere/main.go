@@ -33,7 +33,7 @@ import (
 )
 
 // A var so a test can build two versions of this program.
-var version = "0.1.12"
+var version = "0.1.13"
 
 const defaultPort = "7681"
 
@@ -294,7 +294,7 @@ func serve(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	}
 	defer os.Remove(filepath.Join(st.Dir(), serveURLsFile))
 	if *withTailcat {
-		closeTailcat, err := serveTailcat(ctx, st, httpSrv, urls, errc, logger)
+		closeTailcat, err := serveTailcat(ctx, st, httpSrv, srv.Revoking, urls, errc, logger)
 		if err != nil {
 			httpSrv.Close()
 			return fmt.Errorf("--tailcat: %w", err)
@@ -328,8 +328,9 @@ func serve(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 // serveTailcat brings up the Tailcat host, serves handler's routes on it as
 // on the TCP listeners (so /hc?token=… works unchanged), opens the control
 // socket pair talks to, and keeps the host's allowlist in step with the
-// device list. The returned func stops all of it.
-func serveTailcat(ctx context.Context, st *store.Store, httpSrv *http.Server, urls []string, errc chan<- error, logger *log.Logger) (func(), error) {
+// device list, once a revoked phone's socket has closed (revoking). The
+// returned func stops all of it.
+func serveTailcat(ctx context.Context, st *store.Store, httpSrv *http.Server, revoking func() bool, urls []string, errc chan<- error, logger *log.Logger) (func(), error) {
 	tc, err := tailcat.Open(st, computerName(), logger)
 	if err != nil {
 		return nil, err
@@ -347,7 +348,7 @@ func serveTailcat(ctx context.Context, st *store.Store, httpSrv *http.Server, ur
 	ctlSrv := &http.Server{Handler: tailcat.ControlHandler(tc.Pair, urls), ReadHeaderTimeout: 10 * time.Second, ErrorLog: logger}
 	go ctlSrv.Serve(ctl)
 	watch, stopWatch := context.WithCancel(ctx)
-	go tc.Watch(watch, time.Second)
+	go tc.Watch(watch, time.Second, revoking)
 	return func() {
 		stopWatch()
 		ctlSrv.Close()

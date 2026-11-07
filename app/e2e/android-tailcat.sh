@@ -4,7 +4,8 @@
 # the invite `herdr-anywhere pair` prints typed into the pairing field. Passes when the companion logs the phone's binary
 # connection, the home screen lists the project and no TCP connection reaches the companion's loopback port (an
 # emulator could reach it as 10.0.2.2); reopened, the app connects again without pairing; then, revoked, the /hc
-# request ends with a log line naming a Tailcat address and the app asks to pair again.
+# request ends with a log line naming a Tailcat address, the app asks to pair again, and then the companion cuts the
+# phone off Tailcat.
 # Usage: ANDROID_SERIAL=emulator-5554 e2e/android-tailcat.sh [apk] [screenshot.png]
 # Needs the internet, go, hc and the Android SDK.
 set -eu
@@ -12,6 +13,9 @@ set -eu
 app=$(cd "$(dirname "$0")/.." && pwd)
 apk=${1:-$app/android/build/Herdr.apk}
 shot=${2:-}
+# What a failure prints and keeps of the companion's log: no token, and every address masked except the loopback's, so
+# a request from this computer reads as local.
+mask='s/token=[^ &]+/token=…/; s/ (127\.0\.0\.1|::1) (GET|POST)/ @loopback:\1@ \2/; s/[0-9a-f:.]{7,} (GET|POST)/<addr> \1/; s/@loopback:([^@]*)@/\1/'
 adb="${ANDROID_HOME:-$HOME/Library/Android/sdk}/platform-tools/adb"
 hc=$(command -v hc || echo "$HOME/.local/bin/hc")
 id=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$app/nsh.json")
@@ -31,6 +35,13 @@ export XDG_STATE_HOME="$work/state" XDG_CONFIG_HOME="$work/config" XDG_DATA_HOME
 export GIT_CONFIG_GLOBAL="$work/home/.gitconfig"
 "$hc" run --bg --keep --cwd "$work/home/src/acme-api" --label herdr.space=spatc --label herdr.tab=tbatc >/dev/null
 cleanup() {
+  rc=$?
+  # A failure keeps the companion's whole log: beside the screenshot, or in a temporary file when none was asked for.
+  if [ "$rc" -ne 0 ] && [ -s "$work/serve.log" ]; then
+    kept=${shot:+${shot%.*}-companion.log}
+    kept=${kept:-$(mktemp -t android-tailcat-companion)}
+    sed -E "$mask" "$work/serve.log" > "$kept" && echo "companion log: $kept"
+  fi
   [ -n "${serve_pid:-}" ] && kill "$serve_pid" 2>/dev/null
   "$hc" server stop >/dev/null 2>&1 || true
   chmod -R u+w "$work" 2>/dev/null; rm -rf "$work" "$run" "$state"
@@ -95,7 +106,7 @@ if [ -z "$ok" ]; then
   echo "FAIL: within 120 s, not connected over binary through Tailcat, or home does not list acme-api"
   "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1
   "$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep 'resource-id="pair-error"' | sed -E 's/.*text="([^"]*)".*/  phone says: \1/' || true
-  grep -vE " GET /assets/" "$work/serve.log" | tail -8 | sed -E 's/token=[^ &]+/token=…/; s/[0-9a-f:.]{7,} (GET|POST)/<addr> \1/'
+  grep -vE " GET /assets/" "$work/serve.log" | tail -8 | sed -E "$mask"
   exit 1
 fi
 # Through Tailcat, the companion's side of the connection lives in its Tailcat node: no TCP connection reaches its
@@ -140,4 +151,8 @@ if grep -E " GET /hc " "$work/serve.log" | grep -qE "^[^ ]+ [^ ]+ (127\.0\.0\.1|
 fi
 for _ in $(seq 1 30); do screen_has 'This computer no longer knows this phone' && break; sleep 1; done
 screen_has 'This computer no longer knows this phone' || { echo "FAIL: after the revoke the app does not ask to pair again"; exit 1; }
-echo "PASS: the Android app paired from the invite, connected over binary through Tailcat (home listed acme-api ${took} s after launch), connected again when reopened; revoked, it asks to pair again"
+# Then the companion cuts the phone off Tailcat too: only once its socket has closed, as cutting it off first would drop
+# the close that says to pair again.
+for _ in $(seq 1 15); do grep -q "tailcat: revoked phone" "$work/serve.log" && break; sleep 1; done
+grep -q "tailcat: revoked phone" "$work/serve.log" || { echo "FAIL: the revoked phone is still on Tailcat 15 s after it was told"; exit 1; }
+echo "PASS: the Android app paired from the invite, connected over binary through Tailcat (home listed acme-api ${took} s after launch), connected again when reopened; revoked, it asks to pair again and is cut off Tailcat"

@@ -253,6 +253,35 @@ func (s *Server) remove(sess *session) {
 	s.active.Done()
 }
 
+// Revoking says a revoked device's socket is still open: the 4401 that tells the phone to pair again is on its way, or
+// the phone has not answered it yet. Over Tailcat, cutting the phone off restarts the node, which drops the socket with
+// it, so the Tailcat side waits for this (tailcat.Service.Watch).
+func (s *Server) Revoking() bool {
+	s.mu.Lock()
+	live := make([]string, 0, len(s.sessions))
+	for sess := range s.sessions {
+		live = append(live, sess.device)
+	}
+	s.mu.Unlock()
+	if len(live) == 0 {
+		return false
+	}
+	devices, err := s.cfg.Store.Devices()
+	if err != nil {
+		return false
+	}
+	paired := map[string]bool{}
+	for _, d := range devices {
+		paired[d.ID] = true
+	}
+	for _, id := range live {
+		if !paired[id] {
+			return true
+		}
+	}
+	return false
+}
+
 // watchRevocations re-reads the device list while sockets are open and ends
 // the sockets of devices no longer on it. `revoke` runs as another process,
 // so the file is the only signal.

@@ -399,6 +399,14 @@ test('a used pairing link is not tried again when the computer later forgets the
   expect(app.shows('text:This computer no longer knows this phone. Pair it again.')).toBe(true)
 })
 
+test('opened again with the link it paired by, a phone the computer forgets is not paired again by itself', async () => {
+  const app = await open('./fixtures/fake.tsx', { host: { params: { scene: 'relaunch-forgotten', link: 'http://192.0.2.10:7681/#pair=GOOD-CODE' } } })
+  await app.waitFor('text:This computer no longer knows this phone. Pair it again.')
+  await app.wait(300)
+  expect(app.value('id:pair-link')).toBe('')
+  expect(app.shows('text:This computer no longer knows this phone. Pair it again.')).toBe(true)
+})
+
 test('settings change the terminal text size and keep it', async () => {
   const app = await busy()
   await app.waitFor('text:Needs you')

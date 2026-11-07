@@ -198,11 +198,38 @@ func TestPruneRevokesPhonesWhoseDeviceIsGone(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := &fakeAllowlist{allowed: []string{kept, gone}}
-	if err := prune(context.Background(), f, st, nil); err != nil {
+	if err := prune(context.Background(), f, st, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(f.revoked, []string{gone}) || !slices.Equal(f.allowed, []string{kept}) {
 		t.Fatalf("revoked %v, left %v", f.revoked, f.allowed)
+	}
+}
+
+// Cutting the phone off Tailcat restarts the node, which drops the socket the server is closing with 4401: the phone
+// would never hear it was revoked. While `hold` says such a socket is open, the phone stays allowed.
+func TestPruneWaitsWhileARevokedPhonesSocketCloses(t *testing.T) {
+	st := newStore(t)
+	k := phoneKey()
+	d := pairTailcat(t, st, k)
+	if err := st.Revoke(d.ID); err != nil {
+		t.Fatal(err)
+	}
+	f := &fakeAllowlist{allowed: []string{k}}
+	closing := true
+	hold := func() bool { return closing }
+	if err := prune(context.Background(), f, st, nil, hold); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.revoked) != 0 {
+		t.Fatalf("revoked %v while its socket was closing", f.revoked)
+	}
+	closing = false
+	if err := prune(context.Background(), f, st, nil, hold); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(f.revoked, []string{k}) {
+		t.Fatalf("revoked %v once the socket closed, want %v", f.revoked, []string{k})
 	}
 }
 

@@ -4,13 +4,17 @@
 # to the app (a script cannot tap the simulator, so ios-e2e.tsx opens the app at it, as e2e/ios.sh does with a link).
 # Passes when the companion logs the phone's binary connection, the home screen lists the project and no TCP
 # connection reaches the companion's loopback port (where it listens too); reopened, the app connects again without
-# pairing; then, revoked, the /hc request ends with a log line naming a Tailcat address and the app asks to pair again.
+# pairing; then, revoked, the /hc request ends with a log line naming a Tailcat address, the app asks to pair again, and
+# then the companion cuts the phone off Tailcat.
 # Usage: SIM_UDID=<udid> e2e/ios-tailcat.sh [screenshot.png]
 # Needs the internet, go, nsh, hc, idb, xcodegen and Xcode.
 set -eu
 : "${SIM_UDID:?set SIM_UDID to the simulator to use}"
 app=$(cd "$(dirname "$0")/.." && pwd)
 shot=${1:-}
+# What a failure prints and keeps of the companion's log: no token, and every address masked except the loopback's, so
+# a request from this computer reads as local.
+mask='s/token=[^ &]+/token=…/; s/ (127\.0\.0\.1|::1) (GET|POST)/ @loopback:\1@ \2/; s/[0-9a-f:.]{7,} (GET|POST)/<addr> \1/; s/@loopback:([^@]*)@/\1/'
 hc=$(command -v hc || echo "$HOME/.local/bin/hc")
 id=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$app/nsh.json")
 
@@ -26,6 +30,13 @@ mkdir -p "$work/home/src/acme-api" "$work/state" "$work/config" "$work/data"
 placeholder=$(cat "$app/e2e/pair.ts")
 opens=$(cat "$app/e2e/open-settings.ts")
 cleanup() {
+  rc=$?
+  # A failure keeps the companion's whole log: beside the screenshot, or in a temporary file when none was asked for.
+  if [ "$rc" -ne 0 ] && [ -s "$work/serve.log" ]; then
+    kept=${shot:+${shot%.*}-companion.log}
+    kept=${kept:-$(mktemp -t ios-tailcat-companion)}
+    sed -E "$mask" "$work/serve.log" > "$kept" && echo "companion log: $kept"
+  fi
   [ -n "${serve_pid:-}" ] && kill "$serve_pid" 2>/dev/null
   HC_SESSION="hmtc-$$" HC_SOCKET="" HOME="$work/home" XDG_RUNTIME_DIR="$run" "$hc" server stop >/dev/null 2>&1 || true
   printf "%s\n" "$placeholder" > "$app/e2e/pair.ts"
@@ -78,7 +89,7 @@ took=$(( $(date +%s) - started ))
 if [ -z "$ok" ]; then
   echo "FAIL: within 120 s, not connected over binary through Tailcat, or home does not list acme-api"
   screen | grep -o '"AXLabel":"[^"]*"' | head -20 | sed 's/^/  on screen: /'
-  grep -vE " GET /assets/" "$work/serve.log" | tail -8 | sed -E 's/token=[^ &]+/token=…/; s/[0-9a-f:.]{7,} (GET|POST)/<addr> \1/'
+  grep -vE " GET /assets/" "$work/serve.log" | tail -8 | sed -E "$mask"
   exit 1
 fi
 screen | grep -q '"AXIdentifier":"pair"\|"AXUniqueId":"pair"' && { echo "FAIL: the pairing screen is still up"; exit 1; }
@@ -120,5 +131,9 @@ if grep -E " GET /hc " "$work/serve.log" | grep -qE "^[^ ]+ [^ ]+ (127\.0\.0\.1|
   echo "FAIL: the companion logged the /hc request from the loopback"; exit 1
 fi
 for _ in $(seq 1 30); do screen | grep -q 'This computer no longer knows this phone' && break; sleep 1; done
-screen | grep -q 'This computer no longer knows this phone' || { echo "FAIL: after the revoke the app does not ask to pair again"; screen | grep -o '"AXLabel":"[^"]*"' | head -30; grep -vE " GET /assets/" "$work/serve.log" | tail -6 | sed -E 's/token=[^ &]+/token=…/; s/[0-9a-f:.]{7,} (GET|POST)/<addr> \1/'; exit 1; }
-echo "PASS: the iOS app paired from the invite, connected over binary through Tailcat (home listed acme-api ${took} s after launch), connected again when reopened; revoked, it asks to pair again"
+screen | grep -q 'This computer no longer knows this phone' || { echo "FAIL: after the revoke the app does not ask to pair again"; screen | grep -o '"AXLabel":"[^"]*"' | head -30; grep -vE " GET /assets/" "$work/serve.log" | tail -6 | sed -E "$mask"; exit 1; }
+# Then the companion cuts the phone off Tailcat too: only once its socket has closed, as cutting it off first would drop
+# the close that says to pair again.
+for _ in $(seq 1 15); do grep -q "tailcat: revoked phone" "$work/serve.log" && break; sleep 1; done
+grep -q "tailcat: revoked phone" "$work/serve.log" || { echo "FAIL: the revoked phone is still on Tailcat 15 s after it was told"; exit 1; }
+echo "PASS: the iOS app paired from the invite, connected over binary through Tailcat (home listed acme-api ${took} s after launch), connected again when reopened; revoked, it asks to pair again and is cut off Tailcat"

@@ -1,7 +1,8 @@
 // The app over an in-memory herdr-core (src/testing/fakecore.ts), already paired, for the screen tests.
 // `host.params.scene`: "empty" (a fresh computer), "busy" (two spaces, agents in every state), "unpaired",
 // "link" (never paired, opened with the `#pair=` link in `host.params.link`, as the web app is), "link-forgotten" (the
-// same, and the computer forgets the phone right after).
+// same, and the computer forgets the phone right after), "relaunch-forgotten" (paired before, opened again with that
+// link, as e2e/ios-tailcat.sh's build opens every launch, and the computer forgets the phone right after).
 // For Settings › Computer: `via: "tailpocket"` with `routes` ("relay:tok,direct": what the tunnel answers in turn, the
 // last one for good; "throws": it fails), `url` (the link's address), `conn: "lost"` (the core stops answering) and
 // `info: "none"` (the companion gives no version).
@@ -88,7 +89,7 @@ async function folders(url: string, init: any) {
 // "unpaired": the computer refuses the saved token; a token from pairing again gets through.
 let forgot = 0
 const pipe = (l: Linker) => () => {
-  const forgotten = (scene === 'unpaired' && l.link.get()?.token === 'synthetic-token') || (scene === 'link-forgotten' && !forgot++)
+  const forgotten = (scene === 'unpaired' && l.link.get()?.token === 'synthetic-token') || ((scene === 'link-forgotten' || scene === 'relaunch-forgotten') && !forgot++)
   if (forgotten) { const c = new FakeCore(); c.send = () => c.drop('unpaired'); return c }
   return core
 }
@@ -116,7 +117,7 @@ mount(() => (
     prefs: new PrefStore(io),
     makeStore: (l) => new Store({ pipe: pipe(l) }),
     device: 'Test phone',
-    pairLink: opened ? String((host.params as any)?.link) : undefined,
+    pairLink: opened || scene === 'relaunch-forgotten' ? String((host.params as any)?.link) : undefined,
     // Recorded where a test can read it: the app's own storage.
     pairLinkUsed: () => void Storage.setItem('pair-link-used', '1'),
     fetcher: (async (url: string, init: any) => {

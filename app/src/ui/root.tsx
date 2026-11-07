@@ -183,7 +183,9 @@ export function Root(props: { deps: RootDeps }) {
     return made.store
   })
   const opened = deps.pairLink
-  // A link pairs once: after that, pairing again starts from an empty field.
+  // A link pairs once: after that, pairing again starts from an empty field. The app may open with a link while it is
+  // paired already (e2e/ios-tailcat.sh's build opens with its invite every launch): forgotten then, it pairs again only
+  // when the person asks.
   const pairInitial = signal(opened && (opened.includes('#pair=') || parseInvite(opened)) ? opened : undefined)
   return (
     <If when={loaded()} else={<View class="flex-1 bg-background" />}>
@@ -201,7 +203,7 @@ export function Root(props: { deps: RootDeps }) {
           }} />
       }>
         <Each of={store() ? [store()!] : []}>{(s) => (
-          <Connected deps={deps} store={s()} link={link()!} unpaired={() => unpairedMessage.set(t('forgotten'))} />
+          <Connected deps={deps} store={s()} link={link()!} unpaired={() => { pairInitial.set(undefined); unpairedMessage.set(t('forgotten')) }} />
         )}</Each>
       </If>
       </If>

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.13
+
+- A phone you remove on the computer while it is connected through TailPocket now goes back to pairing and says the computer no longer knows it. Before, it could keep reconnecting. This is fixed in the computer's program.
+- A phone opened from a pairing link while already paired no longer tries that used link again after the computer forgets it.
+
+Android: `Herdr-Anywhere.apk`; an installed 0.1.6 or later can update to it from home. Mac: `herdr-anywhere-macos-arm64`.
+
 ## v0.1.12
 
 - A terminal keeps the phone's width when the connection drops and comes back while the app is in the background. Before, the width went to the computer, and what an agent wrote meanwhile stayed narrow in the phone's history.

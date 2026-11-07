@@ -265,6 +265,46 @@ func TestRevokeClosesLiveSocketsWithin3s(t *testing.T) {
 	}
 }
 
+// Over Tailcat, revoking a phone also restarts the node, which would cut its socket before the 4401 gets there (the
+// iOS app then stayed on Reconnecting). Revoking says a revoked device's socket is still closing, for Tailcat to wait.
+func TestRevokingLastsUntilTheRevokedSocketHasClosed(t *testing.T) {
+	f := newFixture(t, withHC(t))
+	id, token := f.pair(t)
+	otherID, other := f.pair(t)
+	c, _, err := dial(t, wsURL(f, "token="+token), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keep, _, err := dial(t, wsURL(f, "token="+other), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer keep.Close(websocket.StatusNormalClosure, "")
+	for deadline := time.Now().Add(3 * time.Second); !strings.Contains(f.logs.String(), "device "+id+" connected") || !strings.Contains(f.logs.String(), "device "+otherID+" connected"); time.Sleep(10 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("not connected: %s", f.logs.String())
+		}
+	}
+	if f.s.Revoking() {
+		t.Fatal("revoking before any device was revoked")
+	}
+	if err := f.store.Revoke(id); err != nil {
+		t.Fatal(err)
+	}
+	// The phone has not read the close yet, so its socket is still closing.
+	if !f.s.Revoking() {
+		t.Fatal("not revoking while the revoked device's socket is open")
+	}
+	if code, _ := closeStatus(t, c, 3*time.Second); code != 4401 {
+		t.Fatalf("close code %v, want 4401", code)
+	}
+	for deadline := time.Now().Add(3 * time.Second); f.s.Revoking(); time.Sleep(10 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("still revoking 3 s after the socket closed")
+		}
+	}
+}
+
 func TestPingsLogHowLongTheLineTook(t *testing.T) {
 	old := pingEvery
 	pingEvery = 20 * time.Millisecond

@@ -153,7 +153,11 @@ func (s *Service) Pair(ctx context.Context, code string) (Window, error) {
 // connections, not only the revoked one's: the others' WebSockets close and
 // their apps reconnect on the next dial, to the same address. Pairing a new
 // phone admits it without a restart (host.go:247-251).
-func (s *Service) Watch(ctx context.Context, every time.Duration) {
+//
+// `hold` (server.Server.Revoking) says a revoked phone's socket is still
+// closing; the phone stays on Tailcat until then, so the restart does not
+// drop the close that tells it to pair again.
+func (s *Service) Watch(ctx context.Context, every time.Duration, hold func() bool) {
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
@@ -161,7 +165,7 @@ func (s *Service) Watch(ctx context.Context, every time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if err := prune(ctx, s.host, s.store, s.log); err != nil && ctx.Err() == nil {
+			if err := prune(ctx, s.host, s.store, s.log, hold); err != nil && ctx.Err() == nil {
 				s.log.Printf("tailcat: %v", err)
 			}
 		}
@@ -176,9 +180,9 @@ type allowlist interface {
 // prune revokes allowed phones that no longer have a device. The allowlist
 // is read before the devices: a pairing stores its device before Tailcat
 // admits the phone, so a phone pairing meanwhile is never taken for revoked.
-func prune(ctx context.Context, h allowlist, st *store.Store, logger *log.Logger) error {
+func prune(ctx context.Context, h allowlist, st *store.Store, logger *log.Logger, hold func() bool) error {
 	allowed := h.Allowed()
-	if len(allowed) == 0 {
+	if len(allowed) == 0 || (hold != nil && hold()) {
 		return nil
 	}
 	keep, err := deviceKeys(st)
