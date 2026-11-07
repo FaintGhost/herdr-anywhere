@@ -18,6 +18,8 @@ export type AgentInfo = {
   title: string
   seq: number
   focused: boolean
+  /** Pinned on the computer: herdr-core's label `herdr.pinned` on its terminal, which every Herdr screen reads. */
+  pinned: boolean
   programName: string
   programKey: string
   /** What a blocked agent says it waits for (its report's kind and msg). */
@@ -56,16 +58,10 @@ export function kidStatus(k: any, listed: Map<string, string>): string | undefin
 
 export class AgentList {
   sort: Sort = 'priority'
-  pins: string[] = []
   changed: Record<string, { s: string; at: number }> = {}
   folded = new Set<string>()
   private held: { address: string; rank: number } | null = null
   onPersist?: () => void
-
-  setPins(p: string[]) {
-    this.pins = p
-    this.onPersist?.()
-  }
 
   since(a: AgentInfo) {
     return this.changed[a.address]?.at ?? 0
@@ -88,9 +84,8 @@ export class AgentList {
     const rankOf = (a: AgentInfo) => Math.max(this.rank(a), ...subs.get(a.address)!.map((s) => RANK[s.status ?? ''] ?? 0))
     const byPriority = this.sort === 'priority'
     let list = byPriority ? [...input].sort((x, y) => rankOf(y) - rankOf(x) || this.since(y) - this.since(x) || y.seq - x.seq) : [...input]
-    this.prunePins(all)
-    const pinned = this.pins.map((p) => list.find((a) => a.address === p)).filter((a): a is AgentInfo => !!a)
-    const rest = list.filter((a) => !this.pins.includes(a.address))
+    const pinned = list.filter((a) => a.pinned)
+    const rest = list.filter((a) => !a.pinned)
     list = [...pinned, ...rest]
 
     const groups: Group[] = pinned.length ? [{ id: 'pinned', label: t('pinned'), members: pinned }] : []
@@ -144,11 +139,4 @@ export class AgentList {
     return sawDone ? RANK.done : RANK[a.status ?? ''] ?? 0
   }
 
-  private prunePins(all: any[]) {
-    const machine = (addr: string) => (addr.includes('/') ? addr.split('/')[0] : '')
-    const heard = new Set(all.map((k) => machine(k.address)))
-    const live = new Set(all.filter((k) => k.state === 'live').map((k) => k.address))
-    const kept = this.pins.filter((p) => !heard.has(machine(p)) || live.has(p))
-    if (kept.length !== this.pins.length) this.setPins(kept)
-  }
 }

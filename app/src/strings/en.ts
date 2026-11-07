@@ -2,7 +2,7 @@
 // Herdr desktop has no translations, so its English words (Needs you, Working, space, tab, pane) are what these say.
 export const en = {
   // Status
-  needsYou: 'Needs you', done: 'Done', working: 'Working', idle: 'Idle', unknown: 'Unknown', pinned: 'Pinned',
+  needsYou: 'Needs you', done: 'Done', working: 'Working', idle: 'Idle', unknown: 'Unknown', pinned: 'Pinned', pinToTop: 'Pin to the top', unpin: 'Unpin',
   // Connection
   notConnected: 'Not connected', notConnectedLower: 'not connected', connecting: 'Connecting…', reconnecting: 'Reconnecting…',
   lastUpdatedNow: 'Last updated just now', lastUpdated: 'Last updated {age} ago',
@@ -49,6 +49,7 @@ export const en = {
   // Settings
   settings: 'Settings', back: 'Back', look: 'Look', appearance: 'Appearance', system: 'System', light: 'Light', dark: 'Dark',
   terminalTextSize: 'Terminal text size', points: '{n} pt', smaller: 'Smaller', larger: 'Larger',
+  showAgentNames: 'Show agent names', showAgentNamesDetail: 'Names like Claude Code before each title. The icon shows the program either way.',
   alerts: 'Alerts', agentNeedsYou: 'An agent needs you', agentNeedsYouDetail: 'It is waiting for an answer or an approval.',
   // Android's notification while the app stays connected in the background.
   keepAliveTitle: 'Connected to your computer',

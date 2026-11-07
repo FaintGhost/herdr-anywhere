@@ -14,6 +14,7 @@ import { ConnBanner, Glyph, IconButton, ProgramIcon, SpaceBadge, StatusDot, Stat
 import { t } from '../strings/index.ts'
 import { TerminalView, WIDE } from './terminal.tsx'
 import { PaneBar } from './pane-bar.tsx'
+import { AgentRow } from './agent-row.tsx'
 import { startable } from '../model/programs.ts'
 import type { TerminalSession } from './terminal-session.ts'
 
@@ -188,7 +189,8 @@ function PhoneHeader(props: { store: Store; spaceId: string; tab: Tab; node: Nod
   )
 }
 
-/** This space's tabs (and the panes of a split one), the agents of the other spaces, and new agents. */
+/** This space's tabs (and the panes of a split one), the agents of the other spaces, and new agents. An agent's row
+ *  says what home's does: what tells it apart, its status in words, what it is doing, its sub-agents. */
 function Switcher(props: { store: Store; spaceId: string; open: { (): boolean; set: (v: boolean) => void }; actions: SpaceActions }) {
   const s = props.store
   const rev = useRev(s)
@@ -210,41 +212,58 @@ function Switcher(props: { store: Store; spaceId: string; open: { (): boolean; s
   let scroller: any
   const clamp = (y: number) => { const end = Math.max(0, rows() - viewport()); if (y > end + 1) scroller?.scrollTo({ y: end, animated: false }) }
   const row = 'flex-row items-center gap-2.5 h-11 px-2 rounded-[8px] active:bg-sidebar-accent'
+  // An agent's row is home's (ui/agent-row.tsx), as tall as its second line needs.
+  const agentRow = 'min-h-11 py-1.5 px-2 justify-center rounded-[8px] active:bg-sidebar-accent'
+  const agentAt = (addr: string | undefined) => { rev(); return addr ? s.agents().find((a) => a.address === addr) : undefined }
+  // A sub-agent has no pane of its own: open shows what it prints.
+  const sub = (addr: string) => { close(); props.actions.open(addr) }
   return (
     <Sheet open={props.open()} side="bottom" onOpenChange={(o) => props.open.set(o)} popupClass="bg-popover rounded-t-[14px] px-3 pt-3 pb-[env(safe-area-inset-bottom)]">
       <Scroll ref={(r: any) => { scroller = r }} class="max-h-[520px]" scrollable={rows() > viewport() + 1} onLayout={(b) => viewport.set(b.size.height)}
         scrollEventThrottle={16} onScroll={(e) => clamp(e.offset.y)} onMomentumEnd={(e) => clamp(e.y)} onScrollDragEnd={(e) => clamp(e.y)}>
       <View class="pb-2" onLayout={(b) => rows.set(b.size.height)}>
         <Text class="px-2 pb-1 text-[11.5px] font-medium text-sidebar-foreground">{(rev(), space() ? s.spaceName(space()!) : '')}</Text>
-        <Each of={space()?.tabs ?? []} key={(c) => c.id}>{(c) => (
-          <View>
-            <View role="button" testID={`switch-tab-${c().id}`} onPress={() => { s.selectTab(c().id); close() }} class={`${row} ${active() === c().id ? 'bg-accent' : ''}`}>
-              <ProgramIcon icon={(rev(), tabIcon(s, c()))} size={16} />
-              <Text class="flex-1 text-[14px] text-foreground" numberOfLines={1}>{(rev(), s.tabLabel(space()!, c()))}</Text>
-              <If when={(rev(), s.tabStatus(c()))}>{(st) => <StatusMark status={st()} size={7} />}</If>
-            </View>
-            <If when={panes(c().root).length > 1}>
-              <Each of={panes(c().root)} key={(n) => n.id}>{(n) => (
-                <View role="button" testID={`switch-pane-${n().id}`} onPress={() => { s.selectTab(c().id); s.focusPane(n().id); close() }} class={`${row} pl-8 h-9`}>
-                  <ProgramIcon icon={(rev(), s.program(terminalOf(n())).icon)} size={14} />
-                  <Text class="flex-1 text-[13px] text-muted-foreground" numberOfLines={1}>{(rev(), terminalOf(n()) ? s.paneName(terminalOf(n())) : t('panel'))}</Text>
-                  <If when={(rev(), s.statusOf(terminalOf(n())))}>{(st) => <StatusMark status={st()} compact size={6} />}</If>
+        <Each of={space()?.tabs ?? []} key={(c) => c.id}>{(c) => {
+          const go = () => { s.selectTab(c().id); close() }
+          const on = () => active() === c().id
+          // A tab of one agent reads as that agent's row on home; a shell, a split tab or a panel as the tab.
+          const lone = () => { rev(); const ps = panes(c().root); return ps.length === 1 ? agentAt(terminalOf(ps[0])) : undefined }
+          return (
+            <View>
+              <If when={lone()} else={
+                <View role="button" testID={`switch-tab-${c().id}`} onPress={go} class={`${row} ${on() ? 'bg-accent' : ''}`}>
+                  <ProgramIcon icon={(rev(), tabIcon(s, c()))} size={16} />
+                  <Text class="flex-1 text-[14px] text-foreground" numberOfLines={1}>{(rev(), s.tabLabel(space()!, c()))}</Text>
+                  <If when={(rev(), s.tabStatus(c()))}>{(st) => <StatusMark status={st()} size={7} />}</If>
                 </View>
-              )}</Each>
-            </If>
-          </View>
-        )}</Each>
+              }>{(a) => (
+                <AgentRow store={s} a={a()} testID={`switch-tab-${c().id}`} iconSize={16} class={`${agentRow} ${on() ? 'bg-accent' : ''}`}
+                  subPrefix="switch-sub" subClass="pl-8 pr-2" onPress={go} onSub={sub} />
+              )}</If>
+              <If when={panes(c().root).length > 1}>
+                <Each of={panes(c().root)} key={(n) => n.id}>{(n) => {
+                  const pick = () => { s.selectTab(c().id); s.focusPane(n().id); close() }
+                  return (
+                    <If when={(rev(), agentAt(terminalOf(n())))} else={
+                      <View role="button" testID={`switch-pane-${n().id}`} onPress={pick} class={`${row} pl-8 h-9`}>
+                        <ProgramIcon icon={(rev(), s.program(terminalOf(n())).icon)} size={14} />
+                        <Text class="flex-1 text-[13px] text-muted-foreground" numberOfLines={1}>{(rev(), terminalOf(n()) ? s.paneName(terminalOf(n())) : t('panel'))}</Text>
+                        <If when={(rev(), s.statusOf(terminalOf(n())))}>{(st) => <StatusMark status={st()} compact size={6} />}</If>
+                      </View>
+                    }>{(a) => (
+                      <AgentRow store={s} a={a()} testID={`switch-pane-${n().id}`} class={`${agentRow} pl-8`} subPrefix="switch-sub" subClass="pl-14 pr-2" onPress={pick} onSub={sub} />
+                    )}</If>
+                  )
+                }}</Each>
+              </If>
+            </View>
+          )
+        }}</Each>
         <If when={others().length}>
           <Text class="px-2 pt-3 pb-1 text-[11.5px] font-medium text-sidebar-foreground">{t('otherSpaces')}</Text>
           <Each of={others()} key={(a) => a.address}>{(a) => (
-            <View role="button" testID={`switch-agent-${a().address}`} onPress={() => { close(); props.actions.open(a().address) }} class={row}>
-              <ProgramIcon icon={(rev(), s.program(a().address).icon)} size={16} />
-              <View class="flex-1 min-w-0">
-                <Text class="text-[14px] text-foreground" numberOfLines={1}>{a().programName}</Text>
-                <Text class="text-[11.5px] text-sidebar-foreground" numberOfLines={1}>{`${a().space_name} › ${a().tab_name}`}</Text>
-              </View>
-              <StatusMark status={a().status} size={7} />
-            </View>
+            <AgentRow store={s} a={a()} full testID={`switch-agent-${a().address}`} iconSize={16} class={agentRow}
+              subPrefix="switch-sub" subClass="pl-8 pr-2" onPress={() => { close(); props.actions.open(a().address) }} onSub={sub} />
           )}</Each>
         </If>
         <Text class="px-2 pt-3 pb-1 text-[11.5px] font-medium text-sidebar-foreground">{t('newTab')}</Text>

@@ -2,7 +2,7 @@
 import type { Table } from './index.ts'
 
 export const zhHant: Table = {
-  needsYou: '等你處理', done: '已完成', working: '工作中', idle: '閒置', unknown: '未知', pinned: '已釘選',
+  needsYou: '等你處理', done: '已完成', working: '工作中', idle: '閒置', unknown: '未知', pinned: '已釘選', pinToTop: '釘選到頂端', unpin: '取消釘選',
   notConnected: '未連線', notConnectedLower: '未連線', connecting: '正在連線…', reconnecting: '正在重新連線…',
   lastUpdatedNow: '剛剛更新', lastUpdated: '{age}前更新',
   lostNoCore: '這台電腦沒有安裝 herdr-core。安裝後會自動重新連線。',
@@ -46,6 +46,7 @@ export const zhHant: Table = {
   cantReachComputer: '無法連上電腦。',
   settings: '設定', back: '返回', look: '外觀', appearance: '外觀模式', system: '跟隨系統', light: '淺色', dark: '深色',
   terminalTextSize: '終端機字級', points: '{n} 點', smaller: '縮小', larger: '放大',
+  showAgentNames: '顯示 agent 名稱', showAgentNamesDetail: '在每個標題前顯示 Claude Code 這類名稱。不顯示時，圖示仍會標出是哪個程式。',
   alerts: '提醒', agentNeedsYou: 'Agent 在等你', agentNeedsYouDetail: '它在等你回答或核准。',
   // Android's notification while the app stays connected in the background.
   keepAliveTitle: '已連線到你的電腦',

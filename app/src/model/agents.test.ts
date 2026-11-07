@@ -4,7 +4,7 @@ import { AgentList, duration, type AgentInfo } from './agents.ts'
 
 const a = (address: string, status: AgentInfo['status'], extra: Partial<AgentInfo> = {}): AgentInfo => ({
   address, pane: 'p' + address, space: 's1', space_name: 'api', tab: 'tb1', tab_name: '1', named: false, status, app: null, title: '',
-  seq: 0, focused: false, programName: 'Claude Code', programKey: 'claude', ...extra,
+  seq: 0, focused: false, pinned: false, programName: 'Claude Code', programKey: 'claude', ...extra,
 })
 
 test('durations read <1m, minutes, hours, days', () => {
@@ -34,14 +34,19 @@ test('a done agent you open stays under Done until you leave it', () => {
   expect(after.groups.map((g) => g.label)).toEqual(['Idle'])
 })
 
-test('pins stay on top in their own group and drop when the agent ends', () => {
+test('agents pinned on the computer (label herdr.pinned) stay on top in their own group, in list order, as on the desktop', () => {
   const l = new AgentList()
-  l.setPins(['t2'])
-  const v = l.view([a('t1', 'blocked'), a('t2', 'idle')], [{ address: 't1', state: 'live' }, { address: 't2', state: 'live' }], 1)
-  expect(v.groups.map((g) => g.label)).toEqual(['Pinned', 'Needs you'])
-  expect(v.order).toEqual(['t2', 't1'])
-  l.view([a('t1', 'blocked')], [{ address: 't1', state: 'live' }, { address: 't2', state: 'finished' }], 2)
-  expect(l.pins).toEqual([])
+  const v = l.view([a('t1', 'blocked'), a('t2', 'idle', { pinned: true }), a('t3', 'working', { pinned: true })], [], 1)
+  expect(v.groups.map((g) => [g.label, g.members.map((m) => m.address)])).toEqual([['Pinned', ['t3', 't2']], ['Needs you', ['t1']]])
+  expect(v.order).toEqual(['t3', 't2', 't1'])
+  l.sort = 'grouped'
+  const g = l.view([a('t1', 'blocked'), a('t2', 'idle', { pinned: true })], [], 2)
+  expect(g.groups.map((x) => [x.id, x.members.map((m) => m.address)])).toEqual([['pinned', ['t2']], ['sp-s1', ['t1']]])
+})
+
+test('with no pins on the computer there is no Pinned group', () => {
+  const v = new AgentList().view([a('t1', 'idle'), a('t2', 'working')], [], 1)
+  expect(v.groups.map((g) => g.id)).toEqual(['sec-2', 'sec-1'])
 })
 
 test('grouped view puts neighbours of one space together under its name', () => {

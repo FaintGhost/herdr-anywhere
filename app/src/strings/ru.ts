@@ -2,7 +2,7 @@
 import type { Table } from './index.ts'
 
 export const ru: Table = {
-  needsYou: 'Ждёт вас', done: 'Готово', working: 'Работает', idle: 'Простаивает', unknown: 'Неизвестно', pinned: 'Закреплённые',
+  needsYou: 'Ждёт вас', done: 'Готово', working: 'Работает', idle: 'Простаивает', unknown: 'Неизвестно', pinned: 'Закреплённые', pinToTop: 'Закрепить сверху', unpin: 'Открепить',
   notConnected: 'Нет соединения', notConnectedLower: 'нет соединения', connecting: 'Подключение…', reconnecting: 'Переподключение…',
   lastUpdatedNow: 'Обновлено только что', lastUpdated: 'Обновлено {age} назад',
   lostNoCore: 'На компьютере не установлен herdr-core. Установите его, и соединение восстановится само.',
@@ -46,6 +46,7 @@ export const ru: Table = {
   cantReachComputer: 'Не удаётся связаться с компьютером.',
   settings: 'Настройки', back: 'Назад', look: 'Вид', appearance: 'Оформление', system: 'Как в системе', light: 'Светлое', dark: 'Тёмное',
   terminalTextSize: 'Размер текста в терминале', points: '{n} пт', smaller: 'Меньше', larger: 'Больше',
+  showAgentNames: 'Показывать имена агентов', showAgentNamesDetail: 'Названия вроде Claude Code перед каждым заголовком. Значок в любом случае показывает программу.',
   alerts: 'Оповещения', agentNeedsYou: 'Агент ждёт вас', agentNeedsYouDetail: 'Он ждёт ответа или подтверждения.',
   // Android's notification while the app stays connected in the background.
   keepAliveTitle: 'Подключено к компьютеру',

@@ -16,6 +16,9 @@ import { t as tr, type Key } from './strings/index.ts'
 import { readMenu, type Menu } from './model/menu.ts'
 import { spaceMarks } from './model/marks.ts'
 
+/** The herdr-core label that pins a terminal's agent to the top of the agent lists (Herdr 0.1.12 and later). */
+const PIN_LABEL = 'herdr.pinned'
+
 export type Conn = 'idle' | 'connecting' | 'ready' | 'reconnecting' | 'failed' | 'unpaired'
 export type Toast = { id: number; title: string; body?: string; level: 'info' | 'error'; action?: { pane?: string; terminal?: string } }
 export type Machine = { name: string; host?: string; state?: string; temporary?: boolean }
@@ -96,6 +99,8 @@ export class Store {
   private rung = new Map<string, { kind: 'blocked' | 'done'; state: string; body?: string }>()
   /** Which alerts the person wants (Settings › Alerts). */
   wants: (kind: 'blocked' | 'done') => boolean = () => true
+  /** Whether agent rows say the program's name (Settings › Look, Show agent names); read where the rows draw. */
+  showNames: () => boolean = () => true
 
   private hc?: HcClient
   private io: Required<Omit<StoreIO, 'load' | 'save'>> & Pick<StoreIO, 'load' | 'save'>
@@ -141,8 +146,6 @@ export class Store {
       if (!this.savedView && this.io.load) {
         const v = await this.io.load('view')
         if (v) try { this.savedView = JSON.parse(v) } catch {}
-        const pins = await this.io.load('agents.pins')
-        if (pins) try { this.agentList.pins = JSON.parse(pins) } catch {}
         const changed = await this.io.load('agents.changed')
         if (changed) try { this.agentList.changed = JSON.parse(changed) } catch {}
         const seen = await this.io.load('seen')
@@ -151,7 +154,6 @@ export class Store {
         if (sort === 'grouped' || sort === 'priority') this.agentList.sort = sort
       }
       this.agentList.onPersist = () => {
-        this.io.save?.('agents.pins', JSON.stringify(this.agentList.pins))
         this.io.save?.('agents.changed', JSON.stringify(this.agentList.changed))
       }
       const hc = new HcClient(this.io.pipe())
@@ -608,11 +610,18 @@ export class Store {
       out.push({
         address: a, pane: n.id, space: s.id, space_name: this.spaceName(s), tab: c.id, tab_name: c.name || String(ti + 1), named: !!c.name,
         status: st, app: t.status?.app ?? null, title: cleanTitle(t.title), seq: this.model.agents.get(a)?.seq ?? 0,
-        focused: n.id === focusedPane, programName: p.name, programKey: p.key,
+        focused: n.id === focusedPane, pinned: !!t.labels?.[PIN_LABEL], programName: p.name, programKey: p.key,
         kind: t.status?.state === 'blocked' ? t.status?.kind ?? null : null, msg: t.status?.state === 'blocked' ? t.status?.msg ?? '' : '',
       })
     }
     return out
+  }
+
+  /** Pins or unpins an agent on the computer, as the desktop's `terminal.pin` does: the label shows on every screen
+   *  when herdr-core's `labels` event comes back. An empty value removes the label (herdr-core 0.1.18, 2026-11-07).
+   *  Herdr 0.1.13 writes the same values, "1" or "" (2026-11-07). */
+  async pin(addr: string, pinned: boolean) {
+    await this.call('terminal.label', { terminal: addr, labels: { [PIN_LABEL]: pinned ? '1' : '' } })
   }
 
   agentsView() {

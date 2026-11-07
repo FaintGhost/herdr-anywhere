@@ -55,6 +55,21 @@ async function run() {
   await other.connect()
   await until(() => other.model.spaces.some((s) => s.name === 'e2e'), 'the space on another screen')
   say('other screen: e2e')
+  // Pins live on herdr-core as the label herdr.pinned, which the desktop reads and writes too. A made-up `claude`
+  // (sleep under that name) is an agent to pin.
+  await store.exec('mkdir -p "$HOME/bin" && ln -sf /bin/sleep "$HOME/bin/claude"')
+  const ag = await store.newSpace({ name: 'pins', argv: [`${store.home}/bin/claude`, '600'] })
+  const agentOn = (s: Store) => s.agents().find((a) => a.address === ag.terminal)
+  await until(() => !!agentOn(store) && !!agentOn(other), 'the made-up agent on both screens')
+  say(`agent: pinned ${agentOn(store)!.pinned}`)
+  await store.pin(ag.terminal, true)
+  await until(() => !!agentOn(other)?.pinned, 'the pin on the other screen')
+  const labels = () => other.terms.get(ag.terminal)!.labels
+  say(`phone pinned: other screen ${agentOn(other)!.pinned}, label ${labels()['herdr.pinned']}, space kept ${labels()['herdr.space'] === ag.space}`)
+  await (other as any).call('terminal.label', { terminal: ag.terminal, labels: { 'herdr.pinned': '' } })
+  await until(() => agentOn(store)?.pinned === false, 'the unpin on the phone')
+  say(`unpinned elsewhere: phone ${agentOn(store)!.pinned}, label ${'herdr.pinned' in store.terms.get(ag.terminal)!.labels ? 'kept' : 'gone'}`)
+  store.closeSpace(ag.space)
   await store.exec('mkdir -p "$HOME/proj" && cd "$HOME/proj" && git init -q && git checkout -qb feature/x && git -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init')
   const g = await store.newSpace({ folder: `${store.home}/proj` })
   await until(() => !!store.model.folderInfo.get(g.terminal)?.branch, 'the git branch', 8000).catch((e) => {

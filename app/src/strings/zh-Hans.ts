@@ -2,7 +2,7 @@
 import type { Table } from './index.ts'
 
 export const zhHans: Table = {
-  needsYou: '等你处理', done: '已完成', working: '工作中', idle: '空闲', unknown: '未知', pinned: '已置顶',
+  needsYou: '等你处理', done: '已完成', working: '工作中', idle: '空闲', unknown: '未知', pinned: '已置顶', pinToTop: '置顶', unpin: '取消置顶',
   notConnected: '未连接', notConnectedLower: '未连接', connecting: '正在连接…', reconnecting: '正在重新连接…',
   lastUpdatedNow: '刚刚更新', lastUpdated: '{age}前更新',
   lostNoCore: '这台电脑没有安装 herdr-core。装好后会自动重新连接。',
@@ -46,6 +46,7 @@ export const zhHans: Table = {
   cantReachComputer: '无法连接电脑。',
   settings: '设置', back: '返回', look: '外观', appearance: '外观模式', system: '跟随系统', light: '浅色', dark: '深色',
   terminalTextSize: '终端字号', points: '{n} 磅', smaller: '缩小', larger: '放大',
+  showAgentNames: '显示 agent 名称', showAgentNamesDetail: '在每个标题前显示 Claude Code 这类名称。不显示时，图标仍会标出是哪个程序。',
   alerts: '提醒', agentNeedsYou: 'Agent 在等你', agentNeedsYouDetail: '它在等你回答或批准。',
   // Android's notification while the app stays connected in the background.
   keepAliveTitle: '已连接到你的电脑',

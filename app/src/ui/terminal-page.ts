@@ -8,7 +8,8 @@
 // A phone has no mouse, so the page reads fingers: the keyboard comes up only when the app asks for it, a drag
 // scrolls back and a flick keeps going and slows down, a flick sideways goes to the next or previous tab, a long press
 // selects a word (dragging extends it), and a tap on a link opens it. A full-screen program keeps its own scrollback:
-// its drag reaches it as a mouse wheel, or as arrow keys if it doesn't follow the mouse, as Termux does.
+// its drag reaches it as a mouse wheel, or as arrow keys if it doesn't follow the mouse, as Termux does. A program that
+// follows the mouse gets a tap as a click on the cell under the finger: OpenCode's dialogs have buttons only a click reaches.
 // Page → app (window.nsh.postMessage, JSON): ready / size {cols, rows} once laid out and on each change,
 // input {data}, copied {text}, selected {text}, swipe {dir}, link {url}, tap, away {away} (scrolled back
 // or at the bottom again), tail {lines} (the last lines up to the cursor, once output settles), text {base, lines} (the
@@ -267,6 +268,15 @@ const BOOT = `(function () {
     if (!ownScroll()) { term.scrollLines(-lines); if (term.buffer.active.viewportY > live()) term.scrollToLine(live()); return where(); }
     for (var i = Math.abs(lines); i > 0; i--) term.element.dispatchEvent(new WheelEvent('wheel', { deltaY: lines > 0 ? -1 : 1, deltaMode: 1, clientX: x, clientY: y, bubbles: true, cancelable: true }));
   }
+  // A click where the finger was, for a program that follows the mouse. touchend stops the mouse events a tap would
+  // make (they would focus the terminal and bring the keyboard up), so the page makes the two xterm needs; xterm encodes
+  // them as the program asked (SGR, X10, ...). Its mousedown focuses the textarea, which wants no keyboard between asks.
+  function click(x, y) {
+    var el = term.element.querySelector('.xterm-screen'), o = { clientX: x, clientY: y, button: 0, buttons: 1, bubbles: true, cancelable: true, view: window };
+    el.dispatchEvent(new MouseEvent('mousedown', o));
+    o.buttons = 0;
+    el.dispatchEvent(new MouseEvent('mouseup', o));
+  }
   // After the finger lifts the view keeps its speed (px per ms, down = back in history) and loses it smoothly, the
   // curve native lists use: speed halves about every 225 ms. xterm scrolls whole lines, so what is less than a line waits.
   var gliding = 0;
@@ -333,6 +343,7 @@ const BOOT = `(function () {
         term.clearSelection(); span = null;
         var url = linkAt(cell(start.x, start.y));
         if (url) { post({ t: 'link', url: url }); return; }
+        if (term.modes.mouseTrackingMode !== 'none') click(start.x, start.y);
         post({ t: 'tap' });
       }
     }, { passive: false });
@@ -363,6 +374,9 @@ const BOOT = `(function () {
     try { var gl = new WebglAddon.WebglAddon(); gl.onContextLoss(function () { gl.dispose(); }); term.loadAddon(gl); } catch (e) {}
     new ResizeObserver(size).observe(cfg.phone ? document.documentElement : box);
     term.onData(function (d) { post({ t: 'input', data: d }); });
+    // A program that asked for the mouse without SGR (mode 1006) gets X10 reports, which xterm hands out as bytes. Below
+    // 95 columns and rows every byte is ASCII and goes as text unchanged; a phone has fewer.
+    term.onBinary(function (d) { post({ t: 'input', data: d }); });
     // Scrolled back or at the bottom again; and, once output settles, the last lines up to the cursor.
     var settle = null;
     term.onScroll(function () { if (!cfg.phone) where(); });

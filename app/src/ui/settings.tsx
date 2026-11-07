@@ -164,6 +164,9 @@ export function SettingsScreen(props: { updates?: Updates; store: Store; prefs: 
           <IconButton name="minus" label={t('smaller')} testID="font-smaller" disabled={p().fontSize <= FONT_MIN} onPress={() => props.prefs.set({ fontSize: p().fontSize - 1 })} />
           <IconButton name="plus" label={t('larger')} testID="font-larger" disabled={p().fontSize >= FONT_MAX} onPress={() => props.prefs.set({ fontSize: p().fontSize + 1 })} />
         </Row>
+        <Row label={t('showAgentNames')} detail={t('showAgentNamesDetail')}>
+          <Toggle label={t('showAgentNames')} testID="show-agent-names" on={p().showAgentNames} onChange={(on) => props.prefs.set({ showAgentNames: on })} />
+        </Row>
         <SectionLabel label={t('alerts')} />
         <Row label={t('agentNeedsYou')} detail={t('agentNeedsYouDetail')}>
           <Toggle label={t('agentNeedsYou')} testID="alert-blocked" on={p().alertBlocked} onChange={(on) => props.prefs.set({ alertBlocked: on })} />

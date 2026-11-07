@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.1.14
+
+- Agent rows on home and in the switcher lead with what each agent is about: its tab's name or title is the main text, what it is doing sits under it in a readable grey, and "Claude Code" steps back to a small grey label. Idle agents are a step dimmer. Settings › Show agent names turns the label off; the icon still shows the program.
+- Kimi's icon shows on the light theme. Its K was white and disappeared against the light background; it is now dark there, with its blue dot.
+- The list that opens from an agent's name at the top of a pane now shows what home shows for each agent: its tab's name or title, its status in words, what it is doing, and its sub-agents. Before, every Claude Code there read only "Claude Code".
+- In programs that use the mouse, such as OpenCode, a tap on a button presses it. Before, OpenCode's dialogs (Skip, Update) ignored taps.
+- Pinned is the same on the phone and in Herdr. Agents pinned in Herdr show under Pinned at the top of home on the phone. Long-press an agent on the phone to pin or unpin it, and Herdr shows the change too. This needs Herdr 0.1.12 or later on the computer; older versions keep their pins to themselves.
+
+Android: `Herdr-Anywhere.apk`; an installed 0.1.6 or later can update to it from home. Mac: `herdr-anywhere-macos-arm64`.
+
 ## v0.1.13
 
 - A phone you remove on the computer while it is connected through TailPocket now goes back to pairing and says the computer no longer knows it. Before, it could keep reconnecting. This is fixed in the computer's program.

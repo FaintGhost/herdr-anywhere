@@ -92,6 +92,7 @@ function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: 
   const offInstall = followInstallFailures((m) => store.toast({ title: t('couldntUpdateApp'), body: installProblem(m), level: 'error' }))
   cleanup(() => { updates.stop(); offInstall() })
   const prefs = useSignal(deps.prefs.prefs)
+  store.showNames = () => prefs().showAgentNames
   store.wants = (k) => (k === 'blocked' ? deps.prefs.prefs.get().alertBlocked : deps.prefs.prefs.get().alertDone)
   // The page (web-host.js) or the Android activity says whether the app is in front; on iOS it is while it runs.
   const alerts = new Alerts({ notify: (t, kind, quiet) => notifyFromPage({ title: t.title, body: t.body, terminal: t.action?.terminal, kind, quiet }) })

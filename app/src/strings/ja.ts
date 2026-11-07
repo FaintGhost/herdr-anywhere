@@ -2,7 +2,7 @@
 import type { Table } from './index.ts'
 
 export const ja: Table = {
-  needsYou: '対応待ち', done: '完了', working: '実行中', idle: '待機中', unknown: '不明', pinned: 'ピン留め',
+  needsYou: '対応待ち', done: '完了', working: '実行中', idle: '待機中', unknown: '不明', pinned: 'ピン留め', pinToTop: '先頭にピン留め', unpin: 'ピン留めを外す',
   notConnected: '未接続', notConnectedLower: '未接続', connecting: '接続中…', reconnecting: '再接続中…',
   lastUpdatedNow: 'たった今更新', lastUpdated: '{age}前に更新',
   lostNoCore: 'パソコンに herdr-core がインストールされていません。インストールすると自動で再接続します。',
@@ -46,6 +46,7 @@ export const ja: Table = {
   cantReachComputer: 'パソコンに接続できません。',
   settings: '設定', back: '戻る', look: '見た目', appearance: '外観', system: 'システム', light: 'ライト', dark: 'ダーク',
   terminalTextSize: 'ターミナルの文字サイズ', points: '{n}pt', smaller: '小さく', larger: '大きく',
+  showAgentNames: 'エージェント名を表示', showAgentNamesDetail: '各タイトルの前に Claude Code などの名前を表示します。オフでもアイコンでプログラムがわかります。',
   alerts: '通知', agentNeedsYou: 'エージェントが対応待ちのとき', agentNeedsYouDetail: '回答や承認を待っています。',
   // Android's notification while the app stays connected in the background.
   keepAliveTitle: 'コンピュータに接続中',

@@ -2,7 +2,7 @@
 import type { Table } from './index.ts'
 
 export const ko: Table = {
-  needsYou: '응답 필요', done: '완료', working: '작업 중', idle: '대기 중', unknown: '알 수 없음', pinned: '고정됨',
+  needsYou: '응답 필요', done: '완료', working: '작업 중', idle: '대기 중', unknown: '알 수 없음', pinned: '고정됨', pinToTop: '맨 위에 고정', unpin: '고정 해제',
   notConnected: '연결 안 됨', notConnectedLower: '연결 안 됨', connecting: '연결 중…', reconnecting: '다시 연결 중…',
   lastUpdatedNow: '방금 업데이트됨', lastUpdated: '{age} 전에 업데이트됨',
   lostNoCore: '컴퓨터에 herdr-core가 설치되어 있지 않아요. 설치하면 자동으로 다시 연결돼요.',
@@ -46,6 +46,7 @@ export const ko: Table = {
   cantReachComputer: '컴퓨터에 연결할 수 없어요.',
   settings: '설정', back: '뒤로', look: '모양', appearance: '화면 모드', system: '시스템', light: '라이트', dark: '다크',
   terminalTextSize: '터미널 글자 크기', points: '{n}pt', smaller: '작게', larger: '크게',
+  showAgentNames: '에이전트 이름 표시', showAgentNamesDetail: '각 제목 앞에 Claude Code 같은 이름을 표시해요. 꺼도 아이콘으로 프로그램을 알 수 있어요.',
   alerts: '알림', agentNeedsYou: '에이전트가 응답을 기다릴 때', agentNeedsYouDetail: '답변이나 승인을 기다리고 있어요.',
   // Android's notification while the app stays connected in the background.
   keepAliveTitle: '컴퓨터에 연결됨',

@@ -14,8 +14,9 @@ import { gitTail } from '../model/marks.ts'
 import { ChecksQuestion, UpdateBanner } from './update.tsx'
 import type { Updates } from '../updates.ts'
 import type { PrefStore } from '../prefs.ts'
-import { ChoiceRow, ConnBanner, Glyph, IconButton, ProgramIcon, SpaceBadge, StatusMark, statusLabel, useRev } from './kit.tsx'
-import { listOf, t } from '../strings/index.ts'
+import { ChoiceRow, ConnBanner, Glyph, IconButton, ProgramIcon, SpaceBadge, StatusMark, useRev } from './kit.tsx'
+import { AgentRow } from './agent-row.tsx'
+import { t } from '../strings/index.ts'
 import icon from '../../assets/brand/herdr-anywhere.png'
 
 export type HomeActions = {
@@ -35,7 +36,6 @@ export type HomeActions = {
 const AHEAD = { dark: '#a6bd91', light: '#1a7f37' }
 const BEHIND = { dark: '#dc8c95', light: '#c62a2a' }
 const tone = () => (colorScheme() === 'dark' ? 'dark' : 'light')
-const STATUS_TEXT: Record<string, string> = { working: 'text-chart-1', blocked: 'text-chart-2', done: 'text-chart-3', idle: 'text-chart-4' }
 
 function Header(props: { label: string; right?: any }) {
   return (
@@ -143,49 +143,45 @@ function NeedsYouSection(props: { store: Store; actions: HomeActions }) {
   )
 }
 
-/** A space's agents under it, each with its status word, and their sub-agents. */
-function SpaceAgents(props: { store: Store; space: Space; actions: HomeActions }) {
+/** Agent rows with their status words and sub-agents (ui/agent-row.tsx). Long-press: pin or unpin it on the computer,
+ *  or close it. `full`: no space header above (Pinned), so the row names its space, as the desktop's Pinned rows do. */
+function AgentRows(props: { store: Store; agents: () => AgentInfo[]; full?: boolean; idPrefix: string; actions: HomeActions }) {
   const s = props.store
-  const rev = useRev(s)
-  const view = computed(() => { rev(); return s.agentsView() })
-  const agents = () => { rev(); return s.agents().filter((a) => a.space === props.space.id) }
-  // The tab's name or the agent's title, when it says more than the program's name.
-  const detail = (a: AgentInfo) => { const d = view().detail.get(a.address); return d && d !== a.programName ? d : null }
-  // What it is doing or did. "Needs you" above already shows what a blocked one asks.
-  const line = (a: AgentInfo) => { rev(); const l = s.activityOf(a.address); return a.status === 'blocked' || l === detail(a) ? '' : l }
   const menu = async (a: AgentInfo) => {
     const r = await AlertDialog.show({ title: a.programName, presentation: 'actionSheet', actions: [
+      { id: 'pin', label: a.pinned ? t('unpin') : t('pinToTop') },
       { id: 'close', label: t('close'), role: 'destructive' }, { id: 'cancel', label: t('cancel'), role: 'cancel' }] })
     if (r === 'close') s.closePane(a.pane)
+    if (r === 'pin') s.pin(a.address, !a.pinned).catch((e) => s.toast({ title: String(e?.message ?? e), level: 'error' }))
   }
   return (
-    <Each of={agents()} key={(a) => a.address}>{(a) => (
-      <View>
-        <View role="button" testID={`space-agent-${a().address}`}
-          accessibilityLabel={listOf(a().programName, `${a().space_name}${detail(a()) ? ` · ${detail(a())}` : ''}`, statusLabel(a().status))}
-          onPress={() => props.actions.openAgent(a())} onLongPress={() => void menu(a())}
-          class="mx-2 pl-9 pr-2 min-h-9 py-1.5 justify-center rounded-[8px] active:bg-sidebar-accent">
-          <View class="flex-row items-center gap-2">
-            <ProgramIcon icon={s.program(a().address).icon} size={14} />
-            <Text class={`flex-1 text-[13.5px] ${a().status === 'idle' ? 'text-muted-foreground' : 'text-foreground'}`} numberOfLines={1}>
-              {a().programName}
-              <If when={detail(a())}><Text class="text-sidebar-foreground">{` · ${detail(a())}`}</Text></If>
-            </Text>
-            <Text class={`text-[12px] ${STATUS_TEXT[a().status ?? ''] ?? 'text-sidebar-foreground'}`}>{statusLabel(a().status)}</Text>
-          </View>
-          <If when={line(a())}><Text testID={`activity-${a().address}`} class="pl-[22px] text-[12px] text-sidebar-foreground" numberOfLines={1}>{line(a())}</Text></If>
-        </View>
-        <Each of={view().subs.get(a().address) ?? []}>{(k) => (
-          <View role="button" testID={`sub-${k().term.address}`} onPress={() => props.actions.peek(k().term.address)}
-            class="flex-row items-center gap-2 mx-2 pl-14 pr-2 h-8 rounded-[8px] active:bg-sidebar-accent">
-            <Text class="text-[12px] text-sidebar-foreground font-mono">{k().lines.join(' ')}</Text>
-            <ProgramIcon icon={s.program(k().term.address).icon} size={13} />
-            <Text class="text-[13px] text-muted-foreground flex-1" numberOfLines={1}>{s.terminalName(k().term)}</Text>
-            <StatusMark status={k().status} compact size={6} />
-          </View>
-        )}</Each>
-      </View>
+    <Each of={props.agents()} key={(a) => a.address}>{(a) => (
+      <AgentRow store={s} a={a()} full={props.full} testID={`${props.idPrefix}-${a().address}`}
+        class={`mx-2 ${props.full ? 'pl-2' : 'pl-9'} pr-2 min-h-9 py-1.5 justify-center rounded-[8px] active:bg-sidebar-accent`}
+        subPrefix="sub" subClass={`mx-2 ${props.full ? 'pl-7' : 'pl-14'} pr-2`}
+        onPress={() => props.actions.openAgent(a())} onLongPress={() => void menu(a())} onSub={props.actions.peek} />
     )}</Each>
+  )
+}
+
+/** A space's agents under it; a pinned one is under Pinned instead, as on the desktop. */
+function SpaceAgents(props: { store: Store; space: Space; actions: HomeActions }) {
+  const rev = useRev(props.store)
+  const agents = () => { rev(); return props.store.agents().filter((a) => a.space === props.space.id && !a.pinned) }
+  return <AgentRows store={props.store} agents={agents} idPrefix="space-agent" actions={props.actions} />
+}
+
+/** The agents pinned on the computer (herdr-core's `herdr.pinned` label), on top, as the desktop's Pinned group. */
+function PinnedSection(props: { store: Store; actions: HomeActions }) {
+  const rev = useRev(props.store)
+  const pinned = computed(() => { rev(); return props.store.agentsView().groups.find((g) => g.id === 'pinned')?.members ?? [] })
+  return (
+    <If when={pinned().length}>
+      <View>
+        <Header label={t('pinned')} />
+        <AgentRows store={props.store} agents={pinned} full idPrefix="pinned-agent" actions={props.actions} />
+      </View>
+    </If>
   )
 }
 
@@ -294,6 +290,7 @@ export function HomeScreen(props: { store: Store; actions: HomeActions; updates?
           </View>
         </If>
         <NeedsYouSection store={props.store} actions={props.actions} />
+        <PinnedSection store={props.store} actions={props.actions} />
         <SpacesSection store={props.store} actions={props.actions} />
       </Scroll>
       <View class="pb-[env(safe-area-inset-bottom)] bg-sidebar"><StatusLine store={props.store} /></View>

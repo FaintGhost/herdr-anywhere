@@ -153,6 +153,13 @@ export class FakeCore implements Pipe {
     this.emit('status', addr, { status: t.status, records: {}, reported: t.reported })
   }
 
+  /** Sets labels as herdr-core does (an empty value removes one; 2026-11-07, hc 0.1.18) and tells every screen. */
+  label(addr: string, labels: Record<string, string>) {
+    const t = this.terms.get(addr)!
+    for (const [k, v] of Object.entries(labels)) if (v === '') delete t.labels[k]; else t.labels[k] = v
+    this.emit('labels', t.address, { labels: { ...t.labels } })
+  }
+
   finish(addr: string, reason = 'exited') {
     const t = this.terms.get(addr)!
     t.state = 'finished'
@@ -229,9 +236,9 @@ export class FakeCore implements Pipe {
       case 'terminal.kill': { const t = term(pr.terminal); if (!t) return fail('not_found', 'no terminal'); this.finish(t.address, 'killed'); return ok(t) }
       case 'terminal.keep': { const t = term(pr.terminal)!; t.keep = pr.keep; this.emit('keep', t.address, { keep: pr.keep }); return ok(t) }
       case 'terminal.label': {
-        const t = term(pr.terminal)!
-        for (const [k, v] of Object.entries(pr.labels)) if (v === '') delete t.labels[k]; else t.labels[k] = v as string
-        this.emit('labels', t.address, { labels: t.labels })
+        const t = term(pr.terminal)
+        if (!t) return fail('not_found', `no terminal "${pr.terminal}"`)
+        this.label(t.address, pr.labels)
         return ok(t)
       }
       case 'terminal.keys': this.onKeys?.(pr.terminal, pr.keys); return ok({ terminal: pr.terminal, keys: pr.keys })

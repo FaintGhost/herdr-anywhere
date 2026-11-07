@@ -103,6 +103,91 @@ test("the title opens the switcher: this space's tabs, the other spaces' agents,
   expect(app.shows('id:terminal-t1')).toBe(false)
 })
 
+test('the switcher tells two Claude Codes apart as home does: the tab name or title, the status word, what each is doing, its sub-agents', async () => {
+  const app = await open('./fixtures/fake.tsx', { host: { params: { scene: 'twins' } } })
+  await app.waitFor('id:space-agent-t1')
+  const home = app.texts()
+  await app.press('id:space-sp1')
+  await app.waitFor('id:pane-header')
+  await app.press('id:switcher')
+  await app.waitFor('id:switch-tab-tb2')
+  // Each agent's row reads as its row on home: the program and what tells it apart, its status in words, its activity.
+  const rows: [string, string[]][] = [
+    ['id:switch-tab-tb1', ['Claude Code', 'fix login', 'Working', 'Running the login tests']],
+    ['id:switch-tab-tb2', ['Claude Code', 'Billing refactor', 'Idle', 'Moved invoices to the new table']],
+    ['id:switch-agent-t4', ['web', 'Claude Code', 'Checkout page', 'Working', 'Editing cart.tsx']],
+  ]
+  for (const [row, texts] of rows) for (const x of texts) expect([row, x, app.count(`${row} >> text:${x}`)]).toEqual([row, x, 1])
+  for (const x of ['fix login', 'Running the login tests', 'Moved invoices to the new table', 'test runner']) expect(home).toContain(x)
+  // Its sub-agent under it, and the shell tab as before.
+  expect(app.shows('id:switch-sub-t5')).toBe(true)
+  expect(app.count('id:switch-tab-tb3 >> text:Terminal')).toBe(1)
+  // A row still opens its tab.
+  await app.press('id:switch-tab-tb2')
+  await app.waitFor('id:terminal-t2')
+})
+
+// What a row's text looks like, against texts on the same screen in the colours it should take (a headless run draws
+// with NSH's own palette, where sidebar-foreground is foreground: the sizes tell the name from the title).
+const look = (app: any, sel: string) => app.spanStyle(sel)
+const FOREGROUND = 'text:Herdr'
+const MUTED = 'id:status-line >> text:This computer'
+
+test("an agent's row leads with its title; the program's name is small before it, what it is doing one step quieter, an idle row dimmer", async () => {
+  for (const scheme of ['dark', 'light'] as const) {
+    const app = await open('./fixtures/fake.tsx', { host: { params: { scene: 'twins' } }, colorScheme: scheme })
+    await app.waitFor('id:space-agent-t1')
+    const fg = look(app, FOREGROUND).color, muted = look(app, MUTED).color
+    const title = look(app, 'id:space-agent-t1 >> text:fix login')
+    const name = look(app, 'id:space-agent-t1 >> text:Claude Code')
+    expect([scheme, title.color, title.fontSize, title.fontWeight]).toEqual([scheme, fg, 14.5, 500])
+    expect([scheme, name.fontSize, name.fontWeight]).toEqual([scheme, 12.5, 400])
+    // What it is doing: the app's foreground at about 80 % (its own colours, not the palette), smaller and regular.
+    const doing = look(app, 'id:space-agent-t1 >> text:Running the login tests')
+    expect([scheme, doing.color, doing.fontSize, doing.fontWeight]).toEqual([scheme, scheme === 'dark' ? '#c4c5c7ff' : '#3f3f42ff', 13, 400])
+    // Idle: the title and what it did one step down; its status word readable in light, as before in dark.
+    expect([scheme, look(app, 'id:space-agent-t2 >> text:Billing refactor').color]).toEqual([scheme, muted])
+    expect([scheme, look(app, 'id:space-agent-t2 >> text:Moved invoices to the new table').color]).toEqual([scheme, muted])
+    const idle = look(app, 'id:space-agent-t2 >> text:Idle').color
+    expect([scheme, idle === muted]).toEqual([scheme, scheme === 'light'])
+    // The switcher's rows are the same row.
+    await app.press('id:space-sp1')
+    await app.press('id:switcher')
+    await app.waitFor('id:switch-tab-tb1')
+    expect([scheme, look(app, 'id:switch-tab-tb1 >> text:fix login').fontSize, look(app, 'id:switch-tab-tb1 >> text:Claude Code').fontSize]).toEqual([scheme, 14.5, 12.5])
+  }
+})
+
+test("with Show agent names off, rows on home, Pinned and the switcher drop the program's name; a row with no title keeps it", async () => {
+  const app = await busy()
+  await app.waitFor('id:space-agent-t2')
+  await app.host.send('fake.label', { address: 't1', labels: { 'herdr.pinned': '1' } })
+  await app.waitFor('id:pinned-agent-t1')
+  expect(app.count('id:pinned-agent-t1 >> text:Claude Code')).toBe(1)
+  await app.press('id:settings')
+  await app.waitFor('id:show-agent-names')
+  await app.press('id:show-agent-names')
+  await app.press('id:back')
+  await app.waitFor('id:pinned-agent-t1')
+  expect(app.count('id:pinned-agent-t1 >> text:Claude Code')).toBe(0)
+  expect(app.count('id:pinned-agent-t1 >> text:fix login')).toBe(1)
+  // Codex has no title here: its name is what the row says.
+  expect(look(app, 'id:space-agent-t2 >> text:Codex').fontSize).toBe(14.5)
+  await app.press('id:space-sp1')
+  await app.press('id:switcher')
+  await app.waitFor('id:switch-tab-tb1')
+  expect(app.count('id:switch-tab-tb1 >> text:Claude Code')).toBe(0)
+  expect(app.count('id:switch-tab-tb1 >> text:fix login')).toBe(1)
+  expect(app.count('id:switch-tab-tb2 >> text:Codex')).toBe(1)
+  // Kept on the phone: the next start reads it.
+  const again = await open('./fixtures/fake.tsx', { host: { params: { scene: 'busy', prefs: JSON.stringify({ showAgentNames: false }) } } })
+  await again.waitFor('id:space-agent-t2')
+  await again.press('id:space-sp1')
+  await again.press('id:switcher')
+  await again.waitFor('id:switch-tab-tb1')
+  expect(again.count('id:switch-tab-tb1 >> text:Claude Code')).toBe(0)
+})
+
 test('text in the composer goes to the pane in one go', async () => {
   const app = await busy()
   await app.waitFor('text:Needs you')
@@ -571,4 +656,34 @@ test('the switcher goes on working after it started an agent', async () => {
     await app.waitUntil(() => app.count(`id:switch-new-${key}`) === 0)
     await app.wait(300)
   }
+})
+
+test('an agent pinned on the desktop shows under Pinned on top, and leaves its space; unpinned there, it goes back', async () => {
+  const app = await busy()
+  await app.waitFor('id:space-agent-t2')
+  expect(app.count('text:Pinned')).toBe(0)
+  await app.host.send('fake.label', { address: 't2', labels: { 'herdr.pinned': '1' } })
+  await app.waitFor('id:pinned-agent-t2')
+  expect(app.count('id:space-agent-t2')).toBe(0)
+  const t = app.texts()
+  expect(t.indexOf('Pinned') >= 0 && t.indexOf('Pinned') < t.indexOf('Spaces')).toBe(true)
+  // Without a space above it, the row names its space, as the desktop's Pinned rows do.
+  expect(app.count('label:Codex, api, Working')).toBe(1)
+  await app.host.send('fake.label', { address: 't2', labels: { 'herdr.pinned': '' } })
+  await app.waitFor('id:space-agent-t2')
+  expect(app.count('id:pinned-agent-t2')).toBe(0)
+  expect(app.count('text:Pinned')).toBe(0)
+})
+
+test('pinning from an agent\'s menu pins it on the computer; Unpin from the Pinned row puts it back', async () => {
+  const app = await busy()
+  await app.waitFor('id:space-agent-t2')
+  app.onDialog((d) => (d.buttons.includes('Pin to the top') ? 'Pin to the top' : null))
+  await app.longPress('id:space-agent-t2')
+  await app.waitFor('id:pinned-agent-t2')
+  expect(app.count('id:space-agent-t2')).toBe(0)
+  app.onDialog((d) => (d.buttons.includes('Unpin') ? 'Unpin' : null))
+  await app.longPress('id:pinned-agent-t2')
+  await app.waitFor('id:space-agent-t2')
+  expect(app.count('text:Pinned')).toBe(0)
 })

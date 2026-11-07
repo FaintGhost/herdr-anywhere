@@ -144,7 +144,7 @@ async function open(opts) {
   await t.page.waitForTimeout(1500)
   check('and comes to rest', (await input()) === '')
   await t.tap(195, 300)
-  check('a tap is no click in the program', !/\x1b\[</.test(await input()))
+  check('a tap is no wheel in the program', !/\x1b\[<6[45];/.test(await input()))
   check('the page never counts as scrolled back', !(await t.away()))
 
   await t.send({ t: 'write', data: '\x1b[?1003l\x1b[?1000l\x1b[?1006l' })
@@ -164,6 +164,63 @@ async function open(opts) {
   await t.page.waitForTimeout(100)
   check('and without one nothing is sent', (await run(200)) === '')
   check('the drag moves the page back through its history', await t.away())
+  await t.page.context().close()
+}
+
+// A full-screen program that follows the mouse has buttons only a click reaches: OpenCode's update dialog runs Skip and
+// Update on a mouse release (dialog-update.tsx, onMouseUp; it turns on modes 1000, 1002, 1003 and 1006, measured
+// 2026-11-07 with OpenCode 1.19.0 through herdr-core 0.1.18). A tap there is a click on the cell under the finger.
+{
+  const t = await open({ phone: true })
+  const input = () => t.page.evaluate(() => { const d = window.posts.filter((m) => m.t === 'input').map((m) => m.data).join(''); window.posts = window.posts.filter((m) => m.t !== 'input'); return d })
+  const at = (row, col) => t.page.evaluate(([row, col]) => {
+    const r = document.querySelector('.xterm-screen').getBoundingClientRect(), ready = window.posts.find((m) => m.t === 'ready')
+    return { x: r.left + (col + 0.5) * (r.width / ready.cols), y: r.top + (row + 0.5) * (r.height / ready.rows) }
+  }, [row, col])
+  const dialog = '\x1b[?1049h\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h\x1b[2J\x1b[12;4HUpdate available\x1b[18;30HSkip  Update'
+  await t.send({ t: 'write', data: dialog })
+  await t.page.waitForTimeout(150)
+  await input()
+  // "Skip" starts at row 18, column 30 (1-based): its second letter is the cell at row 17, column 30 counted from 0.
+  let p = await at(17, 30)
+  await t.tap(p.x, p.y)
+  const click = await input()
+  check('a tap on a button is a press and a release on its cell', click === '\x1b[<0;31;18M\x1b[<0;31;18m', click)
+  check('the tap asks for no keyboard', !(await t.asks()))
+
+  await t.touch('touchStart', p.x, p.y)
+  for (let i = 1; i <= 6; i++) await t.touch('touchMove', p.x, p.y + i * 20)
+  await t.page.waitForTimeout(150)
+  await t.touch('touchEnd')
+  await t.page.waitForTimeout(150)
+  check('a drag presses no button', !/\x1b\[<[0-2];/.test(await input()))
+
+  // The keyboard up lifts the screen: the click still lands on the cell the finger is on.
+  await t.page.setViewportSize({ width: 390, height: 400 })
+  await t.page.waitForTimeout(250)
+  await input()
+  p = await at(17, 36)
+  await t.tap(p.x, p.y)
+  const lifted = await input()
+  check('under a lifted screen the click is on the cell shown under the finger', lifted === '\x1b[<0;37;18M\x1b[<0;37;18m', lifted)
+  await t.page.setViewportSize({ width: 390, height: 700 })
+  await t.page.waitForTimeout(250)
+
+  // A program that asked for the oldest encoding gets it.
+  await t.send({ t: 'write', data: '\x1b[?1006l' })
+  await t.page.waitForTimeout(60)
+  await input()
+  p = await at(17, 30)
+  await t.tap(p.x, p.y)
+  const x10 = await input()
+  check('without SGR the click comes in the X10 form', x10 === '\x1b[M' + String.fromCharCode(32, 32 + 31, 32 + 18) + '\x1b[M' + String.fromCharCode(32 + 3, 32 + 31, 32 + 18), JSON.stringify(x10))
+
+  // A program that doesn't follow the mouse gets nothing from a tap: the shell, a pager.
+  await t.send({ t: 'write', data: '\x1b[?1003l\x1b[?1002l\x1b[?1000l' })
+  await t.page.waitForTimeout(60)
+  await input()
+  await t.tap(p.x, p.y)
+  check('a program without the mouse gets nothing from a tap', (await input()) === '')
   await t.page.context().close()
 }
 

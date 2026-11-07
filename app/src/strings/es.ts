@@ -2,7 +2,7 @@
 import type { Table } from './index.ts'
 
 export const es: Table = {
-  needsYou: 'Te necesita', done: 'Listo', working: 'Trabajando', idle: 'Inactivo', unknown: 'Desconocido', pinned: 'Fijados',
+  needsYou: 'Te necesita', done: 'Listo', working: 'Trabajando', idle: 'Inactivo', unknown: 'Desconocido', pinned: 'Fijados', pinToTop: 'Fijar arriba', unpin: 'Dejar de fijar',
   notConnected: 'Sin conexión', notConnectedLower: 'sin conexión', connecting: 'Conectando…', reconnecting: 'Reconectando…',
   lastUpdatedNow: 'Actualizado hace un momento', lastUpdated: 'Actualizado hace {age}',
   lostNoCore: 'herdr-core no está instalado en la computadora. Instálalo allí; esto se reconecta solo.',
@@ -46,6 +46,7 @@ export const es: Table = {
   cantReachComputer: 'No se puede llegar a la computadora.',
   settings: 'Ajustes', back: 'Atrás', look: 'Aspecto', appearance: 'Apariencia', system: 'Sistema', light: 'Claro', dark: 'Oscuro',
   terminalTextSize: 'Tamaño del texto de la terminal', points: '{n} pt', smaller: 'Más pequeño', larger: 'Más grande',
+  showAgentNames: 'Mostrar el nombre del agente', showAgentNamesDetail: 'Nombres como Claude Code antes de cada título. El icono indica el programa en cualquier caso.',
   alerts: 'Avisos', agentNeedsYou: 'Un agente te necesita', agentNeedsYouDetail: 'Está esperando una respuesta o una aprobación.',
   // Android's notification while the app stays connected in the background.
   keepAliveTitle: 'Conectado a tu ordenador',

@@ -3,7 +3,7 @@
 // these (nsh.json): sidebar = chrome (bars), sidebar-primary = canvas (behind cards), sidebar-accent = hover,
 // sidebar-foreground = dim text, accent = selected, secondary = raised; chart-1..4 = working, blocked, done,
 // idle; chart-5 = herdr's accent.
-import { cleanup, Image, openUrl, Scroll, signal, Text, View, type Accessor } from 'nsh'
+import { cleanup, colorScheme, Image, openUrl, Scroll, signal, Text, View, type Accessor } from 'nsh'
 import type { Store } from '../store.ts'
 import type { Shown } from '../model/model.ts'
 import { duration } from '../model/agents.ts'
@@ -65,8 +65,16 @@ export function StatusDot(props: { status: Shown | string | undefined; size?: nu
   )
 }
 
+/** The icon file a program is drawn with. An icon in its own colours that is white where the light theme's background
+ *  is near white (Kimi's K) has an `<icon>-light` file, drawn on the light theme. Checked 2026-11-07 by drawing every
+ *  untinted icon on #f1f1ee: only Kimi's needed one; Codex's and Kiro's white sits on their own coloured tile. */
+export function programIconKey(icon: string | undefined, scheme: 'light' | 'dark'): string {
+  if (!icon || !ICONS[icon]) return 'shell'
+  return scheme === 'light' && ICONS[`${icon}-light`] ? `${icon}-light` : icon
+}
+
 export function ProgramIcon(props: { icon: string | undefined; size?: number }) {
-  const src = () => (props.icon ? ICONS[props.icon] : undefined) ?? ICONS.shell
+  const src = () => ICONS[programIconKey(props.icon, colorScheme() === 'dark' ? 'dark' : 'light')]
   // As herdr's tabs draw them: a one-colour icon in the muted text colour, the others in their own colours.
   return <Image src={src()} class={iconTinted(props.icon) ? 'tint-muted-foreground' : undefined} style={{ width: props.size ?? 16, height: props.size ?? 16 }} />
 }

@@ -54,6 +54,7 @@ import i_java from '../../assets/icons/java.svg'
 import i_jest from '../../assets/icons/jest.svg'
 import i_julia from '../../assets/icons/julia.svg'
 import i_jupyter from '../../assets/icons/jupyter.svg'
+import i_kimi_light from '../../assets/icons/kimi-light.svg'
 import i_kimi from '../../assets/icons/kimi.svg'
 import i_kiro from '../../assets/icons/kiro.svg'
 import i_kotlin from '../../assets/icons/kotlin.svg'
@@ -176,6 +177,7 @@ export const PROGRAM_ICONS: Record<string, any> = {
   "jest": i_jest,
   "julia": i_julia,
   "jupyter": i_jupyter,
+  "kimi-light": i_kimi_light,
   "kimi": i_kimi,
   "kiro": i_kiro,
   "kotlin": i_kotlin,

@@ -3,7 +3,7 @@
 // Run by e2e/run.sh, which starts both and writes the pairing link into e2e/pair.ts for the run.
 import { expect, open, test } from 'nsh/test'
 
-test('pair, connect, run, type, share the layout, close, and refuse an unknown token', async () => {
+test('pair, connect, run, type, share the layout, pin and unpin on herdr-core, close, and refuse an unknown token', async () => {
   const app = await open('./live-app.tsx', { network: 'live' })
   await app.waitUntil(() => app.texts().some((t) => t === 'done' || t.startsWith('FAIL')), { timeout: 80000 })
   expect(app.texts()).toEqual([
@@ -15,6 +15,9 @@ test('pair, connect, run, type, share the layout, close, and refuse an unknown t
     'upload: 200 report_1.pdf 30000000, line ready',
     'quiet line: ready',
     'other screen: e2e',
+    'agent: pinned false',
+    'phone pinned: other screen true, label 1, space kept true',
+    'unpinned elsewhere: phone false, label gone',
     'git: feature/x',
     'adopted git: feature/x',
     'late git: feature/x',

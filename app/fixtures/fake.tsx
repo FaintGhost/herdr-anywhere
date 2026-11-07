@@ -1,5 +1,6 @@
 // The app over an in-memory herdr-core (src/testing/fakecore.ts), already paired, for the screen tests.
-// `host.params.scene`: "empty" (a fresh computer), "busy" (two spaces, agents in every state), "unpaired",
+// `host.params.scene`: "empty" (a fresh computer), "busy" (two spaces, agents in every state), "twins" (two Claude
+// Codes in one space), "unpaired",
 // "link" (never paired, opened with the `#pair=` link in `host.params.link`, as the web app is), "link-forgotten" (the
 // same, and the computer forgets the phone right after), "relaunch-forgotten" (paired before, opened again with that
 // link, as e2e/ios-tailcat.sh's build opens every launch, and the computer forgets the phone right after).
@@ -27,7 +28,8 @@ const params = (host.params ?? {}) as Record<string, string | undefined>
 const paired = params.via === 'tailpocket' ? { url: 'tailpocket:', via: 'tailpocket' } : { url: params.url ?? 'http://192.0.2.10:7681' }
 const memory = new Map<string, string>(opened ? [] : [['link', JSON.stringify({ ...paired, token: 'synthetic-token', device: 'd1', name: 'studio', enc: 'bin' })]])
 // `opened`: how many times the app opened before (the question about checking for new versions waits for the second).
-if (params.opened) memory.set('prefs', JSON.stringify({ opened: Number(params.opened) }))
+// `prefs`: settings saved before, as JSON (`{"showAgentNames":false}`).
+if (params.opened || params.prefs) memory.set('prefs', JSON.stringify({ ...(params.prefs ? JSON.parse(params.prefs) : {}), ...(params.opened ? { opened: Number(params.opened) } : {}) }))
 const io = { load: async (k: string) => memory.get(k) ?? null, save: (k: string, v: string) => void memory.set(k, v), remove: (k: string) => void memory.delete(k) }
 
 export const core = new FakeCore()
@@ -47,6 +49,19 @@ if (scene === 'busy' || scene === 'single') {
   if (scene === 'busy') add('sp2', '/Users/sam/src/clients/northwind/storefront-redesign-2026/web', 'web', [{ id: 'tb3', argv: ['zsh'] }])
   core.docs.set('', { value: doc, version: 1 })
 }
+// `scene: "twins"`: one space with two Claude Codes, told apart by a tab's name and an agent's title, one with a
+// sub-agent, and a shell; another space with one more Claude Code.
+if (scene === 'twins') {
+  const doc = { spaces: [] as any[] }
+  core.addSpace(doc, 'sp1', '/Users/sam/src/api', '', [
+    { id: 'tb1', name: 'fix login', argv: ['claude'], status: 'working', msg: 'Running the login tests' },
+    { id: 'tb2', argv: ['claude'], status: 'done', title: 'Billing refactor', msg: 'Moved invoices to the new table' },
+    { id: 'tb3', argv: ['zsh'] },
+  ])
+  core.addSpace(doc, 'sp2', '/Users/sam/src/web', 'web', [{ id: 'tb4', argv: ['claude'], status: 'working', title: 'Checkout page', msg: 'Editing cart.tsx' }])
+  core.run({ argv: ['claude'], parent: 't1', name: 'test runner' })
+  core.docs.set('', { value: doc, version: 1 })
+}
 // Keys pressed in a terminal, where a test reads them (`app.storage()['fake-keys']`); an answered agent goes on working.
 const pressed: [string, string[]][] = []
 core.onKeys = (addr, keys) => {
@@ -60,6 +75,8 @@ host.on('fake.status', (d: any) => {
   if (typeof d.screen === 'string') core.screens.set(d.address, d.screen)
   core.setStatus(d.address, d.state, core.terms.get(d.address)?.status?.app, { kind: d.kind, msg: d.msg })
 })
+// Another Herdr screen pins or unpins an agent: `app.host.send('fake.label', { address, labels: { 'herdr.pinned': '1' } })`.
+host.on('fake.label', (d: any) => core.label(d.address, d.labels))
 // A test drops the line: `app.host.send('fake.drop', {})`; the computer then stops answering.
 host.on('fake.drop', () => core.drop('network'))
 // Text the app sent (`terminal.send`), where a test reads it (`app.storage()['fake-sent']`).
