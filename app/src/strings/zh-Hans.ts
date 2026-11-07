@@ -49,6 +49,7 @@ export const zhHans: Table = {
   alerts: '提醒', agentNeedsYou: 'Agent 在等你', agentNeedsYouDetail: '它在等你回答或批准。',
   // Android's notification while the app stays connected in the background.
   keepAliveTitle: '已连接到你的电脑',
+  appUpdates: 'App 更新', appUpdated: 'App 已更新', appUpdatedDetail: '点这里打开。',
   stayConnected: '在后台保持连接', stayConnectedDetail: '离开 App 后也能收到提醒。运行时 Android 会常驻一条通知，也会多用一些电。',
   agentFinished: 'Agent 已完成', agentFinishedDetail: '只在你没有看着它时提醒。',
   systemNotifications: '系统通知', notifyDefault: 'Herdr Anywhere 在后台时发送。',
@@ -100,7 +101,7 @@ export const zhHans: Table = {
   noSpace: '没有空间 {id}', noSpaceYet: '还没有空间，请先新建一个', noPaneToSplit: '没有可拆分的窗格', noPane: '没有窗格 {id}',
   noSpaceToKeep: '没有可以保留它的空间',
   // New versions (src/updates.ts).
-  updateAvailable: "{version} 版本可用", updateComputer: "更新电脑", updateApp: "更新 App", updateNow: "更新", updating: "正在更新…", computerUpdated: "电脑已更新到 {version}", couldntUpdateComputer: "无法更新电脑", computerNotBack: "电脑还没有以 {version} 恢复连接。请检查电脑上的 herdr-anywhere 是否在运行。", couldntUpdateApp: "无法更新 App", allowInstallTitle: "请允许此 App 安装更新", allowInstallDetail: "在刚打开的页面中开启，返回后再点一次更新。", updateByHandTitle: "手动更新电脑", updateByHandDetail: "这台电脑还不能自己更新。请在电脑上运行下面的命令，然后重启 herdr-anywhere：", copyCommand: "复制命令", downloadAppTitle: "下载 {size} MB？", downloadAppDetail: "下载完成后，Android 会请你确认安装。", download: "下载", rebuildTitle: "构建 {version} 版本", rebuildDetail: "iPhone 版需要用你自己的 Apple 账号构建。步骤在项目的 iPhone 指南里。", openGuide: "打开指南", autoUpdateComputer: "自动更新电脑", autoUpdateDetail: "每次有新版本时自动安装。手机会自动重新连接。", appVersion: "App 版本", downloadingApp: "已下载 {percent}%", dismissUpdate: "暂不更新",
+  updateAvailable: "{version} 版本可用", updateComputer: "更新电脑", updateApp: "更新 App", updateNow: "更新", updating: "正在更新…", computerUpdated: "电脑已更新到 {version}", couldntUpdateComputer: "无法更新电脑", computerNotBack: "电脑还没有以 {version} 恢复连接。请检查电脑上的 herdr-anywhere 是否在运行。", couldntUpdateApp: "无法更新 App", allowInstallTitle: "请允许此 App 安装更新", allowInstallDetail: "在刚打开的页面中开启，返回后会自动开始下载。", updateByHandTitle: "手动更新电脑", updateByHandDetail: "这台电脑还不能自己更新。请在电脑上运行下面的命令，然后重启 herdr-anywhere：", copyCommand: "复制命令", downloadAppTitle: "下载 {size} MB？", downloadAppDetail: "下载完成后，Android 会请你确认安装。", download: "下载", rebuildTitle: "构建 {version} 版本", rebuildDetail: "iPhone 版需要用你自己的 Apple 账号构建。步骤在项目的 iPhone 指南里。", openGuide: "打开指南", autoUpdateComputer: "自动更新电脑", autoUpdateDetail: "每次有新版本时自动安装。手机会自动重新连接。", appVersion: "App 版本", downloadingApp: "已下载 {percent}%", dismissUpdate: "暂不更新",
   checksQuestion: "要检查新版本吗？", checksQuestionDetail: "电脑每天问一次 GitHub。不经你同意，不会安装任何东西。", checksYes: "每天检查", checksNo: "不检查", checksDaily: "每天检查新版本", checksDailyDetail: "电脑每天问一次 GitHub。", newVersions: "新版本", checkNow: "检查", checking: "正在检查…", upToDate: "已是最新版本", couldntCheck: "无法检查：{error}",
   updateWrongKey: "这个文件的签名和手机上的 App 不同，Android 不允许覆盖安装。",
 }

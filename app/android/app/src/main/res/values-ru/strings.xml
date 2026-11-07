@@ -7,4 +7,7 @@
     <string name="keep_alive_title">Подключено к компьютеру</string>
     <string name="channel_finished">Агент закончил</string>
     <string name="channel_finished_detail">Только когда вы на него не смотрите.</string>
+    <string name="channel_updates">Обновления приложения</string>
+    <string name="updated_title">Приложение обновлено</string>
+    <string name="updated_detail">Нажмите, чтобы открыть.</string>
 </resources>

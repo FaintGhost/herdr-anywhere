@@ -134,8 +134,25 @@ test('a terminal on the phone screen takes the size back when the line returns, 
   expect(await backAfterLoss(() => {})).toBe(1)
 })
 
-test('a phone with the app in the background leaves the size with the computer when the line returns', async () => {
-  expect(await backAfterLoss((store) => { store.appActive = false })).toBe(0)
+// The phone in a pocket loses its line and gets it back by itself, as when the computer's program restarts after an update.
+// Left with the computer's width, everything the agent wrote meanwhile stayed that narrow in the phone's history.
+test('a phone with the app in the background keeps its width when the line returns', async () => {
+  expect(await backAfterLoss((store) => { store.appActive = false })).toBe(1)
+})
+
+test('a terminal only watched takes no width when the line returns', async () => {
+  const { cores, r, store, timers } = await setup()
+  const posted: any[] = []
+  const w = new TerminalSession(store, r.terminal, (m) => posted.push(JSON.parse(m)), (f) => { queueMicrotask(f); return 1 }, { observe: true })
+  w.page(JSON.stringify({ t: 'ready', cols: 48, rows: 40 }))
+  await settle()
+  cores[1].terms.set(r.terminal, { ...cores[0].terms.get(r.terminal)! })
+  cores[1].docs = cores[0].docs
+  cores[0].drop('network')
+  await settle()
+  timers.shift()!()
+  await settle(30)
+  expect(cores[1].focused.length).toBe(0)
 })
 
 test('copy asks the page for its text and gives it back; paste goes through the page so bracketed paste holds', async () => {

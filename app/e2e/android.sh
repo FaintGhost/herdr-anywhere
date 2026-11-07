@@ -172,6 +172,71 @@ for _ in $(seq 1 10); do grep -qF '^[[Z' "$work/home/src/acme-api/hm-keys" 2>/de
 grep -qF '^[[Z' "$work/home/src/acme-api/hm-keys" 2>/dev/null || { echo "FAIL: Shift then Tab did not send back-tab ($(cat -v "$work/home/src/acme-api/hm-keys" 2>/dev/null))"; ls "$work/home/src/acme-api"; "$hc" read "$("$hc" ls --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["terminals"][0]["address"])')" | tail -8; exit 1; }
 echo "ok: Shift then Tab from the key row sends back-tab"
 
+# An agent's TUI wraps a paragraph at the phone's width itself, one row at a time, so the terminal sees a newline at
+# every row's end. This program writes one paragraph that way, longer than the screen, then writes what it is sent. A
+# hold and a drag on it copies; pasted into the composer and sent, the text is the paragraph's words on one line.
+cat > "$work/home/src/acme-api/hm-wrap.py" <<'PY'
+import os, termios, tty
+cols = os.get_terminal_size().columns
+rows, line = [], '⏺'
+for i in range(1, 601):
+    w = 'w%03d' % i
+    if len(line) + 1 + len(w) > cols: rows.append(line); line = '  ' + w
+    else: line += ' ' + w
+rows.append(line)
+saved = termios.tcgetattr(0); tty.setraw(0)
+os.write(1, ('\r\n'.join(rows) + '\r\n').encode())
+with open('hm-pasted', 'ab', 0) as f:
+    while True:
+        d = os.read(0, 4096)
+        if b'\x03' in d: break
+        f.write(d)
+termios.tcsetattr(0, termios.TCSADRAIN, saved)
+PY
+"$adb" shell input text "'python3 hm-wrap.py'"
+"$adb" shell input keyevent 66
+term=$("$hc" ls --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["terminals"][0]["address"])')
+for _ in $(seq 1 10); do "$hc" read "$term" | grep -q 'w600' && break; sleep 1; done
+tap hide-keyboard
+sleep 2
+[ -n "$shot" ] && "$adb" exec-out screencap -p > "${shot%.png}-wrapped.png"
+box=$("$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1; "$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep -F 'resource-id="terminal-' | head -1 |
+  sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
+set -- $box
+# Away from the screen's edges: a drag that starts at the left edge is the system's back gesture.
+x0=$(($1 + ($3 - $1) / 4)); x1=$(($3 - ($3 - $1) / 4)); y0=$((($2 + $4) / 2 - 120)); y1=$((($2 + $4) / 2 + 120))
+"$adb" shell input motionevent DOWN "$x0" "$y0"
+sleep 1
+"$adb" shell input motionevent MOVE "$x1" "$y1"
+"$adb" shell input motionevent UP "$x1" "$y1"
+sleep 1
+[ -n "$shot" ] && "$adb" exec-out screencap -p > "${shot%.png}-copy.png"
+# Android 13+ shows what was copied over the bottom left corner, where the composer is, for a few seconds.
+for _ in $(seq 1 20); do "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1; "$adb" shell cat /sdcard/hm.xml | grep -q 'clipboard' || break; sleep 1; done
+[ -n "$(at compose-input)" ] || { echo "FAIL: no composer after copying; on screen: $("$adb" shell cat /sdcard/hm.xml | grep -oE '(resource-id|text)="[^"]+"' | sort -u | head -30 | tr '\n' ' ')"; exit 1; }
+tap compose-input
+sleep 1
+"$adb" shell input keyevent 279 # paste
+sleep 1
+[ -n "$(at compose-send)" ] || { echo "FAIL: nothing pasted into the composer; it says: $("$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep -F 'resource-id="compose-input"' | grep -oE ' text="[^"]*"' | head -c 300)"; exit 1; }
+tap compose-send
+for _ in $(seq 1 10); do [ -s "$work/home/src/acme-api/hm-pasted" ] && break; sleep 1; done
+sleep 1
+"$hc" keys "$term" ctrl+c >/dev/null
+pasted=$(tr -d '\r' < "$work/home/src/acme-api/hm-pasted" 2>/dev/null | sed -e 's/\x1b\[20[01]~//g' -e 's/[[:space:]]*$//')
+echo "$pasted" | python3 -c '
+import re, sys
+t = sys.stdin.read().strip()
+words = t.split(" ")
+ok = "\n" not in t and len(words) >= 15 and all(re.fullmatch(r"w\d{3}", w) for w in words[:-1]) and \
+  all(int(b[1:]) == int(a[1:]) + 1 for a, b in zip(words, words[1:-1]))
+sys.exit(0 if ok else 1)' || { echo "FAIL: a paragraph the TUI wrapped did not copy as one line ($(printf %s "$pasted" | cat -v | head -c 300))"; exit 1; }
+echo "ok: a paragraph the TUI wrapped copies as one line ($(echo "$pasted" | wc -w | tr -d ' ') words)"
+# The composer has the keyboard now; the next steps type in the terminal.
+"$adb" shell input keyevent 4
+sleep 1
+typein "after the composer"
+
 # The terminal reports idle, then blocked (OSC 7501, as agents do): the app plays Herdr's request sound. Android logs
 # each player the app starts (dumpsys audio, "playback activity"); the emulator has no audio out, so this is the
 # player starting, not a sound heard.

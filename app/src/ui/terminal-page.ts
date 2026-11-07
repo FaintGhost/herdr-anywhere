@@ -126,8 +126,52 @@ const BOOT = `(function () {
     return cell > 0 ? Math.max(cols, Math.floor((box.getBoundingClientRect().width + 0.01) / cell)) : cols;
   }
   function setFont(n) { if (n !== term.options.fontSize) { term.options.fontSize = n; size(); } }
+  // Where a row's text ends, in cells (Chinese takes two), and the character there.
+  function ending(l) {
+    for (var x = l ? l.length - 1 : -1; x >= 0; x--) { var k = l.getCell(x); if (k && k.getChars().trim()) return { end: x + Math.max(1, k.getWidth()), wide: k.getWidth() === 2 }; }
+    return { end: 0, wide: false };
+  }
+  function indent(l) { for (var x = 0; l && x < l.length; x++) { var k = l.getCell(x); if (k && k.getChars().trim()) return x; } return l ? l.length : 0; }
+  // Did an agent's TUI break this row's line at the right edge? It writes each row on its own, so the terminal does
+  // not know. It did when the next row's first word would not have fitted after this row's text, and the next row goes
+  // on at the same indent or deeper, without starting a list item, a quote, a heading or a box.
+  function tuiWraps(y) {
+    var b = term.buffer.active, l = b.getLine(y), n = b.getLine(y + 1);
+    if (!l || !n || n.isWrapped) return null;
+    var e = ending(l), from = indent(n);
+    if (!e.end || e.end < term.cols / 2 || from >= n.length || from < indent(l)) return null;
+    var head = n.translateToString(true, from, Math.min(n.length, from + 6));
+    if (/^([-*+>#|•·⏺⎿\\u2500-\\u257f]|\\d+[.)] )/.test(head)) return null;
+    var first = n.getCell(from), joined = e.wide || first.getWidth() === 2, w = 0;
+    if (first.getWidth() === 2) w = 2;
+    else for (var x = from; x < n.length; x++) { var k = n.getCell(x); if (!k.getChars().trim() || k.getWidth() === 2) break; w++; }
+    if (e.end + (joined ? 0 : 1) + w <= term.cols) return null;
+    return { from: from, gap: joined ? '' : ' ' };
+  }
+  // What a selection copies: rows the terminal wrapped, and rows a TUI wrapped, join into the line they were.
+  var span = null;
+  function selectedText() {
+    var all = term.getSelection();
+    if (!span || !all) return all;
+    var b = term.buffer.active, s = span.s, e = span.e, text = '', start = s.col;
+    for (var y = s.row; y <= e.row; y++) {
+      var l = b.getLine(y); if (!l) break;
+      var n = y < e.row ? b.getLine(y + 1) : null, w = n ? tuiWraps(y) : null;
+      var end = y === e.row ? e.col + 1 : l.length;
+      text += start < end ? l.translateToString(!(n && n.isWrapped), start, end) : '';
+      start = 0;
+      if (!n || n.isWrapped) continue;
+      if (w) {
+        text = text.replace(/\\s+$/, '');
+        // A link longer than a row is cut anywhere: its pieces join with nothing between them.
+        text += /https?:\\/\\/\\S*$/.test(text) && ending(l).end >= term.cols ? '' : w.gap;
+        start = w.from;
+      } else text += '\\n';
+    }
+    return text;
+  }
   function screenText() {
-    var sel = term.getSelection(); if (sel) return sel;
+    var sel = selectedText(); if (sel) return sel;
     var b = term.buffer.active, out = [];
     for (var i = b.viewportY; i < b.viewportY + term.rows; i++) { var l = b.getLine(i); out.push(l ? l.translateToString(true) : ''); }
     return out.join('\\n').replace(/\\s+$/, '');
@@ -153,7 +197,7 @@ const BOOT = `(function () {
   // indent, at the right edge, and a link's characters are then on both sides of the break.
   function flows(y) {
     var a = rowOf(y).text.replace(/\\s+$/, ''), n = rowOf(y + 1);
-    return n.wrapped || (a.length >= term.cols - 6 && URLCHAR.test(a[a.length - 1] || ' ') && URLCHAR.test(n.text.replace(/^\\s+/, '')[0] || ' '));
+    return n.wrapped || (ending(term.buffer.active.getLine(y)).end >= term.cols - 6 && URLCHAR.test(a[a.length - 1] || ' ') && URLCHAR.test(n.text.replace(/^\\s+/, '')[0] || ' '));
   }
   function linkInText(c) {
     var first = c.row, rows = 0;
@@ -202,17 +246,19 @@ const BOOT = `(function () {
   function selectWord(c) {
     var l = term.buffer.active.getLine(c.row);
     var space = function (x) { var k = l && l.getCell(x); return !k || (k.getWidth() && !k.getChars().trim()); };
-    if (space(c.col)) { term.select(c.col, c.row, 1); return c; }
+    if (space(c.col)) { term.select(c.col, c.row, 1); span = { s: c, e: c }; return c; }
     var a = c.col, b = c.col;
     while (a > 0 && !space(a - 1)) a--;
     while (b < term.cols - 1 && !space(b + 1)) b++;
     term.select(a, c.row, b - a + 1);
+    span = { s: { col: a, row: c.row }, e: { col: b, row: c.row } };
     return { col: a, row: c.row, h: c.h };
   }
   function selectSpan(from, to) {
     var s = from, e = to;
     if (to.row < from.row || (to.row === from.row && to.col < from.col)) { s = to; e = from; }
     term.select(s.col, s.row, (e.row - s.row) * term.cols + (e.col - s.col) + 1);
+    span = { s: s, e: e };
   }
   // Back in history by this many lines. A full-screen program has none here: xterm turns a wheel into what that program
   // asked for (its mouse encoding, or arrow keys in its cursor mode).
@@ -276,7 +322,7 @@ const BOOT = `(function () {
       if (!t0 || e.touches.length) return;
       var p = e.changedTouches[0], dx = p.clientX - t0.x, dy = p.clientY - t0.y, ms = Date.now() - t0.at, start = t0;
       t0 = null;
-      if (selecting) { selecting = null; var text = term.getSelection(); if (text) post({ t: 'selected', text: text }); return; }
+      if (selecting) { selecting = null; var text = selectedText(); if (text) post({ t: 'selected', text: text }); return; }
       if (dragging && trail.length > 1 && e.timeStamp - trail[trail.length - 1].at < 60) {
         var a = trail[0], z = trail[trail.length - 1];
         glide((z.y - a.y) / (z.at - a.at), cell(p.clientX, p.clientY).h, p.clientX, p.clientY);
@@ -284,7 +330,7 @@ const BOOT = `(function () {
       }
       if (Math.abs(dx) > 70 && Math.abs(dx) > 2 * Math.abs(dy) && ms < 600 && scrolled === 0) { post({ t: 'swipe', dir: dx < 0 ? 'next' : 'prev' }); return; }
       if (!moved && ms < 450 && !stopped) {
-        term.clearSelection();
+        term.clearSelection(); span = null;
         var url = linkAt(cell(start.x, start.y));
         if (url) { post({ t: 'link', url: url }); return; }
         post({ t: 'tap' });
@@ -362,7 +408,7 @@ const BOOT = `(function () {
     window.addEventListener('message', function (e) {
       if (typeof e.data !== 'string') return;
       var m; try { m = JSON.parse(e.data); } catch (_) { return; }
-      if (m.t === 'reset') { stopGlide(); term.reset(); kitty = []; linked = []; linking = null; }
+      if (m.t === 'reset') { stopGlide(); term.reset(); kitty = []; span = null; linked = []; linking = null; }
       else if (m.t === 'write') term.write(m.data);
       else if (m.t === 'paste') term.paste(m.data);
       else if (m.t === 'theme') { term.options.theme = cfg.themes[m.dark ? 'dark' : 'light']; document.body.style.background = term.options.theme.background; }

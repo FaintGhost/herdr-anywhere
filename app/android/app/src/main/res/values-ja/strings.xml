@@ -7,4 +7,7 @@
     <string name="keep_alive_title">コンピュータに接続中</string>
     <string name="channel_finished">エージェントが完了したとき</string>
     <string name="channel_finished_detail">見ていないときだけ通知します。</string>
+    <string name="channel_updates">アプリの更新</string>
+    <string name="updated_title">アプリを更新しました</string>
+    <string name="updated_detail">タップして開きます。</string>
 </resources>

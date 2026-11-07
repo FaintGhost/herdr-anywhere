@@ -7,7 +7,7 @@ const APP = { url: 'https://example.com/a.apk', digest: 'sha256:ab', bytes: 136_
 
 type Calls = { method: string; url: string; auth: string; body?: string }[]
 
-function setup(o: { info?: any; os?: 'android' | 'ios' | 'web'; app?: string; answers?: Record<string, { status: number; body: any }>; install?: (a: any, p: (n: number) => void) => Promise<any>; waitMs?: number } = {}) {
+function setup(o: { info?: any; os?: 'android' | 'ios' | 'web'; app?: string; answers?: Record<string, { status: number; body: any }>; install?: (a: any, p: (n: number) => void, ask?: boolean) => Promise<any>; waitMs?: number } = {}) {
   const calls: Calls = []
   const conn = new Signal<Conn>('ready')
   const box = { info: o.info }
@@ -188,6 +188,32 @@ test('an app update the system must first allow says so, without an error', asyn
   await u.updateApp()
   expect(toasts[0].level).toBe('info')
   expect(u.notice()?.kind).toBe('app')
+})
+
+test('back in the app after allowing installs, the download starts by itself', async () => {
+  const asked: (boolean | undefined)[] = []
+  const answers = ['needsPermission', 'installing']
+  const { u, toasts } = setup({ info: { version: '0.1.6', latest: '0.1.6', canUpdate: true, app: APP }, install: async (_a, _p, ask?: boolean) => { asked.push(ask); return answers.shift() } })
+  await u.refresh()
+  await u.updateApp()
+  await u.inFront()
+  expect(asked).toEqual([true, false])
+  expect(toasts.length).toBe(1)
+  // Once: the next return to the app starts nothing.
+  await u.inFront()
+  expect(asked.length).toBe(2)
+})
+
+test('back in the app without allowing it, nothing opens again and nothing more is said', async () => {
+  const asked: (boolean | undefined)[] = []
+  const { u, toasts } = setup({ info: { version: '0.1.6', latest: '0.1.6', canUpdate: true, app: APP }, install: async (_a, _p, ask?: boolean) => { asked.push(ask); return 'needsPermission' } })
+  await u.refresh()
+  await u.updateApp()
+  await u.inFront()
+  await u.inFront()
+  expect(asked).toEqual([true, false])
+  expect(toasts.length).toBe(1)
+  expect(u.busy.get()).toBe(null)
 })
 
 test('an app update that fails says so', async () => {

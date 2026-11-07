@@ -68,12 +68,12 @@ export function showTerminalKeyboard() {
 }
 
 /** Downloads the Android app and hands it to the system, which asks the person to confirm and refuses a file not signed
- *  with this app's key. "needsPermission": the system's screen for allowing that opened, and the person comes back. */
-export async function installApp(app: { url: string; digest: string; bytes: number }, progress: (done: number) => void): Promise<'installing' | 'needsPermission'> {
+ *  with this app's key. "needsPermission": this app may not install yet; with ask, the system's screen for allowing that opened. */
+export async function installApp(app: { url: string; digest: string; bytes: number }, progress: (done: number) => void, ask = true): Promise<'installing' | 'needsPermission'> {
   if (!host.available()) throw new Error('no host')
   const off = host.on('page.updateProgress', (d: any) => { if (typeof d?.done === 'number') progress(d.done) })
   try {
-    const r: any = await host.call('page.installUpdate', { url: app.url, digest: app.digest })
+    const r: any = await host.call('page.installUpdate', { url: app.url, digest: app.digest, ask })
     return r === 'needsPermission' ? 'needsPermission' : 'installing'
   } finally {
     off()

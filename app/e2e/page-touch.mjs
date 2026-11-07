@@ -370,6 +370,7 @@ for (const [width, scale] of [[360, 3], [384, 2.8125], [393, 3], [411, 2.625], [
   // its indent, and hidden behind text (OSC 8).
   const t = await open({ phone: true })
   const cell = await t.page.evaluate(() => { const r = document.querySelector('.xterm-screen').getBoundingClientRect(); return { w: r.width / window.posts.find((m) => m.t === 'ready').cols, h: r.height / window.posts.find((m) => m.t === 'ready').rows, x: r.left, y: r.top } })
+  const cols = (await t.size()).cols
   const tapRow = async (text, row, col) => {
     await t.send({ t: 'reset' })
     await t.send({ t: 'write', data: text })
@@ -388,6 +389,12 @@ for (const [width, scale] of [[360, 3], [384, 2.8125], [393, 3], [411, 2.625], [
   check('a link behind text opens its target', (await tapRow('\x1b]8;;https://example.com/hidden\x07click here\x1b]8;;\x07', 0, 3)) === 'https://example.com/hidden', await tapRow('\x1b]8;;https://example.com/hidden\x07click here\x1b]8;;\x07', 0, 3))
   check('a link after Chinese opens where it is shown', (await tapRow('看这里 https://example.com/zh。然后', 0, 12)) === 'https://example.com/zh', await tapRow('看这里 https://example.com/zh。然后', 0, 12))
   check('text after a wrapped link on the next line stays out of it', (await tapRow(`${'x'.repeat(10)} https://example.com/a\r\nnext line\r\n`, 0, 15)) === 'https://example.com/a')
+  // Chinese takes two cells a character: the row is full although its text is shorter than the row.
+  const post = 'https://x.com/acme/status/1234567890123456789', zh = '  （看这条帖子 '
+  const head = post.slice(0, cols - 2 - 2 * 7 - 1), tail = post.slice(head.length)
+  const zhRows = `${zh}${head}\r\n  ${tail} ）\r\n`
+  check('a link after Chinese that the TUI wrapped opens whole', (await tapRow(zhRows, 0, cols - 3)) === post, await tapRow(zhRows, 0, cols - 3))
+  check('and from its second row', (await tapRow(zhRows, 1, 4)) === post, await tapRow(zhRows, 1, 4))
   // Selecting: hold, drag; what is selected goes to the app when the finger lifts.
   await t.send({ t: 'reset' })
   await t.send({ t: 'write', data: 'hello world again\r\nsecond line here\r\n' })
@@ -403,6 +410,34 @@ for (const [width, scale] of [[360, 3], [384, 2.8125], [393, 3], [411, 2.625], [
   await t.page.waitForTimeout(200)
   const sel = await t.page.evaluate(() => window.posts.filter((m) => m.t === 'selected').map((m) => m.text).join('|'))
   check('holding and dragging across two rows gives their text', sel === 'world again\nsecond', sel)
+  // An agent's TUI wraps a paragraph itself, at the phone's width: its rows end in a newline although the text is one
+  // line. Copied, the paragraph is one line again; lines the agent ended stay lines.
+  const selectRows = async (text, from, to) => {
+    await t.send({ t: 'reset' })
+    await t.send({ t: 'write', data: text })
+    await t.page.waitForTimeout(100)
+    await t.page.evaluate(() => { window.posts = [] })
+    await cdp2.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(...from) })
+    await t.page.waitForTimeout(600)
+    await cdp2.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(...to) })
+    await cdp2.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    await t.page.waitForTimeout(200)
+    return t.page.evaluate(() => window.posts.filter((m) => m.t === 'selected').map((m) => m.text).join('|'))
+  }
+  const words = (n) => Array.from({ length: n }, (_, i) => `word${i % 10}`)
+  const fill = (w, width) => { const out = []; let line = ''; for (const x of w) { if (line && line.length + 1 + x.length > width) { out.push(line); line = x } else line = line ? `${line} ${x}` : x } out.push(line); return out }
+  const para = fill(words(20), cols - 2)
+  const paraRows = `⏺ ${para.join('\r\n  ')}\r\n\r\n  next paragraph\r\n`
+  const one = await selectRows(paraRows, [0, 2], [para.length - 1, para[para.length - 1].length + 1])
+  check('copying a paragraph the TUI wrapped gives one line', one === words(20).join(' '), one)
+  const zhPara = '这是一段很长的中文回答，手机上会被终端里的程序自己折成好几行，复制出来应该还是一整段话才对，不要每行都多一个回车。'
+  const zhWidth = Math.floor((cols - 2) / 2), zhLines = []
+  for (let i = 0; i < zhPara.length; i += zhWidth) zhLines.push(zhPara.slice(i, i + zhWidth))
+  const zhCopy = await selectRows(`⏺ ${zhLines.join('\r\n  ')}\r\n`, [0, 2], [zhLines.length - 1, 2 + 2 * zhLines[zhLines.length - 1].length - 1])
+  check('and a Chinese one, with no spaces added', zhCopy === zhPara, zhCopy)
+  const list = `  - ${'item '.repeat(Math.floor((cols - 4) / 5)).trim()}\r\n  - second item\r\n`
+  const listCopy = await selectRows(list, [0, 4], [1, 14])
+  check('a new list item stays on its own line', listCopy.split('\n').length === 2 && listCopy.endsWith('- second item'), listCopy)
   await t.page.context().close()
 }
 {

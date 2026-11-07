@@ -159,8 +159,13 @@ sleep 2
 snap permission
 echo "ok: the system's permission screen opened"
 "$adb" shell appops set "$id" REQUEST_INSTALL_PACKAGES allow
+# Back in the app, the download starts without another tap. The file served now doesn't match the release, so it ends
+# in the app's own refusal, and nothing is installed yet for the steps below.
+echo other-key > "$work/scenario"
 "$adb" shell input keyevent KEYCODE_BACK
-wait_for "Allow this app to install updates" 10 || true
+wait_for "Couldn't update the app" 240
+[ "$(version)" = "$installed_before" ] || { echo "FAIL: installed $(version)"; exit 1; }
+echo "ok: back from allowing installs, the download started by itself"
 
 restart_with() {
   echo "$1" > "$work/scenario"
@@ -213,8 +218,17 @@ done
 [ -n "$done_install" ] || { echo "FAIL: still $(version)"; exit 1; }
 echo "ok: the system installed $new_version over $installed_before"
 
-"$adb" shell am start -W -n "$id/.MainActivity" >/dev/null
+# The system ends the app and leaves the person on the home screen. The new version says it is installed, and the
+# notification opens it.
+said=""
+for _ in $(seq 1 20); do "$adb" shell dumpsys notification --noredact | grep -qE "NotificationRecord.*pkg=$id .*tag=update" && { said=1; break; }; sleep 1; done
+[ -n "$said" ] || { echo "FAIL: no notification that the app is updated"; exit 1; }
+"$adb" shell cmd statusbar expand-notifications
+sleep 2
+snap updated-notification
+tap_text "The app is updated"
 wait_for "acme-api" 60
+echo "ok: a notification says the app is updated, and opens it"
 sleep 3
 if xml | grep -qF 'update-banner'; then echo "FAIL: it still offers an update"; exit 1; fi
 snap after

@@ -23,6 +23,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- After an update this app started: says it is installed (Updated.java). -->
+        <receiver android:name=".Updated" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <!-- Swiping the app away ends it, as it ended the app before. -->
         <service android:name=".KeepAlive" android:exported="false" android:stopWithTask="true"
             android:foregroundServiceType="specialUse">

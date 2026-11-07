@@ -7,4 +7,7 @@
     <string name="keep_alive_title">Connected to your computer</string>
     <string name="channel_finished">An agent finished</string>
     <string name="channel_finished_detail">Only when you are not looking at it.</string>
+    <string name="channel_updates">App updates</string>
+    <string name="updated_title">The app is updated</string>
+    <string name="updated_detail">Tap to open it.</string>
 </resources>

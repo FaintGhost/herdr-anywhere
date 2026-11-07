@@ -96,7 +96,7 @@ function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: 
   // The page (web-host.js) or the Android activity says whether the app is in front; on iOS it is while it runs.
   const alerts = new Alerts({ notify: (t, kind, quiet) => notifyFromPage({ title: t.title, body: t.body, terminal: t.action?.terminal, kind, quiet }) })
   store.onAlert = (kind, toast, again) => alerts.ring(kind, toast, store.appActive, again)
-  const offPage = followPage({ front: (f) => { store.appActive = f }, open: (a) => openTerminal(a) })
+  const offPage = followPage({ front: (f) => { store.appActive = f; if (f) void updates.inFront() }, open: (a) => openTerminal(a) })
   const offConn = store.conn.sub((c) => { if (c === 'unpaired') props.unpaired() })
   const conn = useSignal(store.conn)
   effect(() => keepAlive(wantsKeepAlive(conn(), prefs().stayConnected)))

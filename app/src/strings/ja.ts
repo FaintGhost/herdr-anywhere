@@ -49,6 +49,7 @@ export const ja: Table = {
   alerts: '通知', agentNeedsYou: 'エージェントが対応待ちのとき', agentNeedsYouDetail: '回答や承認を待っています。',
   // Android's notification while the app stays connected in the background.
   keepAliveTitle: 'コンピュータに接続中',
+  appUpdates: 'アプリの更新', appUpdated: 'アプリを更新しました', appUpdatedDetail: 'タップして開きます。',
   stayConnected: 'バックグラウンドで接続を保つ', stayConnectedDetail: 'アプリを離れても通知が届きます。動作中は Android に通知が常に表示され、バッテリーも少し多く使います。',
   agentFinished: 'エージェントが完了したとき', agentFinishedDetail: '見ていないときだけ通知します。',
   systemNotifications: 'システム通知', notifyDefault: 'Herdr Anywhere がバックグラウンドのとき。',
@@ -100,7 +101,7 @@ export const ja: Table = {
   noSpace: 'スペース {id} はありません', noSpaceYet: 'スペースがまだありません。先に作成してください', noPaneToSplit: '分割するペインがありません', noPane: 'ペイン {id} はありません',
   noSpaceToKeep: '残す先のスペースがありません',
   // New versions (src/updates.ts).
-  updateAvailable: "バージョン {version} があります", updateComputer: "コンピュータを更新", updateApp: "アプリを更新", updateNow: "更新", updating: "更新中…", computerUpdated: "コンピュータは {version} になりました", couldntUpdateComputer: "コンピュータを更新できません", computerNotBack: "{version} で接続が戻っていません。コンピュータで herdr-anywhere が動いているか確認してください。", couldntUpdateApp: "アプリを更新できません", allowInstallTitle: "このアプリに更新のインストールを許可してください", allowInstallDetail: "開いた画面でオンにして戻り、もう一度「更新」をタップしてください。", updateByHandTitle: "コンピュータを手動で更新", updateByHandDetail: "このコンピュータはまだ自分で更新できません。次のコマンドを実行し、herdr-anywhere を再起動してください：", copyCommand: "コマンドをコピー", downloadAppTitle: "{size} MB をダウンロードしますか？", downloadAppDetail: "ダウンロード後、Android がインストールの確認を求めます。", download: "ダウンロード", rebuildTitle: "バージョン {version} をビルド", rebuildDetail: "iPhone ではご自身の Apple アカウントでアプリをビルドします。手順はプロジェクトの iPhone ガイドにあります。", openGuide: "ガイドを開く", autoUpdateComputer: "コンピュータを自動更新", autoUpdateDetail: "新しいリリースが出るたびにインストールします。スマートフォンは自動で再接続します。", appVersion: "アプリのバージョン", downloadingApp: "{percent}% ダウンロード済み", dismissUpdate: "今はしない",
+  updateAvailable: "バージョン {version} があります", updateComputer: "コンピュータを更新", updateApp: "アプリを更新", updateNow: "更新", updating: "更新中…", computerUpdated: "コンピュータは {version} になりました", couldntUpdateComputer: "コンピュータを更新できません", computerNotBack: "{version} で接続が戻っていません。コンピュータで herdr-anywhere が動いているか確認してください。", couldntUpdateApp: "アプリを更新できません", allowInstallTitle: "このアプリに更新のインストールを許可してください", allowInstallDetail: "開いた画面でオンにして戻ると、ダウンロードが自動で始まります。", updateByHandTitle: "コンピュータを手動で更新", updateByHandDetail: "このコンピュータはまだ自分で更新できません。次のコマンドを実行し、herdr-anywhere を再起動してください：", copyCommand: "コマンドをコピー", downloadAppTitle: "{size} MB をダウンロードしますか？", downloadAppDetail: "ダウンロード後、Android がインストールの確認を求めます。", download: "ダウンロード", rebuildTitle: "バージョン {version} をビルド", rebuildDetail: "iPhone ではご自身の Apple アカウントでアプリをビルドします。手順はプロジェクトの iPhone ガイドにあります。", openGuide: "ガイドを開く", autoUpdateComputer: "コンピュータを自動更新", autoUpdateDetail: "新しいリリースが出るたびにインストールします。スマートフォンは自動で再接続します。", appVersion: "アプリのバージョン", downloadingApp: "{percent}% ダウンロード済み", dismissUpdate: "今はしない",
   checksQuestion: "新しいバージョンを確認しますか？", checksQuestionDetail: "コンピュータが1日に1回 GitHub に問い合わせます。許可しない限り、何もインストールされません。", checksYes: "毎日確認", checksNo: "確認しない", checksDaily: "新しいバージョンを毎日確認", checksDailyDetail: "コンピュータが1日に1回 GitHub に問い合わせます。", newVersions: "新しいバージョン", checkNow: "確認", checking: "確認中…", upToDate: "最新バージョンです", couldntCheck: "確認できませんでした: {error}",
   updateWrongKey: "このファイルの署名はスマートフォンのアプリと異なるため、Android は上書きインストールしません。",
 }

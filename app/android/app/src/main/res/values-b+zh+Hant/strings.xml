@@ -7,4 +7,7 @@
     <string name="keep_alive_title">已連線到你的電腦</string>
     <string name="channel_finished">Agent 已完成</string>
     <string name="channel_finished_detail">只在你沒有看著它時提醒。</string>
+    <string name="channel_updates">App 更新</string>
+    <string name="updated_title">App 已更新</string>
+    <string name="updated_detail">點這裡開啟。</string>
 </resources>

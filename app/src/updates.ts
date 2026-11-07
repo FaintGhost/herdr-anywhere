@@ -69,7 +69,8 @@ export class Updates {
     os: string
     appVersion: string
     toast: (t: { title: string; body?: string; level: 'info' | 'error' }) => void
-    install: (app: AppFile, progress: (done: number) => void) => Promise<InstallResult>
+    /** ask: open the system's screen for allowing installs when this app may not install yet. */
+    install: (app: AppFile, progress: (done: number) => void, ask?: boolean) => Promise<InstallResult>
     /** How long the computer gets to come back as the new version. */
     waitMs?: number
   }) {}
@@ -139,19 +140,32 @@ export class Updates {
     return false
   }
 
-  async updateApp() {
+  /** Sent to the system's screen for allowing installs: the person comes back from it to the app. */
+  private allowing = false
+
+  async updateApp(ask = true) {
     const app = this.info.get()?.app
     if (this.busy.get() || !app) return
     this.busy.set('app')
     this.progress.set(0)
     try {
-      const r = await this.d.install(app, (done) => this.progress.set(done))
-      if (r === 'needsPermission') this.d.toast({ title: t('allowInstallTitle'), body: t('allowInstallDetail'), level: 'info' })
+      const r = await this.d.install(app, (done) => this.progress.set(done), ask)
+      if (r === 'needsPermission' && ask) {
+        this.allowing = true
+        this.d.toast({ title: t('allowInstallTitle'), body: t('allowInstallDetail'), level: 'info' })
+      }
     } catch (e: any) {
       this.d.toast({ title: t('couldntUpdateApp'), body: installProblem(String(e?.message ?? '')), level: 'error' })
     } finally {
       this.busy.set(null)
     }
+  }
+
+  /** Back in the app: from allowing installs, the download goes on by itself; not allowed, nothing opens again. */
+  async inFront() {
+    if (!this.allowing) return
+    this.allowing = false
+    await this.updateApp(false)
   }
 
   async setAuto(on: boolean) {

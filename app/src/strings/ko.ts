@@ -49,6 +49,7 @@ export const ko: Table = {
   alerts: '알림', agentNeedsYou: '에이전트가 응답을 기다릴 때', agentNeedsYouDetail: '답변이나 승인을 기다리고 있어요.',
   // Android's notification while the app stays connected in the background.
   keepAliveTitle: '컴퓨터에 연결됨',
+  appUpdates: '앱 업데이트', appUpdated: '앱이 업데이트됐어요', appUpdatedDetail: '탭해서 열어요.',
   stayConnected: '백그라운드에서 연결 유지', stayConnectedDetail: '앱을 나가도 알림을 받아요. 실행 중에는 Android에 알림이 계속 표시되고 배터리를 조금 더 써요.',
   agentFinished: '에이전트가 끝났을 때', agentFinishedDetail: '보고 있지 않을 때만 알려 줘요.',
   systemNotifications: '시스템 알림', notifyDefault: 'Herdr Anywhere가 백그라운드에 있을 때.',
@@ -100,7 +101,7 @@ export const ko: Table = {
   noSpace: '스페이스 {id} 없음', noSpaceYet: '아직 스페이스가 없어요. 먼저 만드세요', noPaneToSplit: '분할할 창이 없어요', noPane: '창 {id} 없음',
   noSpaceToKeep: '유지할 스페이스가 없어요',
   // New versions (src/updates.ts).
-  updateAvailable: "{version} 버전을 사용할 수 있어요", updateComputer: "컴퓨터 업데이트", updateApp: "앱 업데이트", updateNow: "업데이트", updating: "업데이트 중…", computerUpdated: "컴퓨터가 {version} 버전이 되었어요", couldntUpdateComputer: "컴퓨터를 업데이트할 수 없어요", computerNotBack: "{version} 버전으로 다시 연결되지 않았어요. 컴퓨터에서 herdr-anywhere가 실행 중인지 확인하세요.", couldntUpdateApp: "앱을 업데이트할 수 없어요", allowInstallTitle: "이 앱이 업데이트를 설치하도록 허용하세요", allowInstallDetail: "열린 화면에서 켠 다음 돌아와서 업데이트를 다시 누르세요.", updateByHandTitle: "컴퓨터를 직접 업데이트", updateByHandDetail: "이 컴퓨터는 아직 스스로 업데이트할 수 없어요. 컴퓨터에서 다음 명령을 실행한 뒤 herdr-anywhere를 다시 시작하세요:", copyCommand: "명령 복사", downloadAppTitle: "{size} MB를 다운로드할까요?", downloadAppDetail: "다운로드 후 Android에서 설치를 확인하라고 물어봐요.", download: "다운로드", rebuildTitle: "{version} 버전 빌드", rebuildDetail: "iPhone에서는 본인의 Apple 계정으로 앱을 직접 빌드해요. 단계는 프로젝트의 iPhone 가이드에 있어요.", openGuide: "가이드 열기", autoUpdateComputer: "컴퓨터 자동 업데이트", autoUpdateDetail: "새 릴리스가 나올 때마다 설치해요. 휴대폰은 알아서 다시 연결돼요.", appVersion: "앱 버전", downloadingApp: "{percent}% 다운로드됨", dismissUpdate: "지금은 안 함",
+  updateAvailable: "{version} 버전을 사용할 수 있어요", updateComputer: "컴퓨터 업데이트", updateApp: "앱 업데이트", updateNow: "업데이트", updating: "업데이트 중…", computerUpdated: "컴퓨터가 {version} 버전이 되었어요", couldntUpdateComputer: "컴퓨터를 업데이트할 수 없어요", computerNotBack: "{version} 버전으로 다시 연결되지 않았어요. 컴퓨터에서 herdr-anywhere가 실행 중인지 확인하세요.", couldntUpdateApp: "앱을 업데이트할 수 없어요", allowInstallTitle: "이 앱이 업데이트를 설치하도록 허용하세요", allowInstallDetail: "열린 화면에서 켠 다음 돌아오면 다운로드가 자동으로 시작돼요.", updateByHandTitle: "컴퓨터를 직접 업데이트", updateByHandDetail: "이 컴퓨터는 아직 스스로 업데이트할 수 없어요. 컴퓨터에서 다음 명령을 실행한 뒤 herdr-anywhere를 다시 시작하세요:", copyCommand: "명령 복사", downloadAppTitle: "{size} MB를 다운로드할까요?", downloadAppDetail: "다운로드 후 Android에서 설치를 확인하라고 물어봐요.", download: "다운로드", rebuildTitle: "{version} 버전 빌드", rebuildDetail: "iPhone에서는 본인의 Apple 계정으로 앱을 직접 빌드해요. 단계는 프로젝트의 iPhone 가이드에 있어요.", openGuide: "가이드 열기", autoUpdateComputer: "컴퓨터 자동 업데이트", autoUpdateDetail: "새 릴리스가 나올 때마다 설치해요. 휴대폰은 알아서 다시 연결돼요.", appVersion: "앱 버전", downloadingApp: "{percent}% 다운로드됨", dismissUpdate: "지금은 안 함",
   checksQuestion: "새 버전을 확인할까요?", checksQuestionDetail: "컴퓨터가 하루에 한 번 GitHub에 물어봐요. 허락하지 않으면 아무것도 설치하지 않아요.", checksYes: "매일 확인", checksNo: "확인 안 함", checksDaily: "새 버전 매일 확인", checksDailyDetail: "컴퓨터가 하루에 한 번 GitHub에 물어봐요.", newVersions: "새 버전", checkNow: "확인", checking: "확인 중…", upToDate: "최신 버전이에요", couldntCheck: "확인하지 못했어요: {error}",
   updateWrongKey: "이 파일의 서명이 휴대폰의 앱과 달라서 Android가 덮어 설치하지 않아요.",
 }

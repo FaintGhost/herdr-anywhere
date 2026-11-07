@@ -7,4 +7,7 @@
     <string name="keep_alive_title">Conectado a tu ordenador</string>
     <string name="channel_finished">Un agente terminó</string>
     <string name="channel_finished_detail">Solo cuando no lo estás mirando.</string>
+    <string name="channel_updates">Actualizaciones de la app</string>
+    <string name="updated_title">La app se actualizó</string>
+    <string name="updated_detail">Toca para abrirla.</string>
 </resources>

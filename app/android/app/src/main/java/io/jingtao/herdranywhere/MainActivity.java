@@ -355,7 +355,9 @@ public class MainActivity extends Activity {
     Map<?, ?> a = (Map<?, ?>) data;
     String url = String.valueOf(a.get("url")), digest = String.valueOf(a.get("digest"));
     if (!getPackageManager().canRequestPackageInstalls()) {
-      runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName()))));
+      // Asked again on the way back from that screen, it doesn't open a second time.
+      if (!Boolean.FALSE.equals(a.get("ask")))
+        runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName()))));
       reply.resolve("needsPermission");
       return;
     }
@@ -376,6 +378,7 @@ public class MainActivity extends Activity {
             session.fsync(out);
           }
           installing = reply;
+          Updated.prefs(this).edit().putBoolean("fromApp", true).apply();
           Intent status = new Intent(INSTALL_STATUS).setPackage(getPackageName());
           session.commit(PendingIntent.getBroadcast(this, id, status, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE).getIntentSender());
         }
@@ -430,6 +433,7 @@ public class MainActivity extends Activity {
           return;
         }
         String message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
+        if (status != PackageInstaller.STATUS_SUCCESS) Updated.prefs(context).edit().remove("fromApp").apply();
         Log.i("Herdr", "update: status " + status + " " + message);
         if (reply != null && status != PackageInstaller.STATUS_SUCCESS) reply.reject(String.valueOf(message));
         // The person said no: nothing to report. Anything else, such as a file signed with another key, is worth saying.

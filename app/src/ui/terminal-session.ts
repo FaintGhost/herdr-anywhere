@@ -176,8 +176,10 @@ export class TerminalSession {
       // Attached at the phone's size, it no longer needs the attachment it left behind.
       if (!this.opts.observe) this.store.release(this.address)
       if (!resumed && !this.opts.observe) this.before = this.store.lastSeen(this.address)
-      // A terminal on the phone's screen keeps the phone's width; with the app in the background, the computer's.
-      if (resumed && !this.opts.observe && this.store.appActive) s.focus(true)
+      // A dropped line changes nothing about the width: the phone keeps it, in front or in a pocket, until the computer is
+      // used (herdr-core gives it to the viewer used last). Left with the computer, what an agent wrote while the phone
+      // was away stayed that narrow in the phone's history.
+      if (resumed && !this.opts.observe) s.focus(true)
       this.attachedOnce = true
       this.state.set('live')
       this.why.set('')

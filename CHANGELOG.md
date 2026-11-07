@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.1.12
+
+- A terminal keeps the phone's width when the connection drops and comes back while the app is in the background. Before, the width went to the computer, and what an agent wrote meanwhile stayed narrow in the phone's history.
+- A link an agent wrapped onto the next line after Chinese text opens whole, so an X post link opens that post.
+- Copying text an agent wrapped at the phone's width gives back its lines as the agent wrote them, without a line break at the end of every row.
+- Android: back from allowing the app to install updates, the download starts without another tap. After the update installs, a notification says so and opens the app.
+
+Android: `Herdr-Anywhere.apk`; an installed 0.1.6 or later can update to it from home. Mac: `herdr-anywhere-macos-arm64`.
+
 ## v0.1.11
 
 Nothing changes in the app or on the computer. The tests and the secret scan that every pull request runs pass again.
