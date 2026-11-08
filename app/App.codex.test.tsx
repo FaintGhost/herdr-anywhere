@@ -1,5 +1,5 @@
 // A Codex too old to report its status never alerts, and looks the same as one that is fine: its pane says so.
-// Measured 2026-11-03: the 0.163.0 binary holds `]7501;state=` and 0.159.2 holds no `7501;`. A signed-out Codex stops at
+// Read from the binaries: the 0.163.0 binary holds `]7501;state=` and 0.159.2 holds no `7501;`. A signed-out Codex stops at
 // its sign-in screen, where it reports nothing, so 0.163 reporting into herdr-core is not confirmed; the line stays true there.
 import { expect, open, test } from 'nsh/test'
 

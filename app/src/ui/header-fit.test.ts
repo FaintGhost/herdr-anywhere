@@ -1,7 +1,7 @@
 import { expect, test } from 'nsh/test'
 import { headerChipTight, showsAWord } from './header-fit.ts'
 
-// What line 2 of a pane's header showed of what the agent is doing, on the devices (2026-11-08, round 2 at c317311),
+// What line 2 of a pane's header showed of what the agent is doing, on the devices,
 // as the platform laid it out (`onTextLayout`): the "·" and the activity go when not even its first word is whole.
 const WRITE = 'Write: src/api/login.ts'
 const BASH = 'Bash: npm test'

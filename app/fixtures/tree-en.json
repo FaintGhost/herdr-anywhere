@@ -1,0 +1,385 @@
+{
+  "needs_you": [
+    {
+      "id": "T6",
+      "outcome": "Show prices in the customer's currency",
+      "stage": "waiting",
+      "waiting": "Round prices to whole numbers, or keep the cents?",
+      "panes": [
+        {
+          "side": "hc",
+          "addr": "t4",
+          "name": "mobile",
+          "turn_at": 2,
+          "at": 1700000000137
+        }
+      ],
+      "log": [
+        {
+          "at": 1700000000137,
+          "to": "hc:t4",
+          "text": "Show each price in the customer's own currency"
+        }
+      ],
+      "created": 1700000000131,
+      "updated": 1700000000184,
+      "parent": "P1",
+      "group": "waiting",
+      "pane_rows": [
+        {
+          "ref": {
+            "side": "hc",
+            "addr": "t4",
+            "name": "mobile",
+            "turn_at": 2,
+            "at": 1700000000137
+          },
+          "id": "t4",
+          "found": true,
+          "state": "live",
+          "status": "idle",
+          "cwd": "/p/acme-app",
+          "name": "mobile",
+          "turns_since": 0,
+          "moved": false,
+          "quiet": false
+        }
+      ],
+      "path": [
+        "Ship the new checkout for the Acme shop"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "P1",
+      "outcome": "Ship the new checkout for the Acme shop",
+      "stage": "doing",
+      "created": 1700000000056,
+      "updated": 1700000000056,
+      "std": "Customers can pay in two steps",
+      "group": "waiting",
+      "pane_rows": null,
+      "children": [
+        {
+          "id": "T1",
+          "outcome": "Let customers save their card",
+          "stage": "doing",
+          "panes": [
+            {
+              "side": "hc",
+              "addr": "t2",
+              "name": "checkout",
+              "turn_at": 7,
+              "at": 1700000000066,
+              "ended": "unknown"
+            }
+          ],
+          "log": [
+            {
+              "at": 1700000000066,
+              "to": "hc:t2",
+              "text": "Start with the card form"
+            }
+          ],
+          "created": 1700000000061,
+          "updated": 1700000000066,
+          "parent": "P1",
+          "group": "doing",
+          "pane_rows": [
+            {
+              "ref": {
+                "side": "hc",
+                "addr": "t2",
+                "name": "checkout",
+                "turn_at": 7,
+                "at": 1700000000066,
+                "ended": "unknown"
+              },
+              "id": "t2",
+              "found": true,
+              "state": "live",
+              "status": "working",
+              "cwd": "/p/acme-shop",
+              "name": "checkout",
+              "turns_since": 0,
+              "moved": false,
+              "quiet": false,
+              "handed_on": true
+            }
+          ],
+          "children": [
+            {
+              "id": "T2",
+              "outcome": "Add the card form",
+              "stage": "done",
+              "created": 1700000000111,
+              "updated": 1700000000111,
+              "parent": "T1",
+              "group": "done",
+              "pane_rows": null,
+              "children": [],
+              "done": 1,
+              "total": 1
+            },
+            {
+              "id": "T3",
+              "outcome": "Check the card number as it is typed",
+              "stage": "parked",
+              "created": 1700000000116,
+              "updated": 1700000000116,
+              "parent": "T1",
+              "group": "parked",
+              "pane_rows": null,
+              "children": [],
+              "done": 0,
+              "total": 1
+            },
+            {
+              "id": "T4",
+              "outcome": "Let customers remove a saved card",
+              "stage": "parked",
+              "created": 1700000000121,
+              "updated": 1700000000121,
+              "parent": "T1",
+              "group": "parked",
+              "pane_rows": null,
+              "children": [],
+              "done": 0,
+              "total": 1
+            }
+          ],
+          "done": 1,
+          "total": 3
+        },
+        {
+          "id": "T5",
+          "outcome": "Test the checkout on an Android phone",
+          "stage": "parked",
+          "next": "Waits for the card work · you said: tell me when it's done",
+          "created": 1700000000127,
+          "updated": 1700000000127,
+          "parent": "P1",
+          "group": "parked",
+          "pane_rows": null,
+          "children": [],
+          "done": 0,
+          "total": 1
+        },
+        {
+          "id": "T6",
+          "outcome": "Show prices in the customer's currency",
+          "stage": "waiting",
+          "waiting": "Round prices to whole numbers, or keep the cents?",
+          "panes": [
+            {
+              "side": "hc",
+              "addr": "t4",
+              "name": "mobile",
+              "turn_at": 2,
+              "at": 1700000000137
+            }
+          ],
+          "log": [
+            {
+              "at": 1700000000137,
+              "to": "hc:t4",
+              "text": "Show each price in the customer's own currency"
+            }
+          ],
+          "created": 1700000000131,
+          "updated": 1700000000184,
+          "parent": "P1",
+          "group": "waiting",
+          "pane_rows": [
+            {
+              "ref": {
+                "side": "hc",
+                "addr": "t4",
+                "name": "mobile",
+                "turn_at": 2,
+                "at": 1700000000137
+              },
+              "id": "t4",
+              "found": true,
+              "state": "live",
+              "status": "idle",
+              "cwd": "/p/acme-app",
+              "name": "mobile",
+              "turns_since": 0,
+              "moved": false,
+              "quiet": false
+            }
+          ],
+          "children": [],
+          "done": 0,
+          "total": 1
+        },
+        {
+          "id": "T9",
+          "outcome": "Send a receipt email after payment",
+          "stage": "doing",
+          "panes": [
+            {
+              "side": "hc",
+              "addr": "t2",
+              "name": "checkout",
+              "turn_at": 7,
+              "at": 1700000000189
+            }
+          ],
+          "log": [
+            {
+              "at": 1700000000189,
+              "to": "hc:t2",
+              "text": "Also send a receipt email after payment"
+            }
+          ],
+          "created": 1700000000212,
+          "updated": 1700000000212,
+          "parent": "P1",
+          "auto": true,
+          "group": "doing",
+          "pane_rows": [
+            {
+              "ref": {
+                "side": "hc",
+                "addr": "t2",
+                "name": "checkout",
+                "turn_at": 7,
+                "at": 1700000000189
+              },
+              "id": "t2",
+              "found": true,
+              "state": "live",
+              "status": "working",
+              "cwd": "/p/acme-shop",
+              "name": "checkout",
+              "turns_since": 0,
+              "moved": false,
+              "quiet": false
+            }
+          ],
+          "children": [],
+          "done": 0,
+          "total": 1
+        }
+      ],
+      "done": 1,
+      "total": 6
+    }
+  ],
+  "closed": [
+    {
+      "id": "P2",
+      "outcome": "Compare payment providers",
+      "stage": "done",
+      "panes": [
+        {
+          "side": "hc",
+          "addr": "t3",
+          "name": "payments",
+          "turn_at": 4,
+          "at": 1700000000005
+        }
+      ],
+      "log": [
+        {
+          "at": 1700000000005,
+          "to": "hc:t3",
+          "text": "Compare three payment providers and write it up"
+        }
+      ],
+      "created": 1700000000000,
+      "updated": 1700000000050,
+      "group": "done",
+      "pane_rows": [
+        {
+          "ref": {
+            "side": "hc",
+            "addr": "t3",
+            "name": "payments",
+            "turn_at": 4,
+            "at": 1700000000005
+          },
+          "id": "t3",
+          "found": true,
+          "state": "live",
+          "status": "done",
+          "cwd": "/p/acme-shop",
+          "name": "payments",
+          "turns_since": 0,
+          "moved": false,
+          "quiet": false
+        }
+      ],
+      "said": "The comparison is ready for you to read",
+      "children": [],
+      "done": 1,
+      "total": 1
+    }
+  ],
+  "queue": 0,
+  "just_done": [
+    {
+      "id": "T2",
+      "outcome": "Add the card form",
+      "stage": "done",
+      "created": 1700000000111,
+      "updated": 1700000000111,
+      "parent": "T1",
+      "group": "done",
+      "pane_rows": null,
+      "path": [
+        "Ship the new checkout for the Acme shop",
+        "Let customers save their card"
+      ]
+    },
+    {
+      "id": "P2",
+      "outcome": "Compare payment providers",
+      "stage": "done",
+      "panes": [
+        {
+          "side": "hc",
+          "addr": "t3",
+          "name": "payments",
+          "turn_at": 4,
+          "at": 1700000000005
+        }
+      ],
+      "log": [
+        {
+          "at": 1700000000005,
+          "to": "hc:t3",
+          "text": "Compare three payment providers and write it up"
+        }
+      ],
+      "created": 1700000000000,
+      "updated": 1700000000050,
+      "group": "done",
+      "pane_rows": [
+        {
+          "ref": {
+            "side": "hc",
+            "addr": "t3",
+            "name": "payments",
+            "turn_at": 4,
+            "at": 1700000000005
+          },
+          "id": "t3",
+          "found": true,
+          "state": "live",
+          "status": "done",
+          "cwd": "/p/acme-shop",
+          "name": "payments",
+          "turns_since": 0,
+          "moved": false,
+          "quiet": false
+        }
+      ],
+      "said": "The comparison is ready for you to read",
+      "path": []
+    }
+  ]
+}

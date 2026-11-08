@@ -21,7 +21,7 @@ final class TypeIn: XCTestCase {
     XCTAssertTrue(el("space-spios").waitForExistence(timeout: 40), "home does not list the space")
     el("space-spios").tap()
     // The terminal page loaded and attached: "Connecting…" (terminal-state) goes once the page says ready. On the iOS 26.3
-    // simulator it stayed for 90 s over a blank page (2026-11-07), and the keyboard check below still passed.
+    // simulator it stayed for 90 s over a blank page, and the keyboard check below still passed.
     XCTAssertTrue(el("space-more").waitForExistence(timeout: 10), "the space did not open")
     let state = el("terminal-state")
     let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: state)

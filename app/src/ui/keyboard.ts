@@ -1,5 +1,5 @@
 // Hiding the keyboard before the input it serves goes away. On Android (NSH 0.3.0) a focused input removed in the same
-// update as Keyboard.dismiss() leaves the keyboard up with nothing to type into (2026-10-30, emulator API 35: after
+// update as Keyboard.dismiss() leaves the keyboard up with nothing to type into (emulator API 35: after
 // pairing the home screen kept a keyboard, `dumpsys input_method` showed mServedView=null).
 import { Keyboard, keyboardFrame } from 'nsh'
 

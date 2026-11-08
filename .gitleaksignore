@@ -1,4 +1,4 @@
-# False positives, checked 2026-11-06: minified identifiers in the xterm.js bundle app/src/vendor/xterm.ts
+# False positives: minified identifiers in the xterm.js bundle app/src/vendor/xterm.ts
 # (Object.defineProperty, String.fromCharCode, a dispose chain), no key value.
 e7ade256e607264b49555e324bfaca0b96a421f2:app/src/vendor/xterm.ts:generic-api-key:2
 e7ade256e607264b49555e324bfaca0b96a421f2:app/src/vendor/xterm.ts:generic-api-key:5

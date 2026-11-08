@@ -1,13 +1,15 @@
 // The app: pairing on first launch, then home ⇄ space ⇄ settings over one live store, with alerts and sheets
 // over every screen.
-import { cleanup, colorScheme, computed, effect, Keyboard, platform, safeAreaInsets, setColorScheme, signal, Text, Video, View } from 'nsh'
+import { cleanup, colorScheme, computed, effect, Keyboard, platform, safeAreaInsets, setColorScheme, signal, Storage, Text, Video, View } from 'nsh'
 import { createNavStack, NavPage, NavStack } from 'nsh/base'
+import type { ViewSwitchProps } from './view-switch.tsx'
 import type { Store } from '../store.ts'
 import { fileApi, folderApi, parseInvite, type Link, type Linker, type Tunnel } from '../link.ts'
 import type { PrefStore } from '../prefs.ts'
 import { Alerts, type AlertKind } from '../alerts.ts'
 import { followInstallFailures, installApp, allowNotifications, followPage, keepAlive, notifications, notifyFromPage, wantsKeepAlive } from '../page.ts'
 import { HomeScreen } from './home.tsx'
+import { ProgressData, ProgressHome, TaskScreen } from './progress.tsx'
 import { xtermTheme } from './terminal-page.ts'
 import { SpaceScreen } from './space.tsx'
 import { SettingsScreen } from './settings.tsx'
@@ -38,7 +40,7 @@ export type RootDeps = {
   tunnel?: Tunnel
 }
 
-type Route = { name: 'home' } | { name: 'space'; id: string } | { name: 'settings' }
+type Route = { name: 'home' } | { name: 'space'; id: string } | { name: 'settings' } | { name: 'progress' } | { name: 'task'; id: string }
 
 function Toasts(props: { store: Store; open: (terminal: string) => void }) {
   const toasts = useSignal(props.store.toasts)
@@ -79,7 +81,11 @@ function AlertSounds(props: { alerts: Alerts }) {
 
 function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: () => void; leaveDemo?: () => void }) {
   const { store, deps } = props
-  const nav = createNavStack<Route>(props.deps.opensSettings ? [{ name: 'home' }, { name: 'settings' }] : [{ name: 'home' }])
+  const startOn = props.deps.prefs.prefs.get()
+  const first: Route = startOn.progressFirst && startOn.homeView !== 'agents' ? { name: 'progress' } : { name: 'home' }
+  const nav = createNavStack<Route>(props.deps.opensSettings ? [first, { name: 'settings' }] : [first])
+  const progress = new ProgressData(store, 4000, { load: () => Storage.getItem('progress-alerts'), save: (v) => void Storage.setItem('progress-alerts', v).catch(() => {}) })
+  progress.told = { get: () => deps.prefs.prefs.get().progressLang, set: (l) => deps.prefs.set({ progressLang: l }) }
   const newTarget = signal<NewTarget | null>(null)
   const renaming = signal<RenameTarget | null>(null)
   const peeking = signal<string | null>(null)
@@ -97,7 +103,15 @@ function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: 
   store.wants = (k) => (k === 'blocked' ? deps.prefs.prefs.get().alertBlocked : deps.prefs.prefs.get().alertDone)
   // The page (web-host.js) or the Android activity says whether the app is in front; on iOS it is while it runs.
   const alerts = new Alerts({ notify: (t, kind, quiet) => notifyFromPage({ title: t.title, body: t.body, terminal: t.action?.terminal, kind, quiet }), soundAway: platform.os !== 'android' })
-  store.onAlert = (kind, toast, again) => alerts.ring(kind, toast, store.appActive, again)
+  // With the progress page on, a pane working on a task rings through its task (the tasks above › the task, once per change).
+  store.onAlert = (kind, toast, again) => {
+    if (deps.prefs.prefs.get().progressFirst && progress.covers(toast.action?.terminal)) return
+    alerts.ring(kind, toast, store.appActive, again)
+  }
+  progress.onAlert = (a) => {
+    const terminal = progress.paneFor(a.task)
+    alerts.ring(a.kind === 'wait' ? 'blocked' : 'done', { id: 0, title: a.title, body: a.body, level: 'info', action: terminal ? { terminal } : undefined }, store.appActive)
+  }
   const offPage = followPage({ front: (f) => { store.appActive = f; if (f) void updates.inFront() }, open: (a) => openTerminal(a) })
   const offConn = store.conn.sub((c) => { if (c === 'unpaired') props.unpaired() })
   const conn = useSignal(store.conn)
@@ -133,8 +147,36 @@ function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: 
     const sp = store.model.activeSpace()
     if (sp) openSpace(sp.id)
   }
+  // With the progress page on, the home page is one of two, switched at the top: the switch replaces the page, so back
+  // never goes from one to the other, and the app opens on the last one.
+  const view = (): ViewSwitchProps | undefined => {
+    if (!prefs().progressFirst) return undefined
+    return {
+      current: nav.routes()[0]?.name === 'progress' ? 'progress' : 'agents',
+      switchTo: (v) => { deps.prefs.set({ homeView: v }); nav.setRoutes([v === 'progress' ? { name: 'progress' } : { name: 'home' }]) },
+    }
+  }
+  // Turned off while the progress page is the bottom page: the agent list takes its place.
+  effect(() => {
+    const r = nav.routes()
+    if (!prefs().progressFirst && r[0]?.name === 'progress') nav.setRoutes([{ name: 'home' }, ...r.slice(1).filter((x) => x.name !== 'progress' && x.name !== 'task')])
+  })
+  const pactions = {
+    open: (v: { name: 'task'; id: string } | { name: 'home' }) => { if (v.name === 'home') nav.popToRoot(); else nav.push(v) },
+    back: () => nav.pop(), openPane: (a: string) => openTerminal(a), view: () => view() ?? { current: 'progress' as const, switchTo: () => {} }, settings: () => nav.push({ name: 'settings' }),
+  }
+  const progressPage = (r: Route, body: any) => (
+    <NavPage headerVisible={false} class="bg-sidebar">
+      {/* Below the status bar and above the home bar, as the agent list is: the switch stays put between the two. */}
+      <View class="flex-1 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+        {body}
+      </View>
+    </NavPage>
+  )
   const page = (r: Route) =>
-    r.name === 'space'
+    r.name === 'progress' ? progressPage(r, <ProgressHome data={progress} actions={pactions} />)
+    : r.name === 'task' ? progressPage(r, <TaskScreen data={progress} id={r.id} actions={pactions} />)
+    : r.name === 'space'
       ? <NavPage headerVisible={false} class="bg-sidebar">
           <SpaceScreen store={store} spaceId={r.id} actions={{
             back: () => nav.pop(), newTab: (space) => newTarget.set({ kind: 'tab', space }), addAgent: (space) => newTarget.set({ kind: 'tab', space, agent: true }),
@@ -152,6 +194,8 @@ function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: 
             openSpace, openAgent: (a) => openTerminal(a.address), peek: (addr) => peeking.set(addr),
             addAgent: (space) => newTarget.set({ kind: 'tab', space, agent: true }), newMenu: () => newTarget.set({ kind: 'space' }), settings: () => nav.push({ name: 'settings' }),
             rename: (kind, id, current) => renaming.set({ kind, id, current }), leaveDemo: props.leaveDemo,
+            doing: (addr) => (deps.prefs.prefs.get().progressFirst ? progress.taskOn(addr) : undefined), openTask: (id) => nav.push({ name: 'task', id }),
+            view,
           }} />
         </NavPage>
   return (

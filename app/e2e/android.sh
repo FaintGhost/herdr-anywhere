@@ -19,7 +19,7 @@ adb="${ANDROID_HOME:-$HOME/Library/Android/sdk}/platform-tools/adb"
 hc=${HM_TEST_HC:-$(command -v hc || echo "$HOME/.local/bin/hc")}
 id=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$app/nsh.json")
 # The app's package, for every later adb call: a loop variable named id once replaced it, and the sound step then
-# looked for the players of a package called to-box (2026-11-07).
+# looked for the players of a package called to-box.
 readonly id
 
 port=7691
@@ -66,7 +66,7 @@ at() {
   "$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep -F "$q" | head -1 |
     sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/' | awk '{print int(($1+$3)/2), int(($2+$4)/2)}'
 }
-# On a slow emulator Android can cover the app with "<some app> isn't responding" (CI, 2026-11-08: "Pixel Launcher
+# On a slow emulator Android can cover the app with "<some app> isn't responding" (on CI: "Pixel Launcher
 # isn't responding" hid the pairing screen). Wait is the system's own answer to it; the app under test is not touched.
 not_responding() {
   w=$(at android:id/aerr_wait); [ -n "$w" ] || return 1
@@ -97,7 +97,7 @@ typed() {
   "$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | sed -n '/resource-id="pair-link"/,$p' | grep -oE 'text="[^"]+"' | head -1 | sed -E 's/^text="(.*)"$/\1/'
 }
 # adb's input text drops characters on a slow emulator: one CI run typed 21 of the code's 22, and under -gpu swangle
-# (run 42471711301) three whole-link tries held 32, 35 and 36 of 49. So the link goes in 10-character pieces, and
+# on CI three whole-link tries held 32, 35 and 36 of 49. So the link goes in 10-character pieces, and
 # each round keeps what is right: it deletes from the first wrong character and types the rest (as android-remote.sh).
 send() {
   rest=$1
@@ -105,6 +105,24 @@ send() {
     piece=$(printf %s "$rest" | cut -c1-10); rest=$(printf %s "$rest" | cut -c11-)
     "$adb" shell input text "'$piece'" </dev/null
   done
+}
+# The run's one terminal until the splits at the end; the phone types into it.
+term=$("$hc" ls --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["terminals"][0]["address"])')
+# A command typed in the terminal. adb's input text loses characters there too: one CI run typed "head -1 | cat -v > hm"
+# for "head -1 | cat -v > hm-keys", and the Return after it ran that. So Return goes only once the computer's line ends
+# with the whole command; until then the computer clears the line (ctrl+u) and the phone types it again.
+run_typed() {
+  for _ in 1 2 3 4; do
+    send "$1"
+    for _ in 1 2 3 4 5; do
+      line=$("$hc" read "$term" | sed -e 's/[[:space:]]*$//' -e '/^$/d' | tail -1)
+      case "$line" in *"$1") "$adb" shell input keyevent 66; return 0 ;; esac
+      sleep 1
+    done
+    echo "the terminal's line reads '$line', not the whole of '$1'; typing it again"
+    "$hc" keys "$term" ctrl+u >/dev/null
+  done
+  echo "FAIL: the phone never typed '$1' whole into the terminal"; exit 1
 }
 tap pair-link
 send "$link"
@@ -181,8 +199,7 @@ typein() {
 }
 keyboard_up && { echo "FAIL: the back key left the keyboard up"; exit 1; }
 typein "after the back key"
-"$adb" shell input text "'touch hm-typed'"
-"$adb" shell input keyevent 66
+run_typed 'touch hm-typed'
 for _ in $(seq 1 15); do [ -e "$work/home/src/acme-api/hm-typed" ] && break; sleep 1; done
 [ -n "$shot" ] && "$adb" exec-out screencap -p > "${shot%.png}-terminal.png"
 [ -e "$work/home/src/acme-api/hm-typed" ] || { echo "FAIL: typing in the terminal did not reach the computer"; exit 1; }
@@ -216,8 +233,7 @@ echo "ok: Type in the terminal brings the keyboard up after the back key and aft
 
 # Shift is held from the key row for the next key: Shift then Tab sends back-tab (ESC [ Z), which Claude Code reads as
 # its mode switch. cat -v on the computer writes the line that arrives.
-"$adb" shell input text "'head -1 | cat -v > hm-keys'"
-"$adb" shell input keyevent 66
+run_typed 'head -1 | cat -v > hm-keys'
 sleep 1
 tap row-shift
 tap row-tab
@@ -236,8 +252,7 @@ up=""; for _ in 1 2 3 4 5; do keyboard_up && { up=1; break; }; sleep 1; done
 screen=$(xml)
 echo "$screen" | grep -q 'resource-id="compose-input"' && { echo "FAIL: the input box is still there after the switch"; exit 1; }
 for view in key-row row-esc to-box; do echo "$screen" | grep -q "resource-id=\"$view\"" || { echo "FAIL: no $view after the switch"; exit 1; }; done
-"$adb" shell input text "'touch hm-switched'"
-"$adb" shell input keyevent 66
+run_typed 'touch hm-switched'
 for _ in $(seq 1 15); do [ -e "$work/home/src/acme-api/hm-switched" ] && break; sleep 1; done
 [ -n "$shot" ] && "$adb" exec-out screencap -p > "${shot%.png}-switched.png"
 [ -e "$work/home/src/acme-api/hm-switched" ] || { echo "FAIL: typed in the terminal after the switch, nothing ran"; exit 1; }
@@ -272,9 +287,7 @@ with open('hm-pasted', 'ab', 0) as f:
         f.write(d)
 termios.tcsetattr(0, termios.TCSADRAIN, saved)
 PY
-"$adb" shell input text "'python3 hm-wrap.py'"
-"$adb" shell input keyevent 66
-term=$("$hc" ls --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["terminals"][0]["address"])')
+run_typed 'python3 hm-wrap.py'
 for _ in $(seq 1 10); do "$hc" read "$term" | grep -q 'w600' && break; sleep 1; done
 tap hide-keyboard
 sleep 2
@@ -324,8 +337,7 @@ uid=$("$adb" shell pm list packages -U "$id" | grep -oE 'uid:[0-9]+' | head -1 |
 [ -n "$uid" ] || { echo "FAIL: no uid for $id, which the audio log names the app's players by"; exit 1; }
 # Android keeps earlier runs' players in that log; count only the ones that appear after this point.
 before=$("$adb" shell dumpsys audio | grep -oE "new player piid:[0-9]+ uid/pid:$uid/" | grep -oE 'piid:[0-9]+' | tr '\n' ' ')
-"$adb" shell input text "'sh hm-alert.sh'"
-"$adb" shell input keyevent 66
+run_typed 'sh hm-alert.sh'
 played=""
 for _ in $(seq 1 20); do
   log=$("$adb" shell dumpsys audio)
@@ -351,7 +363,6 @@ echo "ok: a blocked terminal starts the app's sound player"
 # after it the text).
 "$adb" shell input keyevent 3
 sleep 1
-term=$("$hc" ls --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["terminals"][0]["address"])')
 printf '%s\n' "printf '\033]7501;state=working\033\\\\'; sleep 2; printf '\033]7501;state=blocked:kind=question:msg=$(printf 'Which port?' | base64)\033\\\\'" > "$work/home/src/acme-api/hm-ask.sh"
 "$hc" send --force "$term" 'sh hm-ask.sh' >/dev/null
 posted() { "$adb" shell dumpsys notification --noredact | grep -A40 "pkg=$id" | grep -E "$1" >/dev/null; }
@@ -364,13 +375,22 @@ record "importance=4 .*channel=agent-needs-you" || { echo "FAIL: a question is n
 [ -n "$shot" ] && "$adb" exec-out screencap -p > "${shot%.png}-notification.png"
 echo "ok: away from the app, a blocked terminal posts a notification with who, where and what"
 
-# A tap on it opens that pane.
+# A tap on it opens that pane. On the CI emulator the row was not in a dump taken a second after the shade was told to
+# open, and was in one taken two seconds later. So the shade is read until the row is there, and in the same place twice
+# (not on its way down). Each read starts without the last dump's file, so a dump that fails is not read as the screen.
+shade_row() {
+  "$adb" shell rm -f /sdcard/hm.xml
+  "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1
+  "$adb" shell cat /sdcard/hm.xml 2>/dev/null | tr '>' '\n' | grep -F 'needs you' | head -1 |
+    sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/' | awk '{print int(($1+$3)/2), int(($2+$4)/2)}'
+}
 "$adb" shell cmd statusbar expand-notifications
-sleep 1
-"$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1
-xy=$("$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | grep -F 'needs you' | head -1 |
-  sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/' | awk '{print int(($1+$3)/2), int(($2+$4)/2)}')
-[ -n "$xy" ] || { echo "FAIL: the notification is not in the shade"; exit 1; }
+xy=""; last=""
+for _ in $(seq 1 15); do
+  xy=$(shade_row); [ -n "$xy" ] && [ "$xy" = "$last" ] && break
+  last=$xy; sleep 1
+done
+[ -n "$xy" ] && [ "$xy" = "$last" ] || { echo "FAIL: the notification is not in the shade (last read: '$xy')"; exit 1; }
 "$adb" shell input tap $xy
 opened=""
 for _ in $(seq 1 10); do screen_has "resource-id=\"terminal-$term\"" && screen_has 'resource-id="pane-header"' && { opened=1; break; }; sleep 1; done
@@ -378,8 +398,8 @@ for _ in $(seq 1 10); do screen_has "resource-id=\"terminal-$term\"" && screen_h
 [ -n "$opened" ] || { echo "FAIL: tapping the notification did not open the pane of $term"; exit 1; }
 echo "ok: tapping the notification opens the pane"
 
-# Away again, the terminal finishes: it pops up too, on its own channel (e2e/android-notify.sh). As Claude Code does (2.1.319, measured
-# 2026-11-06), it reports done with no words first and says what it did a few seconds later: the notification takes them.
+# Away again, the terminal finishes: it pops up too, on its own channel (e2e/android-notify.sh). As Claude Code does (2.1.319,
+# measured), it reports done with no words first and says what it did a few seconds later: the notification takes them.
 "$adb" shell input keyevent 3
 sleep 1
 printf '%s\n' "printf '\033]7501;state=working\033\\\\'; sleep 2; printf '\033]7501;state=done\033\\\\'; sleep 4; printf '\033]7501;state=done:msg=$(printf 'Ran the tests' | base64)\033\\\\'" > "$work/home/src/acme-api/hm-done.sh"
@@ -409,7 +429,7 @@ to_home() {
 "$adb" shell am start -n "$activity" >/dev/null
 sleep 1
 # The switcher sheet: its rows fit, so a drag leaves them where they are (NSH 0.3.0 sized the sheet's scroll content far
-# past its rows, and a drag left the sheet blank; measured 2026-11-06).
+# past its rows, and a drag left the sheet blank; measured on Android).
 tap switcher
 sleep 2
 before=$(at switch-new-folder)

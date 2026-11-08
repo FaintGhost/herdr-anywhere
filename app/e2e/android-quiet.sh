@@ -77,7 +77,7 @@ screen_has() { "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1; "$a
 "$adb" shell am start -W -n "$id/.MainActivity" >/dev/null
 started=$(date +%s)
 tap pair-link
-# One long `adb shell input text` keeps only its first ~200 characters (2026-10-31: 208 of 529 in this field, 204 in
+# One long `adb shell input text` keeps only its first ~200 characters (208 of 529 in this field, 204 in
 # Chrome's URL bar); in 80-character pieces the field holds all 529.
 rest=$invite
 while [ -n "$rest" ]; do

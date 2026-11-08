@@ -400,7 +400,7 @@ test("a finished agent's alert says what it did, then where it is", async () => 
   expect(toasts).toEqual(['“Hello.txt file creation” finished | demo-app › 1', '“Hello.txt file creation” finished | Wrote hello.txt\ndemo-app › 1'])
 })
 
-// Claude Code 2.1.319, measured 2026-11-06 in a scratch herdr-core session (hc events): status done with
+// Claude Code 2.1.319, measured in a scratch herdr-core session (hc events): status done with
 // no msg, then the turn, then done again with msg "replied 'the sky is blue.' with no tools, as asked".
 test('a finished alert is told again, quietly, when the agent says what it did a moment later', async () => {
   const { core, store } = setup()
@@ -654,7 +654,7 @@ test("a program started from the phone answers colour queries with the phone's t
 test('an agent that never reports its state (OpenCode) still shows among the agents, with no state; a shell does not', async () => {
   const { core, store } = setup()
   const doc = { spaces: [] as any[] }
-  // What herdr-core answers (hc get, 2026-11-06): OpenCode in the foreground, no status, never reported.
+  // What herdr-core answers (hc get): OpenCode in the foreground, no status, never reported.
   core.addSpace(doc, 'sp1', `${core.home}/src/api`, '', [{ id: 'tb1', argv: ['opencode'], foreground: true }, { id: 'tb2', argv: ['zsh'] }])
   core.docs.set('', { value: doc, version: 1 })
   await store.connect()

@@ -109,7 +109,7 @@ public class MainActivity extends Activity {
       WebView web = webViewIn(view);
       reply.resolve(web != null && web.requestFocus());
     }));
-    // The page focused its field without a touch on it, and WebView asks for no keyboard then (2026-11-06: the input
+    // The page focused its field without a touch on it, and WebView asks for no keyboard then (the input
     // method's log showed onStartInput for the page and no show request). The page says when its field has the focus.
     view.handle("page.showKeyboard", (data, reply) -> runOnUiThread(() -> showKeyboard(reply, 0)));
     view.loadAssetBundle("nsh");
@@ -117,7 +117,7 @@ public class MainActivity extends Activity {
 
   /** Asks for the keyboard for the terminal's page. Right after the key bar's button put the keyboard away, the input
    *  method still serves the root view for a moment and refuses (ImeTracker: onFailed at PHASE_CLIENT_VIEW_SERVED,
-   *  2026-11-06), so it asks again every 50 ms for up to a second. */
+   *  in its log), so it asks again every 50 ms for up to a second. */
   private void showKeyboard(NshHostReply reply, int tries) {
     WebView web = webViewIn(view);
     InputMethodManager imm = getSystemService(InputMethodManager.class);

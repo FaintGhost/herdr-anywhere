@@ -1,7 +1,7 @@
 // What a blocked agent asks, from its status report (`kind`, `msg`). Its choices come off its screen (model/menu.ts);
 // a digit picks one. What the keys did, as measured:
 //
-// Claude Code 2.1.314, measured 2026-10-31 in a scratch herdr-core session (hc 0.1.14):
+// Claude Code 2.1.314, measured in a scratch herdr-core session (hc 0.1.14):
 // - permission (status {kind:'permission', msg:'approve Write: <path>'}): the menu is "1. Yes / 2. Yes, and … / 3. No";
 //   key 1 wrote the file at once, Esc and 3 each answered "User rejected write".
 // - question (AskUserQuestion, {kind:'question', msg:'answer: Which color do you like? (Red · Blue)'}): key 2 picked
@@ -17,7 +17,7 @@ export function asks(s: Status): string {
   return (s.msg ?? '').replace(/^(approve|answer):?\s+/i, '').trim()
 }
 
-/** The line that says what an agent is doing or did, in its own words. Claude Code 2.1.318, measured 2026-11-05: working,
+/** The line that says what an agent is doing or did, in its own words. Claude Code 2.1.318, measured: working,
  *  its report has no words and its title is its summary of the task ("Sleep and read nsh.json"; at first only
  *  "Claude Code"); done, a few seconds later, the report's msg says what it did. Empty when it says nothing new. */
 export function activity(s: Status, title: string, program: string): string {

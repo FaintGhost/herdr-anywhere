@@ -66,7 +66,7 @@ export function StatusDot(props: { status: Shown | string | undefined; size?: nu
 }
 
 /** The icon file a program is drawn with. An icon in its own colours that is white where the light theme's background
- *  is near white (Kimi's K) has an `<icon>-light` file, drawn on the light theme. Checked 2026-11-07 by drawing every
+ *  is near white (Kimi's K) has an `<icon>-light` file, drawn on the light theme. Checked by drawing every
  *  untinted icon on #f1f1ee: only Kimi's needed one; Codex's and Kiro's white sits on their own coloured tile. */
 export function programIconKey(icon: string | undefined, scheme: 'light' | 'dark'): string {
   if (!icon || !ICONS[icon]) return 'shell'
@@ -152,7 +152,7 @@ export function SpaceBadge(props: { name: string; color: string; size?: number }
 
 export { shortPath } from './paths.ts'
 
-// Strips of the bar's own color: maskImage draws no fade on Android (NSH 0.3.0, API 35 emulator, seen 2026-11-02).
+// Strips of the bar's own color: maskImage draws no fade on Android (NSH 0.3.0, API 35 emulator).
 const FADE = ['bg-sidebar/20', 'bg-sidebar/45', 'bg-sidebar/70', 'bg-sidebar/90']
 
 /** A row of buttons that scrolls sideways: while more lies past its end, the end fades, so a button cut there reads as more to scroll to. */

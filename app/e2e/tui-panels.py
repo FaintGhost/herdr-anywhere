@@ -1,6 +1,6 @@
 # Stands in for OpenCode in e2e/android-tui-scroll.sh and e2e/ios-tui-scroll.sh: the alternate screen and mouse modes
 # 1000, 1002, 1003 and 1006 as OpenCode turns on, a prompt box on its bottom 9 rows that ignores the wheel (OpenCode
-# 1.19.0 does, measured 2026-11-07), and two panels side by side that each move 3 rows per wheel report (OpenCode's
+# 1.19.0 does, measured), and two panels side by side that each move 3 rows per wheel report (OpenCode's
 # default scroll_speed). Appends each report it gets to OUT as "up|down COL ROW left|right|ignored", and other input as "keys HEX"; writes its size
 # to OUT.layout as "COLS ROWS HALF".
 # Usage: python3 -I tui-panels.py OUT

@@ -20,7 +20,7 @@ import (
 const (
 	// The largest file a phone sends.
 	maxUpload = 2 << 30
-	// What hc takes piped in at once: it refuses more than 8 MB (hc 0.1.18, measured 2026-11-05).
+	// What hc takes piped in at once: it refuses more than 8 MB (hc 0.1.18, measured).
 	machineChunk = 6 << 20
 	// A chunk to another machine, over ssh and whatever line that has (hc's most is 600 s).
 	machineChunkSeconds = 600

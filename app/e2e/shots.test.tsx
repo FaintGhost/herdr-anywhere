@@ -41,7 +41,7 @@ for (const scheme of ['dark', 'light'] as const) {
     const info = JSON.stringify({ version: '0.1.6', latest: '0.1.7', canUpdate: true, autoUpdate: false })
     const app = await open('../fixtures/fake.tsx', { host: { params: { scene: 'busy', info } }, colorScheme: scheme })
     await app.waitFor('id:update-banner')
-    // The app's own setting: the system's scheme doesn't reach the page under test (measured 2026-11-06, identical files).
+    // The app's own setting: the system's scheme doesn't reach the page under test (measured: identical files).
     await app.press('id:settings')
     await app.waitFor(`id:look-${scheme}`)
     await app.press(`id:look-${scheme}`)

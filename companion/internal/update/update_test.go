@@ -583,7 +583,7 @@ func TestWhatACheckFoundSurvivesARestart(t *testing.T) {
 
 // Each computer installs the one file of a release built for it: the Mac's, Windows' .exe, which Windows on Arm runs
 // too, under its x64 emulation, where the program reports amd64, or Linux's for x64 or Arm. Herdr ships these four
-// (releases.herdr.dev/app/latest.json 0.1.13, read 2026-11-08) and an Intel Mac core, which has no file here.
+// (releases.herdr.dev/app/latest.json 0.1.13) and an Intel Mac core, which has no file here.
 func TestAssetPerComputer(t *testing.T) {
 	for _, c := range []struct{ goos, goarch, want string }{
 		{"darwin", "arm64", "herdr-anywhere-macos-arm64"},

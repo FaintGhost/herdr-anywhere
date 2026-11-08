@@ -46,7 +46,7 @@ test('an icon herdr tints is one colour, drawn in the text colour; the others ke
   expect(iconTinted(undefined)).toBe(true)
 })
 
-test('Kimi Code reports itself as kimi-code and shows as Kimi, with its icon (measured with Kimi 2.4.1, 2026-11-03)', () => {
+test('Kimi Code reports itself as kimi-code and shows as Kimi, with its icon (measured with Kimi 2.4.1)', () => {
   const p = programOf('kimi-code', ['kimi'])
   expect([p.key, p.name, p.icon, p.agent]).toEqual(['kimi', 'Kimi', 'kimi', true])
 })

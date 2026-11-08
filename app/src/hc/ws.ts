@@ -9,7 +9,7 @@ export type SocketIO = { WebSocket: typeof WebSocket; setTimeout: typeof setTime
 
 /** The first answer (hello's) comes in well under this; binary that stays unanswered is binary not getting through. */
 const ANSWER_MS = 8000
-/** NSH's send queue is short (it refused a send with 8 frames in it, 2026-11-06 on the emulator) and empties in moments.
+/** NSH's send queue is short (it refused a send with 8 frames in it, on the emulator) and empties in moments.
  *  What it refuses waits here. A socket that takes nothing this long has gone without saying so. */
 const RETRY_MS = 20
 const REFUSED_MS = 5000

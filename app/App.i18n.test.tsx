@@ -9,7 +9,7 @@ const DATA = /^(Herdr|Claude Code|Codex|TailPocket|api|web|main|git|esc|tab|ente
 // Spanish reads in the same letters, so its check is the English table itself: a word the app knows, still in English.
 const WORDS = Object.values(en).flatMap((v) => (typeof v === 'string' ? [v] : Object.values(v)))
   .map((w) => new RegExp(`^${w.replace(/[.*+?^$()|[\]\\]/g, '\\$&').replace(/\{\w+\}/g, '.*')}$`))
-const SAME = ['Terminal', 'Shell', 'Panel']
+const SAME = ['Terminal', 'Shell', 'Panel', 'Experimental']
 
 function english(texts: string[], locale: string): string[] {
   if (locale.startsWith('es')) return texts.filter((t) => WORDS.some((w) => w.test(t)) && !SAME.includes(t) && !DATA.test(t.trim()))

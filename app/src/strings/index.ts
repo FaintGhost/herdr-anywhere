@@ -1,6 +1,6 @@
 // The app's words in seven languages, picked by the phone's language. `t` reads NSH's `locale`, so it follows a change.
 // Spans, dates and lists are written here: NSH's runtime has Intl.NumberFormat and DateTimeFormat only (measured
-// 2026-11-02, `nsh test` on 0.3.0: no PluralRules, RelativeTimeFormat or ListFormat).
+// with `nsh test` on 0.3.0: no PluralRules, RelativeTimeFormat or ListFormat).
 import { locale } from 'nsh'
 import { en } from './en.ts'
 import { es } from './es.ts'

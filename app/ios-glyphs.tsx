@@ -1,7 +1,7 @@
 // The app e2e/ios-glyphs.sh installs: the real terminal page in a real WKWebView, printing what agents print. A probe
 // draws each character with the terminal's own fonts, as xterm's renderer does, and compares it with a code point that
 // has no character at all: the same picture means the phone could not draw it. iOS 26.3 draws such a code point as a
-// box; iOS 17.0 and 26.5 draw nothing (2026-11-07), so there a character that is blank by nature (a space, U+2800)
+// box; iOS 17.0 and 26.5 draw nothing, so there a character that is blank by nature (a space, U+2800)
 // cannot be judged and is left out. (nsh.json must sit next to the entry, so it is here.)
 import { mount, signal, Text, View, WebView } from 'nsh'
 import { TERMINAL_FONTS, readPageMessage, terminalPage } from './src/ui/terminal-page.ts'

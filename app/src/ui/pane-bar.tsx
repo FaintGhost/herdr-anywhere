@@ -199,7 +199,7 @@ function Composer(props: { toTerminal: () => void; keepTerminal: () => boolean; 
             const before = text()
             text.set(t)
             // Gboard (Android) keeps a word picked in pinyin as its own and spends the next backspace on it, deleting
-            // nothing (2026-11-07, API 35 emulator: 你好 and one backspace sent 你好). The box sets its text twice, as
+            // nothing (API 35 emulator: 你好 and one backspace sent 你好). The box sets its text twice, as
             // anything else that changes it would, which restarts the keyboard's input (Android's setText) and lets the
             // word go.
             if (platform.os === 'android' && pickedWord(before, t)) {

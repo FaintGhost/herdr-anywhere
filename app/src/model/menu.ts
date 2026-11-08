@@ -2,7 +2,7 @@
 // checked against a real run are read; any other program, or a screen without its menu, gives nothing, and the
 // phone falls back to the key row rather than guess.
 //
-// Claude Code 2.1.314, measured 2026-10-31 in a scratch herdr-core session: the menu is "❯ 1. Yes / 2. … / 4. No"
+// Claude Code 2.1.314, measured in a scratch herdr-core session: the menu is "❯ 1. Yes / 2. … / 4. No"
 // under the question, the highlighted line marked ❯; pressing an option's digit picks it at once. "No" interrupts
 // the tool, and Claude asks "What should Claude do instead?" at its prompt; "Type something." (AskUserQuestion)
 // opens its text answer. Both want text next.

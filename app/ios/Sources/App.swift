@@ -24,7 +24,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 /// and the keyboard when typing straight into the terminal, whose page has one hidden field and nothing to step to.
 /// When a web view's content view is about to show the keyboard, it becomes a subclass of its class that answers no
 /// accessory view, as react-native-webview's hideKeyboardAccessoryView does; the app's own inputs keep theirs. Replacing
-/// WKContentView's own method at launch left the bar there (iPhone SE simulator, iOS 17, 2026-11-07: the content view
+/// WKContentView's own method at launch left the bar there (iPhone SE simulator, iOS 17: the content view
 /// still answered UIWebFormAccessory); the subclass took it away, 44 pt less over the keyboard.
 private func hideWebKeyboardBar() {
   NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { _ in

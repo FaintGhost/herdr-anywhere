@@ -33,7 +33,7 @@ import (
 )
 
 // A var so a test can build two versions of this program.
-var version = "0.1.16"
+var version = "0.1.17"
 
 const defaultPort = "7681"
 
@@ -47,6 +47,8 @@ usage:
   herdr-anywhere revoke  [--state DIR] <device id>
   herdr-anywhere install-dialog [--app-home DIR] [--state DIR]
   herdr-anywhere update [--check]
+  herdr-anywhere track tree|status|add|set|move|file|queue|place|scan|watch|report   (track help for more)
+  herdr-anywhere progress on|off|status|agents   the experimental progress page, off by default
 
 The state dir defaults to ~/.config/herdr-anywhere ($HERDR_ANYWHERE_STATE overrides).
 With serve --tailcat running, pair shows a Tailcat invite the Herdr app scans.
@@ -83,6 +85,10 @@ func runContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 		err = revoke(rest, stdout, stderr)
 	case "update":
 		err = updateCommand(ctx, rest, stdout, stderr)
+	case "track":
+		err = trackCommand(rest, stdout, stderr)
+	case "progress":
+		err = progressCommand(rest, stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprint(stdout, usage)
 		return 0
@@ -305,6 +311,9 @@ func serve(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	}
 	fmt.Fprintf(stdout, "state in %s; pair a phone with: herdr-anywhere pair\n", st.Dir())
 	go updates.Run(ctx)
+	if hcPath != "" {
+		go progressLoop(ctx, hcPath, st.Dir(), stderr)
+	}
 
 	restarting := false
 	select {

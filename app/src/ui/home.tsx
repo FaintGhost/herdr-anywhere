@@ -3,6 +3,7 @@
 // mods/agents, mods/workspace-status).
 import { colorScheme, computed, Image, Scroll, signal, Text, View } from 'nsh'
 import { AlertDialog } from 'nsh/base'
+import { ViewSwitch, type ViewSwitchProps } from './view-switch.tsx'
 import type { Store } from '../store.ts'
 import type { AgentInfo, SubRow } from '../model/agents.ts'
 import { duration } from '../model/agents.ts'
@@ -30,6 +31,11 @@ export type HomeActions = {
   /** In Try it: says the data is made up, and leaves it. */
   leaveDemo?: () => void
   rename: (kind: 'space', id: string, current: string) => void
+  /** With the progress page on: the task a pane works on, for its 在做 line, and opening that task. */
+  doing?: (address: string) => { id: string; outcome: string } | undefined
+  openTask?: (id: string) => void
+  /** With the progress page on: the switch at the top, to the progress page and back. */
+  view?: () => ViewSwitchProps | undefined
 }
 
 // The theme's ansi2 and ansi1 (herdr-app settings.rs, graphite and paper): ahead and behind.
@@ -158,10 +164,18 @@ function AgentRows(props: { store: Store; agents: () => AgentInfo[]; full?: bool
   }
   return (
     <Each of={props.agents()} key={(a) => a.address}>{(a) => (
-      <AgentRow store={s} a={a()} full={props.full} testID={`${props.idPrefix}-${a().address}`}
-        class={`mx-2 ${props.full ? 'pl-2' : 'pl-9'} pr-2 min-h-9 py-1.5 justify-center rounded-[8px] active:bg-sidebar-accent`}
-        subPrefix="sub" subClass={`mx-2 ${props.full ? 'pl-7' : 'pl-14'} pr-2`}
-        onPress={() => props.actions.openAgent(a())} onLongPress={() => void menu(a())} onSub={props.actions.peek} />
+      <View>
+        <AgentRow store={s} a={a()} full={props.full} testID={`${props.idPrefix}-${a().address}`}
+          class={`mx-2 ${props.full ? 'pl-2' : 'pl-9'} pr-2 min-h-9 py-1.5 justify-center rounded-[8px] active:bg-sidebar-accent`}
+          subPrefix="sub" subClass={`mx-2 ${props.full ? 'pl-7' : 'pl-14'} pr-2`}
+          onPress={() => props.actions.openAgent(a())} onLongPress={() => void menu(a())} onSub={props.actions.peek} />
+        <If when={props.actions.doing?.(a().address)}>{(d) => (
+          <View role="button" testID={`doing-${a().address}`} onPress={() => props.actions.openTask?.(d().id)}
+            class={`mx-2 ${props.full ? 'pl-[30px]' : 'pl-[58px]'} pr-2 pb-1.5 -mt-1 active:opacity-70`}>
+            <Text class="text-[12px] text-chart-1" numberOfLines={1}>{t('doingLine', { task: d().outcome })}</Text>
+          </View>
+        )}</If>
+      </View>
     )}</Each>
   )
 }
@@ -274,9 +288,13 @@ function SpacesSection(props: { store: Store; actions: HomeActions }) {
 export function HomeScreen(props: { store: Store; actions: HomeActions; updates?: Updates; prefs?: PrefStore }) {
   return (
     <View class="flex-1 bg-sidebar pt-[env(safe-area-inset-top)]">
-      <View class="flex-row items-center h-12 pl-4 pr-1.5 gap-2">
-        <Image src={icon} accessibilityLabel="Herdr Anywhere" style={{ width: 22, height: 22 }} />
-        <Text class="text-[16px] font-semibold text-foreground flex-1" numberOfLines={1}>Herdr</Text>
+      <View class={`flex-row items-center h-12 ${props.actions.view?.() ? 'pl-3' : 'pl-4'} pr-1.5 gap-2`}>
+        <If when={props.actions.view?.()} else={<>
+          <Image src={icon} accessibilityLabel="Herdr Anywhere" style={{ width: 22, height: 22 }} />
+          <Text class="text-[16px] font-semibold text-foreground flex-1" numberOfLines={1}>Herdr</Text>
+        </>}>
+          <View class="flex-1"><ViewSwitch {...props.actions.view!()!} /></View>
+        </If>
         <IconButton name="plus" label={t('new')} testID="new" onPress={props.actions.newMenu} />
         <IconButton name="settings" label={t('settings')} testID="settings" onPress={props.actions.settings} />
       </View>

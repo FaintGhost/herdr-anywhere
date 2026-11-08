@@ -52,9 +52,9 @@ async function open(opts) {
   await t.page.waitForTimeout(300)
   const y = () => t.page.evaluate(() => parseFloat(document.querySelector('.scrollbar.vertical .slider').style.top))
   // The page glides only when the finger lifts within 60 ms of its last move, timed by the events' own times. Sent one
-  // by one, a slow machine puts more than that between them (GitHub's macOS runner, 2026-11-06 and 2026-11-08), so
+  // by one, a slow machine puts more than that between them (GitHub's macOS runner), so
   // each event of a stroke carries its time: a move every 16 ms, the lift `after` ms past the last one. CDP's
-  // timestamp is the event's timeStamp in the page (measured 2026-11-08: a lift stamped 500 ms after the last move
+  // timestamp is the event's timeStamp in the page (measured: a lift stamped 500 ms after the last move
   // and sent at once did not glide; one stamped 16 ms after and sent 300 ms late did).
   const cdp = await t.page.context().newCDPSession(t.page)
   let last = 0
@@ -117,7 +117,7 @@ async function open(opts) {
   check('nothing to scroll: no error', !(await t.page.evaluate(() => window.pageError)))
 }
 
-// A full-screen program has no scrollback for the page to move (Pi 1.4.0 runs so, measured 2026-11-06): a drag has to
+// A full-screen program has no scrollback for the page to move (Pi 1.4.0 runs so, measured): a drag has to
 // reach the program, as a wheel when it follows the mouse and as arrow keys when it doesn't.
 {
   const t = await open({ phone: true })
@@ -183,7 +183,7 @@ async function open(opts) {
 // A program that follows the mouse gets wheel reports at the rate xterm.js sends them for a Mac trackpad: one per ~3
 // rows of travel (consumeWheelEvent scales small pixel wheels by 0.3). OpenCode 1.19.0 moves 3 rows per report
 // (scroll_speed's default); at one report per row of finger its content ran 3 times as far as the finger (36 rows
-// for a 12.4-row drag, measured 2026-11-07). Every report of a gesture goes to the cell where
+// for a 12.4-row drag, measured). Every report of a gesture goes to the cell where
 // the finger went down: that cell picks the panel, and OpenCode ignores a wheel over its prompt box, so a drag that
 // ended low on the screen used to stop. Touch times are set (CDP timestamps become the events' timeStamp), so a
 // flick's speed is the same on every run.
@@ -253,7 +253,7 @@ async function open(opts) {
 
 // A full-screen program that follows the mouse has buttons only a click reaches: OpenCode's update dialog runs Skip and
 // Update on a mouse release (dialog-update.tsx, onMouseUp; it turns on modes 1000, 1002, 1003 and 1006, measured
-// 2026-11-07 with OpenCode 1.19.0 through herdr-core 0.1.18). A tap there is a click on the cell under the finger.
+// with OpenCode 1.19.0 through herdr-core 0.1.18). A tap there is a click on the cell under the finger.
 {
   const t = await open({ phone: true })
   const input = () => t.page.evaluate(() => { const d = window.posts.filter((m) => m.t === 'input').map((m) => m.data).join(''); window.posts = window.posts.filter((m) => m.t !== 'input'); return d })
@@ -328,7 +328,7 @@ for (const [width, scale] of [[360, 3], [384, 2.8125], [393, 3], [411, 2.625], [
 // The terminal's height is a whole number of rows; what is left over, and the page's padding, sit under the last row.
 // They show the terminal's own background, what the program paints in its last row: OpenCode paints its rows
 // rgb(10,10,10) on the default dark theme's #17191d, and a 20 px band of the page's colour showed under them on a
-// 411 dp phone (measured 2026-11-07).
+// 411 dp phone (measured).
 {
   const zlib = await import('node:zlib')
   // The colour of one CSS pixel, from a screenshot (an 8-bit RGBA PNG, as Chromium writes them).

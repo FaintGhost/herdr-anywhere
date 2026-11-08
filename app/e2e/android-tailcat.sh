@@ -83,7 +83,7 @@ screen_has() { "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1; "$a
 "$adb" shell am start -W -n "$id/.MainActivity" >/dev/null
 started=$(date +%s)
 tap pair-link
-# One long `adb shell input text` keeps only its first ~200 characters (2026-10-31: 208 of 529 in this field, 204 in
+# One long `adb shell input text` keeps only its first ~200 characters (208 of 529 in this field, 204 in
 # Chrome's URL bar); in 80-character pieces the field holds all 529.
 rest=$invite
 while [ -n "$rest" ]; do
@@ -120,10 +120,12 @@ fi
 # send only through the relay (TS_DEBUG_ALWAYS_USE_DERP), so the other answer is seen too.
 route_word='Direct to your computer'; [ "${HM_E2E_ROUTE:-direct}" = relay ] && route_word='Through a relay'
 tap settings
-"$adb" shell input swipe 500 1500 500 500 300
+# The tunnel's rows are in the Computer section, below the others; how far down depends on what Settings shows above
+# it (the Experimental section moved it below one swipe), so it scrolls until both rows are on screen.
 seen=""
-for _ in $(seq 1 40); do
+for i in $(seq 1 40); do
   if screen_has "$route_word" && screen_has 'End-to-end encrypted tunnel'; then seen=1; break; fi
+  [ $((i % 4)) = 1 ] && "$adb" shell input swipe 500 1500 500 900 300
   sleep 1
 done
 [ -n "$seen" ] || {

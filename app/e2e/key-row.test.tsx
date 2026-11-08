@@ -14,7 +14,7 @@ test('the key row fits on one line, in terminal mode, with Shift and Ctrl held, 
   if (!png.length) throw new Error('no layout headless: run with --target android or --target ios')
   for (const l of LOOKS) console.log(`${l.name}: ${verdict(l.name)}`)
   // The look in use: every label on one line and whole (esc or tab broken over two lines, or cut to "e…", fails).
-  // The equal-width looks cut esc and tab on the iPhone SE at the largest text (2026-11-07): their keys are about
+  // The equal-width looks cut esc and tab on the iPhone SE at the largest text: their keys are about
   // 30 pt wide there.
   expect(verdict(`${KEY_ROW_LOOK.labels}-${KEY_ROW_LOOK.size}`)).toBe('fits')
 }, 60000)

@@ -1,4 +1,4 @@
-// Reading a blocked agent's menu off its screen. The screens are Claude Code 2.1.314's, captured 2026-10-31 with
+// Reading a blocked agent's menu off its screen. The screens are Claude Code 2.1.314's, captured with
 // `hc read` in a scratch herdr-core session (paths changed to fake ones).
 import { expect, test } from 'nsh/test'
 import { readMenu } from './menu.ts'

@@ -102,7 +102,7 @@ function Click($x, $y) {
     Start-Sleep -Milliseconds 700
 }
 # herdr-app's CLI output, as text. The Windows build is a windowed program that attaches to its caller's console
-# (AttachConsole), so a PowerShell pipe can come back empty (run 42444630470: `herdr-app --version` printed nothing):
+# (AttachConsole), so a PowerShell pipe can come back empty (on CI: `herdr-app --version` printed nothing):
 # the first way that reads `status` is kept.
 $script:appWay = $null
 function App {
@@ -319,7 +319,7 @@ if ($Phase -eq "dialog") {
     # The check itself first: it must find the invite where it is.
     if (-not (Select-String -Quiet -SimpleMatch $invite (Join-Path $secret "frame-invite"))) { Fail "the on-disk check finds nothing" }
     foreach ($dir in $appHome, $state) {
-        # Every file that can be read: Herdr's home also holds its socket (run 42448581683), which can't be.
+        # Every file that can be read: Herdr's home also holds its socket (seen on CI), which can't be.
         foreach ($f in Get-ChildItem -Recurse -File $dir -ErrorAction SilentlyContinue) {
             # Shared, as serve keeps its log open.
             try {

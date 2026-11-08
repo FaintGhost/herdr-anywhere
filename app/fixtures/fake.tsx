@@ -14,6 +14,7 @@ import { Store } from '../src/store.ts'
 import { Root } from '../src/ui/root.tsx'
 import { CLAUDE_EDIT_MENU, FakeCore, type FakeTab } from '../src/testing/fakecore.ts'
 import { FakeFolders } from '../src/testing/fake-folders.ts'
+import { AGENTS, progressTree, waitOn } from './progress-tree.ts'
 
 // Recorded where a test can read it, as pairLinkUsed below: the test's own Keyboard is another bundle's.
 const putAway = Keyboard.dismiss
@@ -30,6 +31,8 @@ const memory = new Map<string, string>(opened ? [] : [['link', JSON.stringify({ 
 // `opened`: how many times the app opened before (the question about checking for new versions waits for the second).
 // `prefs`: settings saved before, as JSON (`{"showAgentNames":false}`).
 if (params.opened || params.prefs) memory.set('prefs', JSON.stringify({ ...(params.prefs ? JSON.parse(params.prefs) : {}), ...(params.opened ? { opened: Number(params.opened) } : {}) }))
+// "progress": the lab panes with the progress page first, its tree answered by fixtures/progress-tree.ts.
+if (scene === 'progress') memory.set('prefs', JSON.stringify({ opened: 2, progressFirst: true, ...(params.appearance ? { appearance: params.appearance } : {}), ...(params.prefs ? JSON.parse(params.prefs) : {}) }))
 // Saved settings, where a test reads them (`app.storage()['fake-prefs']`).
 const io = { load: async (k: string) => memory.get(k) ?? null, save: (k: string, v: string) => { memory.set(k, v); if (k === 'prefs') void Storage.setItem('fake-prefs', v) }, remove: (k: string) => void memory.delete(k) }
 
@@ -49,6 +52,38 @@ if (scene === 'busy' || scene === 'single') {
   ])
   if (scene === 'busy') add('sp2', '/Users/sam/src/clients/northwind/storefront-redesign-2026/web', 'web', [{ id: 'tb3', argv: ['zsh'] }])
   core.docs.set('', { value: doc, version: 1 })
+}
+// `scene: "lab"`: four agents' panes at one moment, one of each state, to set beside `herdr-anywhere track status`.
+if (scene === 'lab') {
+  const doc = { spaces: [] as any[] }
+  core.addSpace(doc, 'sp1', '/Users/sam/acme-api', '', [{ id: 'tb1', name: 'api', argv: ['claude'], status: 'done', msg: 'cancel_order 加好了，6 个测试全过' }])
+  core.addSpace(doc, 'sp2', '/Users/sam/acme-launch', '', [{ id: 'tb2', name: 'launch', argv: ['claude'], status: 'done', msg: '草稿在 posts/x-acme-1.0-draft.md' }])
+  core.addSpace(doc, 'sp3', '/Users/sam/acme-docs', '', [{ id: 'tb3', name: 'docs', argv: ['claude'], status: 'blocked', kind: 'permission', msg: 'approve Bash: git commit -m "FAQ"' }])
+  core.addSpace(doc, 'sp4', '/Users/sam/acme-shop', '', [{ id: 'tb4', name: 'shop', argv: ['claude'], status: 'idle' }])
+  core.docs.set('', { value: doc, version: 1 })
+}
+// "progress": the sample scene's panes (fixtures/progress-tree.ts) at t1…t4.
+if (scene === 'progress') {
+  const doc = { spaces: [] as any[] }
+  core.addSpace(doc, 'sp1', '/Users/sam/acme-api', '', [{ id: 'tb1', name: 'api', argv: ['claude'], status: 'idle' }])
+  core.addSpace(doc, 'sp2', '/Users/sam/acme-shop', '', [{ id: 'tb2', name: 'checkout', argv: ['claude'], status: 'working' },
+    { id: 'tb3', name: 'payments', argv: ['claude'], status: 'done', msg: '对比写好了，等你看' }])
+  core.addSpace(doc, 'sp3', '/Users/sam/acme-app', '', [{ id: 'tb4', name: 'mobile', argv: ['claude'], status: 'idle' }])
+  core.docs.set('', { value: doc, version: 1 })
+  const tree = progressTree()
+  const ran: string[] = []
+  core.onExec = (line) => {
+    if (!line.includes('herdr-anywhere')) return undefined
+    ran.push(line.slice(line.indexOf('b=herdr-anywhere; "$b" ') + 23)) // after the first run of the companion
+    void Storage.setItem('fake-exec', JSON.stringify(ran))
+    if (line.includes(`track 'tree' '--json'`)) return { stdout: JSON.stringify(tree) }
+    if (line.includes(`progress 'agents'`)) return { stdout: JSON.stringify(AGENTS) }
+    return { stdout: '' }
+  }
+  // A test moves a task to 等你 (`{ wait: 'T4', waiting: '…' }`), leaves messages to sort (`{ queue: 2 }`), or has
+  // the filing pane stop before it starts (`{ organizerWaits: 't2' }`).
+  host.on('fake.progress', (d: any) => (d.organizerWaits ? Object.assign(tree, { queue: 1, organizer_waits: { addr: d.organizerWaits } })
+    : d.queue ? Object.assign(tree, { queue: d.queue }) : waitOn(tree, d.wait, d.waiting)))
 }
 // `scene: "twins"`: one space with two Claude Codes, told apart by a tab's name and an agent's title, one with a
 // sub-agent, and a shell; another space with one more Claude Code.

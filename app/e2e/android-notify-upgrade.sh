@@ -4,7 +4,7 @@
 # the person chose on an old one stays. Two runs, each from a fresh install of OLD: (a) untouched, (b) "An agent
 # finished" turned off and "An agent needs you" set to silent on Android's channel pages first.
 # OLD may also be 0.1.15 or later, which already has the new ids: then the update keeps them and what was chosen on them
-# (the 0.1.16 run, 2026-11-08, failed with OLD 0.1.15 when (b) still looked for the old ids).
+# (the 0.1.16 release run failed with OLD 0.1.15 when (b) still looked for the old ids).
 # Usage: ANDROID_SERIAL=emulator-5554 e2e/android-notify-upgrade.sh OLD.apk NEW.apk OUT
 # NEW.apk must be signed with OLD.apk's key. Needs python3 and the Android SDK.
 set -eu
@@ -18,7 +18,7 @@ failed=0
 fail() { echo "FAIL: $*"; failed=1; }
 
 # The app's live channels as "id importance sound", one a line. Android keeps a deleted channel in its records with
-# mDeleted=true (seen on Android 15, 2026-11-07), so those are left out.
+# mDeleted=true (seen on Android 15), so those are left out.
 channels() {
   "$adb" shell dumpsys notification --noredact | grep -E "NotificationChannel\{mId='[^']*'" | grep -v 'mDeleted=true' |
     grep -E "mId='(needs-you|finished|agent-needs-you|agent-finished)'" |

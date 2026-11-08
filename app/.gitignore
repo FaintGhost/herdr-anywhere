@@ -1,2 +1,5 @@
 .nsh/
 target/
+e2e/lab/
+e2e/progress/
+android/.kotlin/

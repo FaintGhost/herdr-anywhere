@@ -9,7 +9,7 @@ settings:
   base:
     # BUNDLE_ID_PREFIX and the signing team: Signing.xcconfig.
     PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).herdranywhere
-    MARKETING_VERSION: "0.1.16"
+    MARKETING_VERSION: "0.1.17"
     CURRENT_PROJECT_VERSION: "15"
     SWIFT_VERSION: "5.0"
     TARGETED_DEVICE_FAMILY: "1,2"
@@ -39,7 +39,7 @@ targets:
       path: Info.plist
       properties:
         CFBundleDisplayName: Herdr Anywhere
-        # Without these iOS tells the app English on a phone in another language (e2e/ios-locale.sh; without them Japanese showed English, 2026-11-02).
+        # Without these iOS tells the app English on a phone in another language (e2e/ios-locale.sh; without them Japanese showed English).
         CFBundleLocalizations: [en, zh-Hans, zh-Hant, es, ko, ja, ru]
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)

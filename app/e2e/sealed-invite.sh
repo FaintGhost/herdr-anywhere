@@ -24,12 +24,12 @@ case "${1:-}" in
     mkdir -p "$4"
     secret=$(mktemp -d)
     trap 'rm -rf "$secret"' EXIT
-    # No line end: Windows' openssl ends its lines with \r\n, and the key must read the same on Linux (run 42448938232:
+    # No line end: Windows' openssl ends its lines with \r\n, and the key must read the same on Linux (otherwise:
     # bad decrypt).
     (umask 077; openssl rand -hex 32 | tr -d '\r\n' > "$secret/key")
     openssl pkeyutl -encrypt -pubin -inkey "$2" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 \
       -in "$secret/key" -out "$4/key.sealed"
-    # The key on stdin: Windows' openssl can't open a Git Bash path given as file:/tmp/… (run 42448730363).
+    # The key on stdin: Windows' openssl can't open a Git Bash path given as file:/tmp/… (seen on CI).
     tr -d '\r\n' < "$secret/key" | openssl enc -aes-256-cbc -pbkdf2 -salt -pass stdin -in "$3" -out "$4/invite.sealed"
     ;;
   open)

@@ -1,0 +1,1341 @@
+{
+ "runs": [
+  {
+   "lang": "en",
+   "seed": [
+    {
+     "id": "P1",
+     "title": "Acme 1.0 launch"
+    },
+    {
+     "id": "T1",
+     "title": "Fix the total_items count",
+     "under": "P1"
+    },
+    {
+     "id": "T2",
+     "title": "Write the release email",
+     "under": "P1"
+    },
+    {
+     "id": "T3",
+     "title": "Update the FAQ",
+     "under": "P1"
+    }
+   ],
+   "items": [
+    {
+     "id": "s1",
+     "kind": "stop",
+     "title": "Fix total_items",
+     "text": "Fixed total_items; all tests pass, committed a1b2c3.",
+     "want": "done",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s2",
+     "kind": "stop",
+     "title": "Fix the API port docs",
+     "text": "Done. Shall I also change the README port to 8080?",
+     "want": "waiting",
+     "keep": [
+      "README",
+      "8080"
+     ],
+     "other": false
+    },
+    {
+     "id": "s3",
+     "kind": "stop",
+     "title": "Add Stripe payments",
+     "text": "I need a Stripe test key to run the payment tests.",
+     "want": "waiting",
+     "keep": [
+      "Stripe"
+     ],
+     "other": false
+    },
+    {
+     "id": "s4",
+     "kind": "stop",
+     "title": "Fix the order API tests",
+     "text": "3 tests still fail because the database connection times out; I'm looking into it.",
+     "want": "doing",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s5",
+     "kind": "stop",
+     "title": "Fix the mobile layout",
+     "text": "Two ways: A changes the frontend, B the backend. I lean to B. Which do you want?",
+     "want": "waiting",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s6",
+     "kind": "stop",
+     "title": "Write the launch email draft",
+     "text": "The launch email draft is in docs/launch-email.md.",
+     "want": "done",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s7",
+     "kind": "stop",
+     "title": "Upgrade frontend dependencies",
+     "text": "npm install failed: it can't reach the registry.",
+     "want": "doing",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s8",
+     "kind": "stop",
+     "title": "Write five FAQ entries",
+     "text": "FAQ 那 5 条写完了。第 3 条里的价格是 $29 吗？你确认一下。",
+     "want": "waiting",
+     "keep": [
+      "$29"
+     ],
+     "other": true
+    },
+    {
+     "id": "v1",
+     "kind": "session",
+     "said": [
+      "Add a check for the cart quantity limit",
+      "and a test",
+      "ok"
+     ],
+     "last": "The check and the test are in; all pass.",
+     "want": [
+      {
+       "done": true
+      }
+     ]
+    },
+    {
+     "id": "v2",
+     "kind": "session",
+     "said": [
+      "Change the README port to 8080",
+      "also update the CHANGELOG"
+     ],
+     "last": "Port changed. I haven't touched the CHANGELOG yet; shall I?",
+     "want": [
+      {
+       "keep": "8080",
+       "done": true
+      },
+      {
+       "keep": "CHANGELOG",
+       "done": false
+      }
+     ]
+    },
+    {
+     "id": "v3",
+     "kind": "session",
+     "said": [
+      "hi",
+      "which model are you?"
+     ],
+     "last": "I'm Claude.",
+     "want": []
+    },
+    {
+     "id": "m1",
+     "kind": "message",
+     "pane": "a1",
+     "agent_said": "total_items is fixed.",
+     "text": "also cover the case where the count is exactly the limit",
+     "want": "T1",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "m2",
+     "kind": "message",
+     "pane": "a2",
+     "agent_said": "Here is the first draft of the email.",
+     "text": "make it shorter, under 200 words",
+     "want": "T2",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "m3",
+     "kind": "message",
+     "pane": "a3",
+     "agent_said": "The FAQ is updated.",
+     "text": "next, add a 1.0 launch banner to the homepage",
+     "want": "new",
+     "keep": [
+      "1.0"
+     ],
+     "other": false
+    },
+    {
+     "id": "m4",
+     "kind": "message",
+     "pane": "a1",
+     "agent_said": "total_items is fixed.",
+     "text": "FAQ 里再加一条：怎么重置密码",
+     "want": "T3",
+     "keep": [],
+     "other": true
+    }
+   ]
+  },
+  {
+   "lang": "zh-Hans",
+   "seed": [
+    {
+     "id": "P1",
+     "title": "Acme 1.0 发布"
+    },
+    {
+     "id": "T1",
+     "title": "修好 total_items 计数",
+     "under": "P1"
+    },
+    {
+     "id": "T2",
+     "title": "写发布邮件",
+     "under": "P1"
+    },
+    {
+     "id": "T3",
+     "title": "更新 FAQ",
+     "under": "P1"
+    }
+   ],
+   "items": [
+    {
+     "id": "s1",
+     "kind": "stop",
+     "title": "修 total_items",
+     "text": "total_items 修好了，测试全过，已提交 a1b2c3。",
+     "want": "done",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s2",
+     "kind": "stop",
+     "title": "改 API 端口说明",
+     "text": "改好了。要不要顺便把 README 的端口也改成 8080？",
+     "want": "waiting",
+     "keep": [
+      "README",
+      "8080"
+     ],
+     "other": false
+    },
+    {
+     "id": "s3",
+     "kind": "stop",
+     "title": "接入 Stripe 支付",
+     "text": "需要你给我 Stripe 的测试 key 才能跑支付的测试。",
+     "want": "waiting",
+     "keep": [
+      "Stripe"
+     ],
+     "other": false
+    },
+    {
+     "id": "s4",
+     "kind": "stop",
+     "title": "修订单接口的测试",
+     "text": "还有 3 个测试失败，原因是数据库连接超时，我接着查。",
+     "want": "doing",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s5",
+     "kind": "stop",
+     "title": "修移动端布局",
+     "text": "两种做法：A 改前端，B 改后端。我倾向 B，你选哪个？",
+     "want": "waiting",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s6",
+     "kind": "stop",
+     "title": "写发布邮件草稿",
+     "text": "发布邮件草稿写好了，在 docs/launch-email.md。",
+     "want": "done",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s7",
+     "kind": "stop",
+     "title": "升级前端依赖",
+     "text": "出错了：npm install 失败，连不上 registry。",
+     "want": "doing",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s8",
+     "kind": "stop",
+     "title": "写五条 FAQ",
+     "text": "The five FAQ entries are written. Is the price in entry 3 really $29?",
+     "want": "waiting",
+     "keep": [
+      "$29"
+     ],
+     "other": true
+    },
+    {
+     "id": "v1",
+     "kind": "session",
+     "said": [
+      "加一个购物车数量上限的校验",
+      "再加个测试",
+      "好"
+     ],
+     "last": "校验和测试都加好了，全过。",
+     "want": [
+      {
+       "done": true
+      }
+     ]
+    },
+    {
+     "id": "v2",
+     "kind": "session",
+     "said": [
+      "README 端口改成 8080",
+      "顺便把 CHANGELOG 也更新一下"
+     ],
+     "last": "端口改好了，CHANGELOG 还没动，要我现在写吗？",
+     "want": [
+      {
+       "keep": "8080",
+       "done": true
+      },
+      {
+       "keep": "CHANGELOG",
+       "done": false
+      }
+     ]
+    },
+    {
+     "id": "v3",
+     "kind": "session",
+     "said": [
+      "你好",
+      "你是什么模型"
+     ],
+     "last": "我是 Claude。",
+     "want": []
+    },
+    {
+     "id": "m1",
+     "kind": "message",
+     "pane": "a1",
+     "agent_said": "total_items 修好了。",
+     "text": "再补一个数量正好等于上限的情况",
+     "want": "T1",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "m2",
+     "kind": "message",
+     "pane": "a2",
+     "agent_said": "邮件第一稿在这里。",
+     "text": "再短一点，200 字以内",
+     "want": "T2",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "m3",
+     "kind": "message",
+     "pane": "a3",
+     "agent_said": "FAQ 更新好了。",
+     "text": "接下来给官网首页加一个 1.0 发布的横幅",
+     "want": "new",
+     "keep": [
+      "1.0"
+     ],
+     "other": false
+    },
+    {
+     "id": "m4",
+     "kind": "message",
+     "pane": "a1",
+     "agent_said": "total_items 修好了。",
+     "text": "Add an FAQ entry on how to reset a password",
+     "want": "T3",
+     "keep": [],
+     "other": true
+    }
+   ]
+  },
+  {
+   "lang": "zh-Hant",
+   "seed": [
+    {
+     "id": "P1",
+     "title": "Acme 1.0 發布"
+    },
+    {
+     "id": "T1",
+     "title": "修好 total_items 計數",
+     "under": "P1"
+    },
+    {
+     "id": "T2",
+     "title": "寫發布郵件",
+     "under": "P1"
+    },
+    {
+     "id": "T3",
+     "title": "更新 FAQ",
+     "under": "P1"
+    }
+   ],
+   "items": [
+    {
+     "id": "s1",
+     "kind": "stop",
+     "title": "修 total_items",
+     "text": "total_items 修好了，測試全過，已提交 a1b2c3。",
+     "want": "done",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s2",
+     "kind": "stop",
+     "title": "改 API 埠說明",
+     "text": "改好了。要不要順便把 README 的埠也改成 8080？",
+     "want": "waiting",
+     "keep": [
+      "README",
+      "8080"
+     ],
+     "other": false
+    },
+    {
+     "id": "s3",
+     "kind": "stop",
+     "title": "接入 Stripe 支付",
+     "text": "需要你給我 Stripe 的測試 key 才能跑支付的測試。",
+     "want": "waiting",
+     "keep": [
+      "Stripe"
+     ],
+     "other": false
+    },
+    {
+     "id": "s4",
+     "kind": "stop",
+     "title": "修訂單介面的測試",
+     "text": "還有 3 個測試失敗，原因是資料庫連線逾時，我接著查。",
+     "want": "doing",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s5",
+     "kind": "stop",
+     "title": "修行動版版面",
+     "text": "兩種做法：A 改前端，B 改後端。我傾向 B，你選哪個？",
+     "want": "waiting",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s6",
+     "kind": "stop",
+     "title": "寫發布郵件草稿",
+     "text": "發布郵件草稿寫好了，在 docs/launch-email.md。",
+     "want": "done",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s7",
+     "kind": "stop",
+     "title": "升級前端相依套件",
+     "text": "出錯了：npm install 失敗，連不上 registry。",
+     "want": "doing",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s8",
+     "kind": "stop",
+     "title": "寫五條 FAQ",
+     "text": "The five FAQ entries are written. Is the price in entry 3 really $29?",
+     "want": "waiting",
+     "keep": [
+      "$29"
+     ],
+     "other": true
+    },
+    {
+     "id": "v1",
+     "kind": "session",
+     "said": [
+      "加一個購物車數量上限的檢查",
+      "再加個測試",
+      "好"
+     ],
+     "last": "檢查和測試都加好了，全過。",
+     "want": [
+      {
+       "done": true
+      }
+     ]
+    },
+    {
+     "id": "v2",
+     "kind": "session",
+     "said": [
+      "README 埠改成 8080",
+      "順便把 CHANGELOG 也更新一下"
+     ],
+     "last": "埠改好了，CHANGELOG 還沒動，要我現在寫嗎？",
+     "want": [
+      {
+       "keep": "8080",
+       "done": true
+      },
+      {
+       "keep": "CHANGELOG",
+       "done": false
+      }
+     ]
+    },
+    {
+     "id": "v3",
+     "kind": "session",
+     "said": [
+      "你好",
+      "你是什麼模型"
+     ],
+     "last": "我是 Claude。",
+     "want": []
+    },
+    {
+     "id": "m1",
+     "kind": "message",
+     "pane": "a1",
+     "agent_said": "total_items 修好了。",
+     "text": "再補一個數量剛好等於上限的情況",
+     "want": "T1",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "m2",
+     "kind": "message",
+     "pane": "a2",
+     "agent_said": "郵件第一稿在這裡。",
+     "text": "再短一點，200 字以內",
+     "want": "T2",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "m3",
+     "kind": "message",
+     "pane": "a3",
+     "agent_said": "FAQ 更新好了。",
+     "text": "接下來給官網首頁加一個 1.0 發布的橫幅",
+     "want": "new",
+     "keep": [
+      "1.0"
+     ],
+     "other": false
+    },
+    {
+     "id": "m4",
+     "kind": "message",
+     "pane": "a1",
+     "agent_said": "total_items 修好了。",
+     "text": "Add an FAQ entry on how to reset a password",
+     "want": "T3",
+     "keep": [],
+     "other": true
+    }
+   ]
+  },
+  {
+   "lang": "es",
+   "seed": [
+    {
+     "id": "P1",
+     "title": "Lanzamiento de Acme 1.0"
+    },
+    {
+     "id": "T1",
+     "title": "Arreglar el conteo de total_items",
+     "under": "P1"
+    },
+    {
+     "id": "T2",
+     "title": "Escribir el correo del lanzamiento",
+     "under": "P1"
+    },
+    {
+     "id": "T3",
+     "title": "Actualizar las FAQ",
+     "under": "P1"
+    }
+   ],
+   "items": [
+    {
+     "id": "s1",
+     "kind": "stop",
+     "title": "Arreglar total_items",
+     "text": "total_items arreglado; pasan todas las pruebas, commit a1b2c3.",
+     "want": "done",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s2",
+     "kind": "stop",
+     "title": "Corregir la documentación del puerto de la API",
+     "text": "Listo. ¿Cambio también el puerto del README a 8080?",
+     "want": "waiting",
+     "keep": [
+      "README",
+      "8080"
+     ],
+     "other": false
+    },
+    {
+     "id": "s3",
+     "kind": "stop",
+     "title": "Añadir pagos con Stripe",
+     "text": "Necesito una clave de prueba de Stripe para correr las pruebas de pago.",
+     "want": "waiting",
+     "keep": [
+      "Stripe"
+     ],
+     "other": false
+    },
+    {
+     "id": "s4",
+     "kind": "stop",
+     "title": "Arreglar las pruebas de la API de pedidos",
+     "text": "Aún fallan 3 pruebas porque la conexión a la base de datos se agota; sigo investigando.",
+     "want": "doing",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s5",
+     "kind": "stop",
+     "title": "Arreglar el diseño en móvil",
+     "text": "Dos opciones: A cambia el frontend, B el backend. Prefiero B. ¿Cuál quieres?",
+     "want": "waiting",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s6",
+     "kind": "stop",
+     "title": "Escribir el borrador del correo",
+     "text": "El borrador del correo está en docs/launch-email.md.",
+     "want": "done",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s7",
+     "kind": "stop",
+     "title": "Actualizar dependencias del frontend",
+     "text": "Falló npm install: no llega al registry.",
+     "want": "doing",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s8",
+     "kind": "stop",
+     "title": "Escribir cinco entradas de FAQ",
+     "text": "The five FAQ entries are written. Is the price in entry 3 really $29?",
+     "want": "waiting",
+     "keep": [
+      "$29"
+     ],
+     "other": true
+    },
+    {
+     "id": "v1",
+     "kind": "session",
+     "said": [
+      "Añade una validación del límite de cantidad del carrito",
+      "y una prueba",
+      "vale"
+     ],
+     "last": "La validación y la prueba están; todo pasa.",
+     "want": [
+      {
+       "done": true
+      }
+     ]
+    },
+    {
+     "id": "v2",
+     "kind": "session",
+     "said": [
+      "Cambia el puerto del README a 8080",
+      "y actualiza también el CHANGELOG"
+     ],
+     "last": "Puerto cambiado. Aún no toqué el CHANGELOG; ¿lo hago?",
+     "want": [
+      {
+       "keep": "8080",
+       "done": true
+      },
+      {
+       "keep": "CHANGELOG",
+       "done": false
+      }
+     ]
+    },
+    {
+     "id": "v3",
+     "kind": "session",
+     "said": [
+      "hola",
+      "¿qué modelo eres?"
+     ],
+     "last": "Soy Claude.",
+     "want": []
+    },
+    {
+     "id": "m1",
+     "kind": "message",
+     "pane": "a1",
+     "agent_said": "total_items está arreglado.",
+     "text": "cubre también el caso en que la cantidad es justo el límite",
+     "want": "T1",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "m2",
+     "kind": "message",
+     "pane": "a2",
+     "agent_said": "Aquí está el primer borrador del correo.",
+     "text": "hazlo más corto, menos de 200 palabras",
+     "want": "T2",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "m3",
+     "kind": "message",
+     "pane": "a3",
+     "agent_said": "Las FAQ están actualizadas.",
+     "text": "ahora añade un banner del lanzamiento 1.0 en la portada",
+     "want": "new",
+     "keep": [
+      "1.0"
+     ],
+     "other": false
+    },
+    {
+     "id": "m4",
+     "kind": "message",
+     "pane": "a1",
+     "agent_said": "total_items está arreglado.",
+     "text": "Add an FAQ entry on how to reset a password",
+     "want": "T3",
+     "keep": [],
+     "other": true
+    }
+   ]
+  },
+  {
+   "lang": "ja",
+   "seed": [
+    {
+     "id": "P1",
+     "title": "Acme 1.0 のリリース"
+    },
+    {
+     "id": "T1",
+     "title": "total_items の件数を直す",
+     "under": "P1"
+    },
+    {
+     "id": "T2",
+     "title": "リリースのメールを書く",
+     "under": "P1"
+    },
+    {
+     "id": "T3",
+     "title": "FAQ を更新する",
+     "under": "P1"
+    }
+   ],
+   "items": [
+    {
+     "id": "s1",
+     "kind": "stop",
+     "title": "total_items を直す",
+     "text": "total_items を直しました。テストはすべて通り、a1b2c3 でコミット済みです。",
+     "want": "done",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s2",
+     "kind": "stop",
+     "title": "API のポートの説明を直す",
+     "text": "直しました。ついでに README のポートも 8080 に変えますか？",
+     "want": "waiting",
+     "keep": [
+      "README",
+      "8080"
+     ],
+     "other": false
+    },
+    {
+     "id": "s3",
+     "kind": "stop",
+     "title": "Stripe の決済を入れる",
+     "text": "決済のテストを動かすには Stripe のテスト用キーが必要です。",
+     "want": "waiting",
+     "keep": [
+      "Stripe"
+     ],
+     "other": false
+    },
+    {
+     "id": "s4",
+     "kind": "stop",
+     "title": "注文 API のテストを直す",
+     "text": "まだ 3 件のテストが失敗しています。データベース接続のタイムアウトが原因なので、引き続き調べます。",
+     "want": "doing",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s5",
+     "kind": "stop",
+     "title": "スマホのレイアウトを直す",
+     "text": "やり方は二つです。A はフロントエンド、B はバックエンドを変えます。B がよいと思いますが、どちらにしますか？",
+     "want": "waiting",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s6",
+     "kind": "stop",
+     "title": "告知メールの下書きを書く",
+     "text": "告知メールの下書きを docs/launch-email.md に書きました。",
+     "want": "done",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s7",
+     "kind": "stop",
+     "title": "フロントエンドの依存を上げる",
+     "text": "npm install が失敗しました。registry につながりません。",
+     "want": "doing",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s8",
+     "kind": "stop",
+     "title": "FAQ を五つ書く",
+     "text": "The five FAQ entries are written. Is the price in entry 3 really $29?",
+     "want": "waiting",
+     "keep": [
+      "$29"
+     ],
+     "other": true
+    },
+    {
+     "id": "v1",
+     "kind": "session",
+     "said": [
+      "カートの数量上限のチェックを追加して",
+      "テストも",
+      "OK"
+     ],
+     "last": "チェックとテストを追加しました。すべて通ります。",
+     "want": [
+      {
+       "done": true
+      }
+     ]
+    },
+    {
+     "id": "v2",
+     "kind": "session",
+     "said": [
+      "README のポートを 8080 に変えて",
+      "ついでに CHANGELOG も更新して"
+     ],
+     "last": "ポートは変えました。CHANGELOG はまだです。今やりますか？",
+     "want": [
+      {
+       "keep": "8080",
+       "done": true
+      },
+      {
+       "keep": "CHANGELOG",
+       "done": false
+      }
+     ]
+    },
+    {
+     "id": "v3",
+     "kind": "session",
+     "said": [
+      "こんにちは",
+      "どのモデル？"
+     ],
+     "last": "Claude です。",
+     "want": []
+    },
+    {
+     "id": "m1",
+     "kind": "message",
+     "pane": "a1",
+     "agent_said": "total_items を直しました。",
+     "text": "件数がちょうど上限のケースも足して",
+     "want": "T1",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "m2",
+     "kind": "message",
+     "pane": "a2",
+     "agent_said": "メールの初稿です。",
+     "text": "もっと短く、200 語以内で",
+     "want": "T2",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "m3",
+     "kind": "message",
+     "pane": "a3",
+     "agent_said": "FAQ を更新しました。",
+     "text": "次はトップページに 1.0 リリースのバナーを付けて",
+     "want": "new",
+     "keep": [
+      "1.0"
+     ],
+     "other": false
+    },
+    {
+     "id": "m4",
+     "kind": "message",
+     "pane": "a1",
+     "agent_said": "total_items を直しました。",
+     "text": "Add an FAQ entry on how to reset a password",
+     "want": "T3",
+     "keep": [],
+     "other": true
+    }
+   ]
+  },
+  {
+   "lang": "ko",
+   "seed": [
+    {
+     "id": "P1",
+     "title": "Acme 1.0 출시"
+    },
+    {
+     "id": "T1",
+     "title": "total_items 개수 고치기",
+     "under": "P1"
+    },
+    {
+     "id": "T2",
+     "title": "출시 메일 쓰기",
+     "under": "P1"
+    },
+    {
+     "id": "T3",
+     "title": "FAQ 업데이트",
+     "under": "P1"
+    }
+   ],
+   "items": [
+    {
+     "id": "s1",
+     "kind": "stop",
+     "title": "total_items 고치기",
+     "text": "total_items 고쳤어요. 테스트 모두 통과했고 a1b2c3로 커밋했어요.",
+     "want": "done",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s2",
+     "kind": "stop",
+     "title": "API 포트 설명 고치기",
+     "text": "고쳤어요. README 포트도 8080으로 바꿀까요?",
+     "want": "waiting",
+     "keep": [
+      "README",
+      "8080"
+     ],
+     "other": false
+    },
+    {
+     "id": "s3",
+     "kind": "stop",
+     "title": "Stripe 결제 붙이기",
+     "text": "결제 테스트를 돌리려면 Stripe 테스트 키가 필요해요.",
+     "want": "waiting",
+     "keep": [
+      "Stripe"
+     ],
+     "other": false
+    },
+    {
+     "id": "s4",
+     "kind": "stop",
+     "title": "주문 API 테스트 고치기",
+     "text": "테스트 3개가 아직 실패해요. 데이터베이스 연결 시간 초과 때문이라 계속 보고 있어요.",
+     "want": "doing",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s5",
+     "kind": "stop",
+     "title": "모바일 레이아웃 고치기",
+     "text": "방법이 두 가지예요. A는 프런트엔드, B는 백엔드를 바꿔요. 저는 B가 좋은데 어느 쪽으로 할까요?",
+     "want": "waiting",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s6",
+     "kind": "stop",
+     "title": "출시 메일 초안 쓰기",
+     "text": "출시 메일 초안을 docs/launch-email.md에 써 뒀어요.",
+     "want": "done",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s7",
+     "kind": "stop",
+     "title": "프런트엔드 의존성 올리기",
+     "text": "npm install이 실패했어요. registry에 연결이 안 돼요.",
+     "want": "doing",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s8",
+     "kind": "stop",
+     "title": "FAQ 다섯 개 쓰기",
+     "text": "The five FAQ entries are written. Is the price in entry 3 really $29?",
+     "want": "waiting",
+     "keep": [
+      "$29"
+     ],
+     "other": true
+    },
+    {
+     "id": "v1",
+     "kind": "session",
+     "said": [
+      "장바구니 수량 한도 검사를 추가해 줘",
+      "테스트도",
+      "좋아"
+     ],
+     "last": "검사와 테스트 추가했어요. 모두 통과해요.",
+     "want": [
+      {
+       "done": true
+      }
+     ]
+    },
+    {
+     "id": "v2",
+     "kind": "session",
+     "said": [
+      "README 포트를 8080으로 바꿔 줘",
+      "CHANGELOG도 업데이트해 줘"
+     ],
+     "last": "포트는 바꿨어요. CHANGELOG는 아직이에요. 지금 할까요?",
+     "want": [
+      {
+       "keep": "8080",
+       "done": true
+      },
+      {
+       "keep": "CHANGELOG",
+       "done": false
+      }
+     ]
+    },
+    {
+     "id": "v3",
+     "kind": "session",
+     "said": [
+      "안녕",
+      "어떤 모델이야?"
+     ],
+     "last": "저는 Claude예요.",
+     "want": []
+    },
+    {
+     "id": "m1",
+     "kind": "message",
+     "pane": "a1",
+     "agent_said": "total_items 고쳤어요.",
+     "text": "개수가 딱 한도인 경우도 넣어 줘",
+     "want": "T1",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "m2",
+     "kind": "message",
+     "pane": "a2",
+     "agent_said": "메일 초안이에요.",
+     "text": "더 짧게, 200단어 이내로",
+     "want": "T2",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "m3",
+     "kind": "message",
+     "pane": "a3",
+     "agent_said": "FAQ 업데이트했어요.",
+     "text": "다음엔 홈페이지에 1.0 출시 배너를 달아 줘",
+     "want": "new",
+     "keep": [
+      "1.0"
+     ],
+     "other": false
+    },
+    {
+     "id": "m4",
+     "kind": "message",
+     "pane": "a1",
+     "agent_said": "total_items 고쳤어요.",
+     "text": "Add an FAQ entry on how to reset a password",
+     "want": "T3",
+     "keep": [],
+     "other": true
+    }
+   ]
+  },
+  {
+   "lang": "ru",
+   "seed": [
+    {
+     "id": "P1",
+     "title": "Выпуск Acme 1.0"
+    },
+    {
+     "id": "T1",
+     "title": "Исправить подсчёт total_items",
+     "under": "P1"
+    },
+    {
+     "id": "T2",
+     "title": "Написать письмо о выпуске",
+     "under": "P1"
+    },
+    {
+     "id": "T3",
+     "title": "Обновить FAQ",
+     "under": "P1"
+    }
+   ],
+   "items": [
+    {
+     "id": "s1",
+     "kind": "stop",
+     "title": "Починить total_items",
+     "text": "total_items исправлен, все тесты проходят, коммит a1b2c3.",
+     "want": "done",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s2",
+     "kind": "stop",
+     "title": "Исправить описание порта API",
+     "text": "Готово. Поменять заодно порт в README на 8080?",
+     "want": "waiting",
+     "keep": [
+      "README",
+      "8080"
+     ],
+     "other": false
+    },
+    {
+     "id": "s3",
+     "kind": "stop",
+     "title": "Подключить оплату через Stripe",
+     "text": "Чтобы запустить тесты оплаты, нужен тестовый ключ Stripe.",
+     "want": "waiting",
+     "keep": [
+      "Stripe"
+     ],
+     "other": false
+    },
+    {
+     "id": "s4",
+     "kind": "stop",
+     "title": "Починить тесты API заказов",
+     "text": "3 теста всё ещё падают из-за таймаута соединения с базой; продолжаю разбираться.",
+     "want": "doing",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s5",
+     "kind": "stop",
+     "title": "Исправить мобильную вёрстку",
+     "text": "Два варианта: A меняет фронтенд, B — бэкенд. Я за B. Какой выбираете?",
+     "want": "waiting",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s6",
+     "kind": "stop",
+     "title": "Написать черновик письма",
+     "text": "Черновик письма лежит в docs/launch-email.md.",
+     "want": "done",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s7",
+     "kind": "stop",
+     "title": "Обновить зависимости фронтенда",
+     "text": "npm install упал: нет доступа к registry.",
+     "want": "doing",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "s8",
+     "kind": "stop",
+     "title": "Написать пять пунктов FAQ",
+     "text": "The five FAQ entries are written. Is the price in entry 3 really $29?",
+     "want": "waiting",
+     "keep": [
+      "$29"
+     ],
+     "other": true
+    },
+    {
+     "id": "v1",
+     "kind": "session",
+     "said": [
+      "Добавь проверку лимита количества в корзине",
+      "и тест",
+      "ок"
+     ],
+     "last": "Проверка и тест добавлены, всё проходит.",
+     "want": [
+      {
+       "done": true
+      }
+     ]
+    },
+    {
+     "id": "v2",
+     "kind": "session",
+     "said": [
+      "Поменяй порт в README на 8080",
+      "и обнови CHANGELOG"
+     ],
+     "last": "Порт поменял. CHANGELOG ещё не трогал — сделать?",
+     "want": [
+      {
+       "keep": "8080",
+       "done": true
+      },
+      {
+       "keep": "CHANGELOG",
+       "done": false
+      }
+     ]
+    },
+    {
+     "id": "v3",
+     "kind": "session",
+     "said": [
+      "привет",
+      "какая ты модель?"
+     ],
+     "last": "Я Claude.",
+     "want": []
+    },
+    {
+     "id": "m1",
+     "kind": "message",
+     "pane": "a1",
+     "agent_said": "total_items исправлен.",
+     "text": "добавь ещё случай, когда количество ровно на пределе",
+     "want": "T1",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "m2",
+     "kind": "message",
+     "pane": "a2",
+     "agent_said": "Вот первый черновик письма.",
+     "text": "сделай короче, до 200 слов",
+     "want": "T2",
+     "keep": [],
+     "other": false
+    },
+    {
+     "id": "m3",
+     "kind": "message",
+     "pane": "a3",
+     "agent_said": "FAQ обновлён.",
+     "text": "теперь добавь на главную баннер о выпуске 1.0",
+     "want": "new",
+     "keep": [
+      "1.0"
+     ],
+     "other": false
+    },
+    {
+     "id": "m4",
+     "kind": "message",
+     "pane": "a1",
+     "agent_said": "total_items исправлен.",
+     "text": "Add an FAQ entry on how to reset a password",
+     "want": "T3",
+     "keep": [],
+     "other": true
+    }
+   ]
+  }
+ ]
+}

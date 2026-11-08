@@ -255,7 +255,7 @@ function Switcher(props: { store: Store; spaceId: string; open: { (): boolean; s
       { key: 'shell', name: t('shell'), icon: 'terminal', argv: undefined as string[] | undefined }]
   }
   const close = () => props.open.set(false)
-  // NSH 0.3.0 on Android sizes a sheet's scroll content far past its rows (measured 2026-11-06: 2743×2378 px around rows
+  // NSH 0.3.0 on Android sizes a sheet's scroll content far past its rows (measured: 2743×2378 px around rows
   // laid out at 1016×740, read with dumpsys activity), so a drag scrolled them out of sight and left the sheet blank.
   // Rows that fit don't scroll at all; rows that don't stop at the last one.
   const viewport = signal(0)

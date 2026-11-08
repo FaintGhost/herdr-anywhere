@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.17
+
+- Experimental, off by default: a progress page. Turn it on in Settings › Experimental › Progress page and pick which agent on your computer does the sorting: Claude Code (it runs Haiku), Pi or Kimi Code; Codex from 0.163. That agent works in a pane of its own, on your account: it files what you ask for in each pane under tasks, and when a pane stops it marks the task done, waiting on you, or still going. It writes task names and its questions in your phone's language. A switch at the top of the home page goes between your agents and the progress page in one tap, and the app opens on the one you used last. The progress page lists what needs you, with a button that opens the pane asking, what finished in the last day, and the tasks in progress. Turning it off closes that pane; while it is off, nothing of it runs on the computer or the phone.
+
 ## v0.1.16
 
 - The Companion runs on Linux, on x64 and Arm (`herdr-anywhere-linux-amd64`, `herdr-anywhere-linux-arm64`). Install it with the Linux steps in the README, or have your coding agent follow INSTALL.md; in Herdr Desktop App, `ctrl-shift-m` opens Add phone. It updates itself from the phone as on a Mac. It also finds herdr-core when another program named `hc` is installed, as herbstluftwm's is.

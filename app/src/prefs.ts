@@ -7,9 +7,17 @@ export type TypeIn = 'composer' | 'terminal'
 export type Prefs = { appearance: Appearance; typeIn: TypeIn; fontSize: number; alertBlocked: boolean; alertDone: boolean; stayConnected: boolean; dismissedUpdate: string; askedNotifications: boolean
   /** Agent rows say the program's name ("Claude Code") before the title; off, the icon alone says it (Settings › Look). */
   showAgentNames: boolean
+  /** Experimental: the first screen is the progress page (ui/progress.tsx), goals first. */
+  progressFirst: boolean
+  /** The agent the user picked on the computer to sort what they say, by name ("" before a pick). */
+  progressAgent: string
+  /** The phone's language as last told to the computer, where the sorting agent writes in it. */
+  progressLang: string
+  /** With the progress page on: which of the two the home page shows, the agent list or the progress page; the last one switched to. */
+  homeView: 'progress' | 'agents'
   /** How many times the app has opened: the question about checking for new versions waits for the second. */
   opened: number }
-export const DEFAULTS: Prefs = { appearance: 'system', typeIn: 'composer', fontSize: 13, alertBlocked: true, alertDone: true, stayConnected: true, dismissedUpdate: '', askedNotifications: false, showAgentNames: true, opened: 0 }
+export const DEFAULTS: Prefs = { appearance: 'system', typeIn: 'composer', fontSize: 13, alertBlocked: true, alertDone: true, stayConnected: true, dismissedUpdate: '', askedNotifications: false, showAgentNames: true, progressFirst: false, progressAgent: '', progressLang: '', homeView: 'progress', opened: 0 }
 import { FONT_MAX, FONT_MIN } from './ui/terminal-page.ts'
 export { FONT_MAX, FONT_MIN }
 
@@ -43,6 +51,10 @@ function clean(p: Prefs): Prefs {
     stayConnected: p.stayConnected !== false,
     askedNotifications: p.askedNotifications === true,
     showAgentNames: p.showAgentNames !== false,
+    progressFirst: p.progressFirst === true,
+    progressAgent: typeof p.progressAgent === 'string' ? p.progressAgent : '',
+    progressLang: typeof p.progressLang === 'string' ? p.progressLang : '',
+    homeView: p.homeView === 'agents' ? 'agents' : 'progress',
     dismissedUpdate: typeof p.dismissedUpdate === 'string' ? p.dismissedUpdate : '',
     opened: Math.max(0, Math.floor(Number(p.opened) || 0)),
   }

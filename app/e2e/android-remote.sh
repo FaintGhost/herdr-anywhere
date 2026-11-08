@@ -59,9 +59,9 @@ case "${1:-}" in
     # What the link field holds: pair-link is the field's wrapper; the text is its child's.
     typed() { xml | tr '>' '\n' | sed -n '/resource-id="pair-link"/,$p' | grep -oE 'text="[^"]+"' | head -1 | sed -E 's/^text="(.*)"$/\1/'; }
     # One long `adb shell input text` keeps only its first ~200 characters, and CI's emulator types ~11 characters a
-    # second and drops some: in 150-character pieces most (run 42451037001), in 40-character pieces now and then. The
+    # second and drops some: in 150-character pieces most (on CI), in 40-character pieces now and then. The
     # code expires 2 minutes after it shows, so a retry keeps what is right: it deletes from the first wrong character
-    # and types the rest (run 42449217361 cleared the field first and the code expired).
+    # and types the rest (a CI run that cleared the field first saw the code expire).
     send() {
       rest=$1
       while [ -n "$rest" ]; do
@@ -98,7 +98,7 @@ case "${1:-}" in
     tap space-spwin
     sleep 3
     tap compose-input
-    # Spaces around >: Windows' terminal here is pwsh, which reads `phone>` as a word (run 42450092517); cmd and pwsh
+    # Spaces around >: Windows' terminal here is pwsh, which reads `phone>` as a word (on CI's Windows runner); cmd and pwsh
     # both write the file this way.
     "$adb" shell input text "'echo phone > hm-typed'"
     tap compose-send

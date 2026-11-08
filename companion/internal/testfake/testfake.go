@@ -22,6 +22,22 @@ type Spec struct {
 	Connect string `json:"connect,omitempty"`
 	// Exit is the exit code for every call.
 	Exit int `json:"exit,omitempty"`
+	// Calls, when set, is a file each call's arguments are added to, joined by spaces, one line a call.
+	Calls string `json:"calls,omitempty"`
+	// On says what a subcommand (the first argument) does: the first of its replies whose If file
+	// exists, or that has no If. "{2}" in a reply stands for the second argument.
+	On map[string][]Reply `json:"on,omitempty"`
+	// Else is the exit code of a call whose subcommand On has no reply for.
+	Else int `json:"else,omitempty"`
+}
+
+// Reply is one answer of a fake to a subcommand, done in this order: Write, Append, Print, Cat.
+type Reply struct {
+	If     string `json:"if,omitempty"`     // a file that must exist for this reply
+	Write  string `json:"write,omitempty"`  // a file the call's arguments are written to, as one line
+	Append string `json:"append,omitempty"` // a file the call's arguments are added to, as one line
+	Print  string `json:"print,omitempty"`  // printed, with a newline after
+	Cat    string `json:"cat,omitempty"`    // a file printed as it is
 }
 
 var (
@@ -63,7 +79,8 @@ func Ext() string {
 	return ""
 }
 
-// HC puts a fake hc named name (plus Ext) in dir, doing what s says, and returns its path.
+// HC puts a fake hc named name (plus Ext) in dir, doing what s says, and returns its path. It keeps s in
+// dir/name.json, so a test keeps its own files under other names.
 func HC(t testing.TB, dir, name string, s Spec) string {
 	t.Helper()
 	src, err := build()

@@ -1,14 +1,15 @@
 // Settings: how the app looks, which alerts show, and the computer it is paired with.
 import { cleanup, platform, Scroll, signal, Text, View } from 'nsh'
 import { AlertDialog } from 'nsh/base'
-import type { Store } from '../store.ts'
+import { explain, type Store } from '../store.ts'
+import { agentsLine, parseAgents, pickLine, switchLine, type AgentChoice } from '../model/progress.ts'
 import { busyWord, runUpdate, useUpdates } from './update.tsx'
 import { APP_VERSION, type Updates } from '../updates.ts'
 import { companionVersion, type Link, type Linker, type Route } from '../link.ts'
 import { FONT_MAX, FONT_MIN, type Appearance, type PrefStore } from '../prefs.ts'
 import { allowNotifications, notifications, notifyChannels, onFront, openChannel, type ChannelKind, type Channels, type ChannelState, type Permission } from '../page.ts'
 import { Glyph, IconButton, openPrivacy, SectionLabel, useRev, useSignal } from './kit.tsx'
-import { t, type Key } from '../strings/index.ts'
+import { lang, t, type Key } from '../strings/index.ts'
 
 function Row(props: { label: string; detail?: string; children?: any; testID?: string; onPress?: () => void }) {
   return (
@@ -118,6 +119,40 @@ function Toggle(props: { on: boolean; label: string; testID: string; onChange: (
 export function SettingsScreen(props: { updates?: Updates; store: Store; prefs: PrefStore; link: Link; linker: Linker; fetcher?: typeof fetch; back: () => void; forget: () => void }) {
   const rev = useRev(props.store)
   const p = useSignal(props.prefs.prefs)
+  // Turning the progress page on: the user picks which agent on the computer sorts what they say (the one choice in
+  // version one); the page turns on once the computer has it.
+  const picking = signal<AgentChoice[] | null>(null)
+  const pickNote = signal('')
+  const run = async (line: string) => {
+    const r = await props.store.exec(line, { timeout: 20 })
+    if (r.code !== 0) throw new Error(r.stderr.trim() || `exit ${r.code}`)
+    return r.stdout
+  }
+  const startPick = async () => {
+    picking.set([]); pickNote.set('')
+    try {
+      const a = parseAgents(await run(agentsLine())).agents
+      if (picking() === null) return // cancelled meanwhile
+      picking.set(a)
+      if (!a.length) pickNote.set(t('progressNoAgent'))
+    } catch (e) {
+      pickNote.set(t('progressCantRead', { error: explain(e) }))
+    }
+  }
+  const pick = async (a: AgentChoice) => {
+    try {
+      await run(pickLine(a.id, lang()))
+      picking.set(null)
+      props.prefs.set({ progressFirst: true, progressAgent: a.name, progressLang: lang() })
+    } catch (e) {
+      props.store.toast({ title: t('progressCouldntOn'), body: explain(e), level: 'error' })
+    }
+  }
+  const turnOff = () => {
+    picking.set(null)
+    props.prefs.set({ progressFirst: false })
+    void run(switchLine(false)).catch((e) => props.store.toast({ title: t('progressCouldntOff'), body: explain(e), level: 'error' }))
+  }
   const conn = useSignal(props.store.conn)
   const route = signal<Route | null>(null)
   const companion = signal('')
@@ -215,6 +250,29 @@ export function SettingsScreen(props: { updates?: Updates; store: Store; prefs: 
               </View>
             </If>
           </Row>
+        </If>
+        {/* Experimental and off by default. */}
+        <SectionLabel label={t('experimental')} />
+        <Row label={t('progressPage')} detail={p().progressFirst && p().progressAgent ? `${t('progressPageDetail')} · ${t('progressBy', { agent: p().progressAgent })}` : t('progressPageDetail')}>
+          <Toggle label={`${t('progressPage')}, ${t('experimental')}`} testID="progress-first" on={p().progressFirst || picking() !== null} onChange={(on) => { if (on) void startPick(); else turnOff() }} />
+        </Row>
+        <If when={picking()}>
+          <View testID="agent-pick" class="px-4 py-2 border-b border-border bg-card gap-1">
+            <Text class="text-[13px] text-foreground">{t('progressPickTitle')}</Text>
+            <Text class="text-[12px] text-sidebar-foreground">{t('progressPickDetail')}</Text>
+            <If when={picking()!.length} else={<Text class="text-[13px] text-muted-foreground py-2">{pickNote() || t('progressLooking')}</Text>}>
+              <Each of={picking()!} key={(a) => a.id}>{(a) => (
+                <View role="button" testID={`agent-${a().id}`} disabled={!a().usable} onPress={() => { if (a().usable) void pick(a()) }}
+                  class={`min-h-10 py-1.5 justify-center ${a().usable ? 'active:opacity-70' : 'opacity-50'}`}>
+                  <Text class="text-[14px] text-foreground">{a().name}</Text>
+                  <If when={a().needs ? t('agentTooOld', { need: a().needs, have: a().version }) : a().note}>{(n) => <Text class="text-[12px] text-sidebar-foreground">{n()}</Text>}</If>
+                </View>
+              )}</Each>
+            </If>
+            <View role="button" testID="agent-pick-cancel" onPress={() => picking.set(null)} class="h-9 justify-center active:opacity-70">
+              <Text class="text-[13px] text-muted-foreground">{t('cancel')}</Text>
+            </View>
+          </View>
         </If>
         <SectionLabel label={t('computer')} />
         <Fact label={t('computerName')} value={props.link.name} />

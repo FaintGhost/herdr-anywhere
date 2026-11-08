@@ -1,0 +1,385 @@
+{
+  "needs_you": [
+    {
+      "id": "T6",
+      "outcome": "按顾客的币种显示价格",
+      "stage": "waiting",
+      "waiting": "价格取整，还是保留到分？",
+      "panes": [
+        {
+          "side": "hc",
+          "addr": "t4",
+          "name": "mobile",
+          "turn_at": 2,
+          "at": 1700000000360
+        }
+      ],
+      "log": [
+        {
+          "at": 1700000000360,
+          "to": "hc:t4",
+          "text": "每个价格按顾客自己的币种显示"
+        }
+      ],
+      "created": 1700000000354,
+      "updated": 1700000000405,
+      "parent": "P1",
+      "group": "waiting",
+      "pane_rows": [
+        {
+          "ref": {
+            "side": "hc",
+            "addr": "t4",
+            "name": "mobile",
+            "turn_at": 2,
+            "at": 1700000000360
+          },
+          "id": "t4",
+          "found": true,
+          "state": "live",
+          "status": "idle",
+          "cwd": "/p/acme-app",
+          "name": "mobile",
+          "turns_since": 0,
+          "moved": false,
+          "quiet": false
+        }
+      ],
+      "path": [
+        "上线 Acme 商店的新结账流程"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "P1",
+      "outcome": "上线 Acme 商店的新结账流程",
+      "stage": "doing",
+      "created": 1700000000278,
+      "updated": 1700000000278,
+      "std": "顾客两步就能付完款",
+      "group": "waiting",
+      "pane_rows": null,
+      "children": [
+        {
+          "id": "T1",
+          "outcome": "让顾客能保存银行卡",
+          "stage": "doing",
+          "panes": [
+            {
+              "side": "hc",
+              "addr": "t2",
+              "name": "checkout",
+              "turn_at": 7,
+              "at": 1700000000288,
+              "ended": "unknown"
+            }
+          ],
+          "log": [
+            {
+              "at": 1700000000288,
+              "to": "hc:t2",
+              "text": "先做银行卡表单"
+            }
+          ],
+          "created": 1700000000283,
+          "updated": 1700000000288,
+          "parent": "P1",
+          "group": "doing",
+          "pane_rows": [
+            {
+              "ref": {
+                "side": "hc",
+                "addr": "t2",
+                "name": "checkout",
+                "turn_at": 7,
+                "at": 1700000000288,
+                "ended": "unknown"
+              },
+              "id": "t2",
+              "found": true,
+              "state": "live",
+              "status": "working",
+              "cwd": "/p/acme-shop",
+              "name": "checkout",
+              "turns_since": 0,
+              "moved": false,
+              "quiet": false,
+              "handed_on": true
+            }
+          ],
+          "children": [
+            {
+              "id": "T2",
+              "outcome": "加上银行卡表单",
+              "stage": "done",
+              "created": 1700000000334,
+              "updated": 1700000000334,
+              "parent": "T1",
+              "group": "done",
+              "pane_rows": null,
+              "children": [],
+              "done": 1,
+              "total": 1
+            },
+            {
+              "id": "T3",
+              "outcome": "输入时就校验卡号",
+              "stage": "parked",
+              "created": 1700000000339,
+              "updated": 1700000000339,
+              "parent": "T1",
+              "group": "parked",
+              "pane_rows": null,
+              "children": [],
+              "done": 0,
+              "total": 1
+            },
+            {
+              "id": "T4",
+              "outcome": "让顾客能删掉存过的卡",
+              "stage": "parked",
+              "created": 1700000000344,
+              "updated": 1700000000344,
+              "parent": "T1",
+              "group": "parked",
+              "pane_rows": null,
+              "children": [],
+              "done": 0,
+              "total": 1
+            }
+          ],
+          "done": 1,
+          "total": 3
+        },
+        {
+          "id": "T5",
+          "outcome": "在 Android 手机上测一遍结账",
+          "stage": "parked",
+          "next": "等银行卡的活做完再跑 · 你说过：跑完告诉我",
+          "created": 1700000000349,
+          "updated": 1700000000349,
+          "parent": "P1",
+          "group": "parked",
+          "pane_rows": null,
+          "children": [],
+          "done": 0,
+          "total": 1
+        },
+        {
+          "id": "T6",
+          "outcome": "按顾客的币种显示价格",
+          "stage": "waiting",
+          "waiting": "价格取整，还是保留到分？",
+          "panes": [
+            {
+              "side": "hc",
+              "addr": "t4",
+              "name": "mobile",
+              "turn_at": 2,
+              "at": 1700000000360
+            }
+          ],
+          "log": [
+            {
+              "at": 1700000000360,
+              "to": "hc:t4",
+              "text": "每个价格按顾客自己的币种显示"
+            }
+          ],
+          "created": 1700000000354,
+          "updated": 1700000000405,
+          "parent": "P1",
+          "group": "waiting",
+          "pane_rows": [
+            {
+              "ref": {
+                "side": "hc",
+                "addr": "t4",
+                "name": "mobile",
+                "turn_at": 2,
+                "at": 1700000000360
+              },
+              "id": "t4",
+              "found": true,
+              "state": "live",
+              "status": "idle",
+              "cwd": "/p/acme-app",
+              "name": "mobile",
+              "turns_since": 0,
+              "moved": false,
+              "quiet": false
+            }
+          ],
+          "children": [],
+          "done": 0,
+          "total": 1
+        },
+        {
+          "id": "T9",
+          "outcome": "付款后发收据邮件",
+          "stage": "doing",
+          "panes": [
+            {
+              "side": "hc",
+              "addr": "t2",
+              "name": "checkout",
+              "turn_at": 7,
+              "at": 1700000000411
+            }
+          ],
+          "log": [
+            {
+              "at": 1700000000411,
+              "to": "hc:t2",
+              "text": "顺便在付款后发一封收据邮件"
+            }
+          ],
+          "created": 1700000000434,
+          "updated": 1700000000434,
+          "parent": "P1",
+          "auto": true,
+          "group": "doing",
+          "pane_rows": [
+            {
+              "ref": {
+                "side": "hc",
+                "addr": "t2",
+                "name": "checkout",
+                "turn_at": 7,
+                "at": 1700000000411
+              },
+              "id": "t2",
+              "found": true,
+              "state": "live",
+              "status": "working",
+              "cwd": "/p/acme-shop",
+              "name": "checkout",
+              "turns_since": 0,
+              "moved": false,
+              "quiet": false
+            }
+          ],
+          "children": [],
+          "done": 0,
+          "total": 1
+        }
+      ],
+      "done": 1,
+      "total": 6
+    }
+  ],
+  "closed": [
+    {
+      "id": "P2",
+      "outcome": "比较几家支付服务商",
+      "stage": "done",
+      "panes": [
+        {
+          "side": "hc",
+          "addr": "t3",
+          "name": "payments",
+          "turn_at": 4,
+          "at": 1700000000008
+        }
+      ],
+      "log": [
+        {
+          "at": 1700000000008,
+          "to": "hc:t3",
+          "text": "比较三家支付服务商，写个结论"
+        }
+      ],
+      "created": 1700000000000,
+      "updated": 1700000000273,
+      "group": "done",
+      "pane_rows": [
+        {
+          "ref": {
+            "side": "hc",
+            "addr": "t3",
+            "name": "payments",
+            "turn_at": 4,
+            "at": 1700000000008
+          },
+          "id": "t3",
+          "found": true,
+          "state": "live",
+          "status": "done",
+          "cwd": "/p/acme-shop",
+          "name": "payments",
+          "turns_since": 0,
+          "moved": false,
+          "quiet": false
+        }
+      ],
+      "said": "对比写好了，等你看",
+      "children": [],
+      "done": 1,
+      "total": 1
+    }
+  ],
+  "queue": 0,
+  "just_done": [
+    {
+      "id": "T2",
+      "outcome": "加上银行卡表单",
+      "stage": "done",
+      "created": 1700000000334,
+      "updated": 1700000000334,
+      "parent": "T1",
+      "group": "done",
+      "pane_rows": null,
+      "path": [
+        "上线 Acme 商店的新结账流程",
+        "让顾客能保存银行卡"
+      ]
+    },
+    {
+      "id": "P2",
+      "outcome": "比较几家支付服务商",
+      "stage": "done",
+      "panes": [
+        {
+          "side": "hc",
+          "addr": "t3",
+          "name": "payments",
+          "turn_at": 4,
+          "at": 1700000000008
+        }
+      ],
+      "log": [
+        {
+          "at": 1700000000008,
+          "to": "hc:t3",
+          "text": "比较三家支付服务商，写个结论"
+        }
+      ],
+      "created": 1700000000000,
+      "updated": 1700000000273,
+      "group": "done",
+      "pane_rows": [
+        {
+          "ref": {
+            "side": "hc",
+            "addr": "t3",
+            "name": "payments",
+            "turn_at": 4,
+            "at": 1700000000008
+          },
+          "id": "t3",
+          "found": true,
+          "state": "live",
+          "status": "done",
+          "cwd": "/p/acme-shop",
+          "name": "payments",
+          "turns_since": 0,
+          "moved": false,
+          "quiet": false
+        }
+      ],
+      "said": "对比写好了，等你看",
+      "path": []
+    }
+  ]
+}

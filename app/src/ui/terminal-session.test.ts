@@ -113,7 +113,7 @@ test('after the line comes back the terminal attaches again as resumed', async (
   expect(s.state.get()).toBe('live')
 })
 
-// herdr-core, measured 2026-11-06 with two viewers: attaching as resumed leaves the size with the other viewer, and focus
+// herdr-core, measured with two viewers: attaching as resumed leaves the size with the other viewer, and focus
 // takes it. A phone in use that kept the Mac's 33 columns after a dropped line wrapped everything at them.
 async function backAfterLoss(before: (store: Store) => void) {
   const { cores, r, s, store, timers } = await setup()
@@ -258,7 +258,7 @@ test('switching the theme while attached attaches again with the new colours', a
   expect(attaches[1].params.display).toEqual({ fg: '#25272c', bg: '#ffffff', cursor: '#25272c' })
 })
 
-// History width (2026-11-06): a phone that left a terminal gave its width back to the computer's idle 32-column split,
+// History width: a phone that left a terminal gave its width back to the computer's idle 32-column split,
 // so whatever Claude Code printed meanwhile stayed 32 columns wide in the history.
 test("leaving a terminal keeps the phone's width on it until someone uses another viewer", async () => {
   const { core, r, s } = await setup()

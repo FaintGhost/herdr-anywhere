@@ -39,7 +39,7 @@ const (
 	AppAsset = "Herdr-Anywhere.apk"
 
 	// github.com/<repo>/releases/latest/download/<file> is the newest release's file: a redirect to download/v<version>/<file>,
-	// 404 when that release has no such file (measured 2026-11-06 on v0.1.7). No GitHub API, so no hourly limit.
+	// 404 when that release has no such file (measured on v0.1.7). No GitHub API, so no hourly limit.
 	defaultReleases = "https://github.com/" + Repo + "/releases"
 	maxManifest     = 64 << 10
 	// Far above the file (18 MB in 0.1.5), to stop a wrong answer filling the disk.

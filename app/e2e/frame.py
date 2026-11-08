@@ -6,7 +6,7 @@ Writes what a QR code on the frame holds to <invite file> (nothing if it holds n
 painted over to <masked.png>, which can be shown in public, and the frame twice as large in grey to <ocr.png>, which
 Windows' OCR reads better; and each dark button alone, inverted, on a white margin and four times as large, to
 <button folder>/<n>.png: Windows' OCR reads no word on a small dark button within the whole frame, even inverted
-(runs 42445246935 and 42446474717 read the dialog's line but never its Start). Prints "button <n> <x>,<y>" (its centre
+(two CI runs read the dialog's line but never its Start). Prints "button <n> <x>,<y>" (its centre
 on the frame) per button, and only "qr <width>x<height> at <x>,<y>" per code, never what it holds.
 Needs zxing-cpp and Pillow.
 """

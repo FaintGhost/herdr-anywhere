@@ -1,7 +1,7 @@
 // Typing on a phone's keyboard into the terminal page, in a real browser: Chromium over CDP sends what Chrome on
 // Android makes of Gboard's typing (a keydown with keyCode 229, then the text or the change to the field), and the
 // page must send the program exactly what was typed. Run with `e2e/page-ime.sh`.
-// The sequences follow what Gboard did on the API 35 emulator (2026-11-07, e2e/android-typing.sh checks the same on
+// The sequences follow what Gboard did on the API 35 emulator (e2e/android-typing.sh checks the same on
 // the device): before the fix, Enter sent "\r" and then a stray backspace, and a correction picked from the
 // suggestions sent the whole field again.
 import { createRequire } from 'node:module'
@@ -144,7 +144,7 @@ async function open() {
   await t.commit('你好')
   check('the picked characters go once', (await t.input()) === '你好')
   // Gboard's pinyin keeps a picked word as its own after the commit and spends the next backspace on it: nothing
-  // reached the page on the first backspace after 你好 or 世界 (logcat trace, API 35 emulator, 2026-11-07). The page
+  // reached the page on the first backspace after 你好 or 世界 (logcat trace, API 35 emulator). The page
   // empties the field once a word in such a script is picked, so the keyboard has nothing of it left to hold.
   await t.page.waitForTimeout(50)
   const left = await t.page.evaluate(() => document.querySelector('textarea').value)
@@ -160,7 +160,7 @@ async function open() {
 }
 {
   // iOS's space: the field gets a no-break space (U+00A0), swapped for a plain one when the next word starts (seen in
-  // the iPhone SE simulator, iOS 17, 2026-11-07: the program read "hi\xc2\xa0", then "\x7f a").
+  // the iPhone SE simulator, iOS 17: the program read "hi\xc2\xa0", then "\x7f a").
   const t = await open()
   await t.letters('teh')
   await t.commit('\u00a0')

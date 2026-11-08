@@ -113,8 +113,7 @@ func TestResolveNothingFound(t *testing.T) {
 	}
 }
 
-// Herdr's Windows installer (releases.herdr.dev/core/install.ps1, read
-// 2026-11-07) puts herdr-core.exe in %LOCALAPPDATA%\Programs\herdr-core and on
+// Herdr's Windows installer (releases.herdr.dev/core/install.ps1) puts herdr-core.exe in %LOCALAPPDATA%\Programs\herdr-core and on
 // PATH, and makes hc.exe beside it only when no hc exists yet.
 func TestCandidatesOnWindows(t *testing.T) {
 	look := func(name string) (string, error) {
@@ -139,7 +138,7 @@ func TestCandidatesOnWindows(t *testing.T) {
 	}
 }
 
-// Herdr's installer (releases.herdr.dev/core/install.sh, read 2026-11-08) puts ~/.local/bin/herdr-core on Linux and
+// Herdr's installer (releases.herdr.dev/core/install.sh) puts ~/.local/bin/herdr-core on Linux and
 // macOS, and links hc to it only when no hc exists: herbstluftwm ships an hc of its own. So herdr-core, on PATH or in
 // ~/.local/bin, comes after hc.
 func TestCandidatesOnLinuxAndMac(t *testing.T) {

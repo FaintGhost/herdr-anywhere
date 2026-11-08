@@ -64,7 +64,7 @@ export class Signal<T> {
 }
 
 /** Silence that means the line is dead, though the socket says it is open: the phone asks for the machines every 2.5 s
- *  and herdr-core sends a heartbeat every 15 s (measured 2026-11-05, hc 0.1.18). The socket alone doesn't tell:
+ *  and herdr-core sends a heartbeat every 15 s (measured, hc 0.1.18). The socket alone doesn't tell:
  *  a close from the computer can fail to reach the phone, which then goes on saying Connected. */
 const QUIET_MS = 15_000
 /** A check later than this after the last one: the app was suspended, so nothing could have been heard. */
@@ -603,7 +603,7 @@ export class Store {
 
   /** Terminals whose program reports a status, in space, tab, pane order (herdr's `agents()`), and the agents that never
    *  report one (OpenCode before 2.2 prints no OSC 7501: its packages/tui/src/context/program-status.ts came in
-   *  with anomalyco/opencode#55172, is in the v2.2.0 release and not in v1.19.5; read 2026-11-06), known by what they run. */
+   *  with anomalyco/opencode#55172, is in the v2.2.0 release and not in v1.19.5), known by what they run. */
   agents(): AgentInfo[] {
     const out: AgentInfo[] = []
     const focusedPane = this.viewingTab ? this.model.focusedPane() : undefined
@@ -625,8 +625,8 @@ export class Store {
   }
 
   /** Pins or unpins an agent on the computer, as the desktop's `terminal.pin` does: the label shows on every screen
-   *  when herdr-core's `labels` event comes back. An empty value removes the label (herdr-core 0.1.18, 2026-11-07).
-   *  Herdr 0.1.13 writes the same values, "1" or "" (2026-11-07). */
+   *  when herdr-core's `labels` event comes back. An empty value removes the label (herdr-core 0.1.18).
+   *  Herdr 0.1.13 writes the same values, "1" or "". */
   async pin(addr: string, pinned: boolean) {
     await this.call('terminal.label', { terminal: addr, labels: { [PIN_LABEL]: pinned ? '1' : '' } })
   }
@@ -996,7 +996,7 @@ export class Store {
 
   /** Attachments to terminals the phone left, newest last. herdr-core sizes a terminal to its last used viewer and,
    *  when that one detaches, to the last used of those left: leaving would hand the width to an idle split on the
-   *  computer, and what an agent prints meanwhile stays that narrow in its history (measured 2026-11-06 on the emulator). Kept, a
+   *  computer, and what an agent prints meanwhile stays that narrow in its history (measured on the emulator). Kept, a
    *  left terminal stays the phone's width until someone uses another viewer. */
   private held = new Map<string, Stream>()
 

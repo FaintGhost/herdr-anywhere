@@ -39,7 +39,7 @@ export class FakeCore implements Pipe {
   private eventCh?: number
   private attached = new Map<number, string>()
   /** Each viewer's size and when it was last used (attach, typing, resize, focus). herdr-core sizes a terminal to its
-   *  last used viewer, and to the last used of those left when that one detaches (measured 2026-11-06,
+   *  last used viewer, and to the last used of those left when that one detaches (measured
    *  on the emulator: the phone leaving gave the width back to a 32-column viewer that never typed). */
   private viewing = new Map<number, { cols: number; rows: number; observe: boolean; used: number }>()
   private uses = 0
@@ -123,7 +123,7 @@ export class FakeCore implements Pipe {
     const s = { id: space, name, folder, tabs: [] as any[] }
     for (const t of tabs) {
       const term = this.run({ argv: t.argv, cwd: folder, labels: { 'herdr.space': space, 'herdr.tab': t.id } })
-      // What herdr-core answers for each (hc get, 2026-11-03): Codex is its node launcher in the foreground.
+      // What herdr-core answers for each (hc get): Codex is its node launcher in the foreground.
       if (t.foreground) term.foreground = t.argv[0] === 'codex' ? { name: 'node', argv: ['node', '/usr/local/bin/codex'], cwd: folder } : { name: t.argv[0], argv: t.argv, cwd: folder }
       if (t.screen) this.screens.set(term.address, t.screen)
       if (t.status) this.setStatus(term.address, t.status, t.argv[0] === 'codex' ? 'codex' : 'claude-code', { kind: t.kind, msg: t.msg })
@@ -145,6 +145,8 @@ export class FakeCore implements Pipe {
   screens = new Map<string, string>()
   /** Text sent to a terminal (`terminal.send`), for a test to read. */
   onSend?: (terminal: string, text: string, force: boolean) => void
+  /** machine.exec lines it answers itself (the progress page's `herdr-anywhere track …`); UTF-8 out. */
+  onExec?: (line: string) => { code?: number; stdout: string; stderr?: string } | undefined
 
   setStatus(addr: string, state: string | null, app: string | null = 'claude-code', extra: { kind?: string; msg?: string } = {}) {
     const t = this.terms.get(addr)!
@@ -153,7 +155,7 @@ export class FakeCore implements Pipe {
     this.emit('status', addr, { status: t.status, records: {}, reported: t.reported })
   }
 
-  /** Sets labels as herdr-core does (an empty value removes one; 2026-11-07, hc 0.1.18) and tells every screen. */
+  /** Sets labels as herdr-core does (an empty value removes one; hc 0.1.18) and tells every screen. */
   label(addr: string, labels: Record<string, string>) {
     const t = this.terms.get(addr)!
     for (const [k, v] of Object.entries(labels)) if (v === '') delete t.labels[k]; else t.labels[k] = v
@@ -270,6 +272,8 @@ export class FakeCore implements Pipe {
       case 'machine.list': return ok({ machines: this.machines })
       case 'machine.exec': {
         const line: string = pr.line ?? ''
+        const own = this.onExec?.(line)
+        if (own) return ok({ code: own.code ?? 0, stdout: b64utf8(own.stdout), stderr: b64utf8(own.stderr ?? ''), ms: 1, signal: null, timed_out: false })
         let stdout = ''
         if (line.includes('$HOME')) stdout = `${this.home}\n${this.shell}\n`
         else if (line.includes('herdr-has')) stdout = this.installed.map((c) => `herdr-has:${c}\n`).join('')
@@ -286,6 +290,12 @@ export class FakeCore implements Pipe {
       default: return fail('unknown', `no method ${msg.method}`)
     }
   }
+}
+
+function b64utf8(s: string) {
+  let bin = ''
+  for (const b of new TextEncoder().encode(s)) bin += String.fromCharCode(b)
+  return btoa(bin)
 }
 
 export const settle = async (n = 5) => {

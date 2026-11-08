@@ -24,12 +24,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # herdr-core from https://releases.herdr.dev/core/latest.json (checked 2026-11-07); each job's sha256 is in the
+  # herdr-core from https://releases.herdr.dev/core/latest.json; each job's sha256 is in the
   # matrix. Update them together.
   HERDR_CORE_VERSION: "0.1.18"
   HM_TAILCAT_LIVE: "1"
   # nsh from https://github.com/longbridge/nsh/releases/tag/v0.3.0; each file's sha256 (the digest GitHub lists
-  # for it, checked 2026-11-07) is in the app job's matrix.
+  # for it) is in the app job's matrix.
   NSH_VERSION: "v0.3.0"
 
 jobs:
@@ -75,7 +75,8 @@ jobs:
         run: |
           dir="$RUNNER_TEMP/herdr-core"
           mkdir -p "$dir"
-          curl -fsSL "https://releases.herdr.dev/core/$HERDR_CORE_VERSION/$CORE" -o "$RUNNER_TEMP/$CORE"
+          # Every download here retries: GitHub's release downloads have answered 504 and failed whole jobs.
+          curl -fsSL --retry 5 --retry-delay 10 "https://releases.herdr.dev/core/$HERDR_CORE_VERSION/$CORE" -o "$RUNNER_TEMP/$CORE"
           if command -v sha256sum >/dev/null; then sum="sha256sum"; else sum="shasum -a 256"; fi
           echo "$CORE_SHA256  $RUNNER_TEMP/$CORE" | $sum -c -
           tar -xzf "$RUNNER_TEMP/$CORE" -C "$dir"
@@ -91,7 +92,7 @@ jobs:
         run: |
           $dir = Join-Path $env:LOCALAPPDATA "Programs\herdr-core"
           $zip = Join-Path $env:RUNNER_TEMP $env:CORE
-          curl.exe -fsSL "https://releases.herdr.dev/core/$env:HERDR_CORE_VERSION/$env:CORE" -o $zip
+          curl.exe -fsSL --retry 5 --retry-delay 10 "https://releases.herdr.dev/core/$env:HERDR_CORE_VERSION/$env:CORE" -o $zip
           if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne $env:CORE_SHA256) { throw "$env:CORE doesn't match its sha256" }
           New-Item -ItemType Directory -Force $dir | Out-Null
           & "$env:SystemRoot\System32\tar.exe" -xf $zip -C $dir
@@ -183,12 +184,12 @@ jobs:
           if command -v sha256sum >/dev/null; then sum="sha256sum"; else sum="shasum -a 256"; fi
           dir="$RUNNER_TEMP/herdr-core"
           mkdir -p "$dir"
-          curl -fsSL "https://releases.herdr.dev/core/$HERDR_CORE_VERSION/$CORE" -o "$RUNNER_TEMP/$CORE"
+          curl -fsSL --retry 5 --retry-delay 10 "https://releases.herdr.dev/core/$HERDR_CORE_VERSION/$CORE" -o "$RUNNER_TEMP/$CORE"
           echo "$CORE_SHA256  $RUNNER_TEMP/$CORE" | $sum -c -
           tar -xzf "$RUNNER_TEMP/$CORE" -C "$dir"
           "$dir/herdr-core" --version
           echo "HM_TEST_HC=$dir/herdr-core" >> "$GITHUB_ENV"
-          curl -fsSL "https://github.com/longbridge/nsh/releases/download/$NSH_VERSION/$NSH" -o "$RUNNER_TEMP/$NSH"
+          curl -fsSL --retry 5 --retry-delay 10 "https://github.com/longbridge/nsh/releases/download/$NSH_VERSION/$NSH" -o "$RUNNER_TEMP/$NSH"
           echo "$NSH_SHA256  $RUNNER_TEMP/$NSH" | $sum -c -
           tar -xzf "$RUNNER_TEMP/$NSH" -C "$RUNNER_TEMP"
           "$RUNNER_TEMP/nsh/bin/nsh" --version
@@ -225,12 +226,12 @@ jobs:
         run: |
           dir="$RUNNER_TEMP/herdr-core"
           mkdir -p "$dir"
-          curl -fsSL "https://releases.herdr.dev/core/$HERDR_CORE_VERSION/$CORE" -o "$RUNNER_TEMP/$CORE"
+          curl -fsSL --retry 5 --retry-delay 10 "https://releases.herdr.dev/core/$HERDR_CORE_VERSION/$CORE" -o "$RUNNER_TEMP/$CORE"
           echo "$CORE_SHA256  $RUNNER_TEMP/$CORE" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/$CORE" -C "$dir"
           "$dir/herdr-core" --version
           echo "HM_TEST_HC=$dir/herdr-core" >> "$GITHUB_ENV"
-          curl -fsSL "https://github.com/longbridge/nsh/releases/download/$NSH_VERSION/$NSH" -o "$RUNNER_TEMP/$NSH"
+          curl -fsSL --retry 5 --retry-delay 10 "https://github.com/longbridge/nsh/releases/download/$NSH_VERSION/$NSH" -o "$RUNNER_TEMP/$NSH"
           echo "$NSH_SHA256  $RUNNER_TEMP/$NSH" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/$NSH" -C "$RUNNER_TEMP"
           "$RUNNER_TEMP/nsh/bin/nsh" --version
@@ -259,9 +260,9 @@ jobs:
           # on this runner; swangle drew them whole. app/e2e/android-glyphs.sh shows the difference.
           emulator-options: -no-window -gpu swangle -noaudio -no-boot-anim -no-snapshot
           working-directory: app
-          # This runner's emulator can keep covering the screen with "Pixel Launcher isn't responding" (2026-11-08: back
+          # This runner's emulator can keep covering the screen with "Pixel Launcher isn't responding" (on CI: back
           # three times after Wait, so the link was never typed). hide_error_dialogs skips error dialogs and goes on as
-          # if they were answered (checked 2026-11-08 on API 35: a crash dialog shows without it and not with it). The
+          # if they were answered (checked on API 35: a crash dialog shows without it and not with it). The
           # app under test still fails its checks if it stops answering.
           script: |
             adb -s emulator-5554 shell settings put global hide_error_dialogs 1

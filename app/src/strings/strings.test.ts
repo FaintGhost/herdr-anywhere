@@ -6,7 +6,7 @@ import { formatsFor, LANGS, langFor, plural, TABLES, type Lang } from './index.t
 const blanks = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort()
 const FORMS: Record<Lang, string[]> = { en: ['one', 'other'], es: ['one', 'other'], ru: ['one', 'few', 'many'], 'zh-Hans': ['other'], 'zh-Hant': ['other'], ja: ['other'], ko: ['other'] }
 // Words that read the same in a language, on purpose.
-const SAME: Partial<Record<Lang, string[]>> = { es: ['terminal', 'shell', 'panel', 'points'] }
+const SAME: Partial<Record<Lang, string[]>> = { es: ['terminal', 'shell', 'panel', 'points', 'experimental', 'withEvidence'], ru: ['withEvidence'] }
 
 test('every language has every word and no others', () => {
   for (const l of LANGS) expect(Object.keys(TABLES[l]).sort()).toEqual(Object.keys(en).sort())

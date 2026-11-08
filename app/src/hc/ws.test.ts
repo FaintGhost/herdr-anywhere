@@ -108,7 +108,7 @@ test('closing it ourselves says closed, once', () => {
 })
 
 test('a send the socket refuses never throws: a closing socket still reports its close code, else the pipe ends soon after', () => {
-  // NSH's WebSocket.send throws "outbound queue is full or closed" (2026-10-30, the live e2e: the companion closed
+  // NSH's WebSocket.send throws "outbound queue is full or closed" (the live e2e: the companion closed
   // with 4401 right after the open, before readyState changed).
   const p = new SocketPipe('ws://x/hc?token=t', 'bin', io)
   const why: string[] = []
@@ -135,7 +135,7 @@ test('a send the socket refuses never throws: a closing socket still reports its
   expect(s2.closedWith?.[0]).toBe(1000)
 })
 
-// NSH's queue held 8 credit frames (104 bytes) when it refused one, measured 2026-11-06 on the emulator; the socket was
+// NSH's queue held 8 credit frames (104 bytes) when it refused one, measured on the emulator; the socket was
 // fine and the next send got through. A full queue ended the connection, about every 2 s while a screen redrew.
 test('a full queue loses nothing: what it refused goes out soon, in order, as one message, and later sends wait their turn', () => {
   timers.length = 0

@@ -51,8 +51,8 @@ func localPath(t *testing.T, file string) string {
 	root, _ := filepath.Abs("../../..")
 	modcache, _ := exec.Command("go", "env", "GOMODCACHE").Output()
 	for _, p := range []string{root, strings.TrimSpace(string(modcache))} {
-		// A build on Windows writes its paths with "/" (Go's cmd/internal/objabi AbsFile, read 2026-11-08 in Go
-		// 1.26.3): looking for "C:\a\…" alone found nothing on CI's Windows runners that day.
+		// A build on Windows writes its paths with "/" (Go's cmd/internal/objabi AbsFile, as of Go
+		// 1.26.3): looking for "C:\a\…" alone found nothing on CI's Windows runners.
 		if len(p) > 1 && (bytes.Contains(b, []byte(p)) || bytes.Contains(b, []byte(strings.ReplaceAll(p, `\`, "/")))) {
 			return p
 		}
@@ -74,8 +74,7 @@ func TestThePathCheckFindsAnUntrimmedBuild(t *testing.T) {
 
 // TestBuildsForWindows cross-compiles the companion, and type-checks every
 // package's tests, for 64-bit Windows: Herdr ships a Windows x86_64 core and
-// app (releases.herdr.dev/core/latest.json and app/latest.json, read
-// 2026-11-07), so a Windows person can run Herdr and needs this program too.
+// app (releases.herdr.dev/core/latest.json and app/latest.json), so a Windows person can run Herdr and needs this program too.
 // It builds the release's file the way a release does, and checks it is an x64 Windows program.
 func TestBuildsForWindows(t *testing.T) {
 	if testing.Short() {
@@ -101,8 +100,8 @@ func TestBuildsForWindows(t *testing.T) {
 	}
 }
 
-// Herdr ships Linux x86_64 and aarch64 builds (releases.herdr.dev/app/latest.json and core/latest.json, read
-// 2026-11-08). Each release file is a static program, so it runs whatever C library the computer has.
+// Herdr ships Linux x86_64 and aarch64 builds (releases.herdr.dev/app/latest.json and core/latest.json).
+// Each release file is a static program, so it runs whatever C library the computer has.
 func TestBuildsForLinux(t *testing.T) {
 	if testing.Short() {
 		t.Skip("cross-compiles the companion")

@@ -27,7 +27,7 @@ export type BarKey = 'esc' | 'tab' | 'btab' | 'enter' | 'ctrlc' | 'up' | 'down' 
 
 /** Whether the terminal's WebView is left scrollable. On Android NSH 0.3.0's WebView (WebBox) swallows every finger
  *  move while it is not, and the page saw only touchstart and touchend: no drag or selection (measured
- *  2026-10-31 on the API 35 emulator over DevTools). The page never scrolls itself: touch-action is none. iOS keeps
+ *  on the API 35 emulator over DevTools). The page never scrolls itself: touch-action is none. iOS keeps
  *  it off, as before; whether moves reach the page there was not checked. */
 export const webViewScrollable = (os: string) => os === 'android'
 
@@ -381,7 +381,7 @@ const BOOT = `(function () {
     }, { passive: false });
   }
   // A phone's keyboard edits xterm's hidden field and says little about which key it was (keydown 229). xterm guesses
-  // the bytes from the field and guesses wrong with Gboard (API 35 emulator, 2026-11-07): Enter sent "\\r" and then a
+  // the bytes from the field and guesses wrong with Gboard (API 35 emulator): Enter sent "\\r" and then a
   // stray backspace, because xterm empties the field on Enter and then reads the shorter field as a deletion; a
   // correction picked from the suggestions sent the whole field again. So the page reads the field itself: whatever
   // the keyboard did to it since the last look (typed, corrected, composed and picked, deleted) goes to the program
@@ -410,7 +410,7 @@ const BOOT = `(function () {
     on('compositionstart', function (e) { stop(e); composing = true; });
     on('compositionupdate', stop);
     // A word picked in Chinese, Japanese or Korean leaves the field: Gboard's pinyin otherwise keeps it as its own and
-    // spends the next backspace on it, sending nothing (logcat trace, API 35 emulator, 2026-11-07).
+    // spends the next backspace on it, sending nothing (logcat trace, API 35 emulator).
     on('compositionend', function (e) { stop(e); composing = false; seen(); if (/[\\u3000-\\u30ff\\u3400-\\u9fff\\uac00-\\ud7af\\uff00-\\uffef]/.test(e.data || '')) setTimeout(function () { if (!composing) forget(); }, 0); });
     on('beforeinput', function (e) {
       stop(e);

@@ -46,7 +46,7 @@ echo "$out" | grep -q '^arm64$' || { echo "FAIL: this path is for arm64: $out"; 
 want=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$app/nsh.json")
 echo "$out" | grep -qx "herdr-anywhere $want" || { echo "FAIL: section 2 did not print version $want: $out"; exit 1; }
 echo "ok: section 2 downloaded and ran herdr-anywhere $want"
-# A cgo build declares the macOS it was built on as its minimum (seen 2026-11-04: 27.0); a Go-only one declares Go's, 13.0.
+# A cgo build declares the macOS it was built on as its minimum (the version of the Mac that built the file); a Go-only one declares Go's, 13.0.
 minos=$(otool -l "$HOME/.local/bin/herdr-anywhere" | sed -n '/LC_BUILD_VERSION/,+3p' | awk '/minos/ { print int($2) }')
 [ "$minos" -le 13 ] || { echo "FAIL: it asks for macOS $minos or newer"; exit 1; }
 echo "ok: it runs on macOS $minos and newer"

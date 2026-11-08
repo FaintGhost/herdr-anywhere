@@ -8,7 +8,7 @@
 # space and taps the menu's Type in the terminal, puts the keyboard away with the key bar's button and taps it again.
 # Passes when the keyboard comes up both times. Then the input box row's switch, and typing on the keyboard's keys
 # straight into the terminal, whose program (e2e/typing-raw.py) logs the bytes: letters, space, Return with no stray
-# backspace, a lowercase letter after "teh " (the keyboard switched Shift on there by itself, 2026-11-07), and no
+# backspace, a lowercase letter after "teh " (the keyboard switched Shift on there by itself), and no
 # form bar (˄ ˅ Done) over the keyboard. Its build and result stay in the run's temporary folder.
 # Usage: SIM_UDID=<udid> e2e/ios-keyboard.sh [screenshot.png]
 # SIM_UDID is required, so the run never lands on another simulator. Needs go, nsh, hc, idb, xcodegen and Xcode.

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Typing straight into the terminal with the phone's own keyboard, on the emulator with real taps on Gboard's keys.
 # The terminal runs a program that logs every read as bytes (e2e/typing-raw.py); each check compares what it got.
-# Gboard before the page read its edits itself (2026-11-07): Enter sent "\r" and a stray backspace in 4 of 5 taps, a
+# Gboard before the page read its edits itself: Enter sent "\r" and a stray backspace in 4 of 5 taps, a
 # picked correction ("teh" -> the) sent the field's old text again, and the first backspace after a pinyin word was
 # dropped in 2 of 3 tries.
 # Needs an emulator with a 1080x2400 screen at 420 dpi (Gboard's keys are tapped where they are on it) and Gboard
@@ -45,7 +45,7 @@ tap() {
   "$adb" shell input tap $xy
 }
 keyboard_up() { "$adb" shell dumpsys window InputMethod | grep -q "isOnScreen=true"; }
-# Gboard's keys on the 1080x2400 screen, read off a screenshot (2026-11-07).
+# Gboard's keys on the 1080x2400 screen, read off a screenshot.
 at() { case $1 in q) echo 58 1715;; w) echo 165 1715;; e) echo 272 1715;; r) echo 379 1715;; t) echo 486 1715;; y) echo 593 1715;; u) echo 700 1715;; i) echo 807 1715;; o) echo 914 1715;; p) echo 1021 1715;;
   a) echo 111 1870;; s) echo 218 1870;; d) echo 325 1870;; f) echo 432 1870;; g) echo 539 1870;; h) echo 646 1870;; j) echo 753 1870;; k) echo 860 1870;; l) echo 967 1870;;
   z) echo 218 2025;; x) echo 325 2025;; c) echo 432 2025;; v) echo 539 2025;; b) echo 646 2025;; n) echo 753 2025;; m) echo 860 2025;;
@@ -99,7 +99,7 @@ for i in 1 2 3; do keys '<'; check "backspace $i after a pinyin word" "$(got)" "
 keys shijie_; got >/dev/null
 keys '<'; check "a backspace after a second word" "$(got)" "b'\\x7f'"
 # The same in the input box (a native field), read by sending it: Gboard spent the first backspace after a picked word
-# there too (2026-11-07: 你好 and one backspace sent 你好).
+# there too (你好 and one backspace sent 你好).
 tap to-box; sleep 1; tap compose-input; sleep 1; got >/dev/null
 keys nihao_; sleep 1; keys '<'; sleep 1; tap compose-send
 check "input box: 你好 and one backspace sends 你" "$(got)" "$(python3 -c 'print(repr("你\r".encode()))')"

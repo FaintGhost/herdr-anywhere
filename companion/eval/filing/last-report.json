@@ -1,0 +1,121 @@
+{
+ "agent": "claude",
+ "label": "Claude Code · Haiku 5.5",
+ "languages": {
+  "en": {
+   "stops": "8/8",
+   "sessions": "2/3",
+   "messages": "4/4",
+   "new_tasks": 3,
+   "seconds": 47
+  },
+  "zh-Hans": {
+   "stops": "8/8",
+   "sessions": "2/3",
+   "messages": "4/4",
+   "new_tasks": 3,
+   "seconds": 46
+  },
+  "zh-Hant": {
+   "stops": "8/8",
+   "sessions": "3/3",
+   "messages": "4/4",
+   "new_tasks": 4,
+   "seconds": 46
+  },
+  "es": {
+   "stops": "8/8",
+   "sessions": "3/3",
+   "messages": "4/4",
+   "new_tasks": 4,
+   "seconds": 46
+  },
+  "ja": {
+   "stops": "8/8",
+   "sessions": "3/3",
+   "messages": "4/4",
+   "new_tasks": 4,
+   "seconds": 46
+  },
+  "ko": {
+   "stops": "8/8",
+   "sessions": "3/3",
+   "messages": "3/4",
+   "new_tasks": 5,
+   "seconds": 37
+  },
+  "ru": {
+   "stops": "8/8",
+   "sessions": "3/3",
+   "messages": "4/4",
+   "new_tasks": 4,
+   "seconds": 36
+  }
+ },
+ "rules": {
+  "R1": {
+   "pass": true,
+   "failed": [],
+   "checked": 28
+  },
+  "R2": {
+   "pass": true,
+   "failed": [],
+   "checked": 7
+  },
+  "R3": {
+   "pass": true,
+   "failed": [],
+   "checked": 54
+  },
+  "R4": {
+   "pass": true,
+   "failed": [],
+   "checked": 35
+  },
+  "R5": {
+   "pass": true,
+   "failed": [],
+   "checked": 7
+  },
+  "R6": {
+   "pass": true,
+   "failed": [],
+   "checked": 7
+  },
+  "R7": {
+   "pass": true,
+   "failed": [
+    {
+     "lang": "en",
+     "ok": false,
+     "detail": "v2: want 2, got Update the CHANGELOG [doing]"
+    },
+    {
+     "lang": "zh-Hans",
+     "ok": false,
+     "detail": "v2: want 2, got 更新 CHANGELOG [doing]"
+    }
+   ],
+   "checked": 21
+  },
+  "R8": {
+   "pass": true,
+   "failed": [
+    {
+     "lang": "ko",
+     "ok": false,
+     "detail": "m4: want T3, on T17 비밀번호 재설정 FAQ 항목 추가"
+    }
+   ],
+   "checked": 28
+  },
+  "R9": {
+   "pass": true,
+   "failed": [],
+   "checked": 7
+  }
+ },
+ "inputs": "59f88ebd683bc781ace419e759a151e3fa39d14fd4bed45d41600da9585bcb5a",
+ "pass": true
+}

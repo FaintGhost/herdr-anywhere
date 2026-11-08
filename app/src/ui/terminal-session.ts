@@ -24,7 +24,7 @@ const WHY: Record<string, Key> = {
 
 /** How often a viewer in use tells herdr-core so. */
 const CLAIM_MS = 2000
-/** How long a page has to say ready. It takes 0.3–1.4 s on the iOS 17 simulator (2026-11-07). A page whose web process
+/** How long a page has to say ready. It takes 0.3–1.4 s on the iOS 17 simulator. A page whose web process
  *  crashed never does, and the WebView says nothing about it: on the iOS 26.3 simulator JavaScriptCore crashed in about
  *  half the opens while xterm's script ran (in its string code: parseInt, String.prototype.replace). */
 export const PAGE_READY_MS = 6000

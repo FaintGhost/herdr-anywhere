@@ -229,7 +229,7 @@ func TestLiveTailcat(t *testing.T) {
 	// phone to serve at all (it did before the revoke, above). This dials the
 	// session directly: at 905975f a failed dial behind the forwarder panics
 	// the process (connectphone/forward.go:74-77 closes the typed-nil conn
-	// DialTCPPort returns with its error; seen here 2026-10-30).
+	// DialTCPPort returns with its error; seen here).
 	dialCtx, dialCancel := context.WithTimeout(ctx, 20*time.Second)
 	defer dialCancel()
 	c, err := sess.Dial(dialCtx)
