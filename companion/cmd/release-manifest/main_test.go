@@ -55,13 +55,17 @@ func TestSignWritesWhatACompanionAccepts(t *testing.T) {
 	pub, _ := base64.StdEncoding.DecodeString(strings.TrimSpace(out))
 	mac := filepath.Join(dir, update.MacAsset)
 	win := filepath.Join(dir, update.WindowsAsset)
+	linux := filepath.Join(dir, update.LinuxAsset)
+	linuxArm := filepath.Join(dir, update.LinuxArmAsset)
 	apk := filepath.Join(dir, update.AppAsset)
 	os.WriteFile(mac, []byte("mac file"), 0o755)
 	os.WriteFile(win, []byte("windows file"), 0o644)
+	os.WriteFile(linux, []byte("linux file"), 0o755)
+	os.WriteFile(linuxArm, []byte("linux arm file"), 0o755)
 	os.WriteFile(apk, []byte("android file"), 0o644)
 	rel := filepath.Join(dir, "out")
 	os.Mkdir(rel, 0o755)
-	if _, err := run(t, "sign", "-key", key, "-version", "0.1.8", "-out", rel, "-any-key", mac, win, apk); err != nil {
+	if _, err := run(t, "sign", "-key", key, "-version", "0.1.8", "-out", rel, "-any-key", mac, win, linux, linuxArm, apk); err != nil {
 		t.Fatal(err)
 	}
 	body, _ := os.ReadFile(filepath.Join(rel, update.ManifestFile))
@@ -72,8 +76,31 @@ func TestSignWritesWhatACompanionAccepts(t *testing.T) {
 	}
 	sum := sha256.Sum256([]byte("mac file"))
 	want := update.File{Name: update.MacAsset, SHA256: hex.EncodeToString(sum[:]), Bytes: 8}
-	if m.Version != "0.1.8" || len(m.Files) != 3 || m.Files[0] != want || m.Files[1].Name != update.WindowsAsset || m.Files[2].Name != update.AppAsset {
+	names := []string{update.MacAsset, update.WindowsAsset, update.LinuxAsset, update.LinuxArmAsset, update.AppAsset}
+	if m.Version != "0.1.8" || len(m.Files) != len(names) || m.Files[0] != want {
 		t.Fatalf("%+v", m)
+	}
+	for i, n := range names {
+		if m.Files[i].Name != n {
+			t.Errorf("file %d is %q, want %q", i, m.Files[i].Name, n)
+		}
+	}
+}
+
+// A file under a name no computer looks for (here Herdr's own spelling of the machine) would leave those computers
+// without the update, so sign refuses it.
+func TestSignRefusesAFileNoComputerLooksFor(t *testing.T) {
+	dir := t.TempDir()
+	key := filepath.Join(dir, "update.key")
+	run(t, "keygen", key)
+	wrong := filepath.Join(dir, "herdr-anywhere-linux-x86_64")
+	os.WriteFile(wrong, []byte("x"), 0o755)
+	out, err := run(t, "sign", "-key", key, "-version", "0.1.8", "-out", dir, "-any-key", wrong)
+	if err == nil || !strings.Contains(err.Error(), "herdr-anywhere-linux-x86_64") {
+		t.Fatalf("%v %s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, update.ManifestFile)); err == nil {
+		t.Fatal("wrote a manifest anyway")
 	}
 }
 

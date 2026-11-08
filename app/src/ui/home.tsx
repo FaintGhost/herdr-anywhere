@@ -15,7 +15,7 @@ import { ChecksQuestion, UpdateBanner } from './update.tsx'
 import type { Updates } from '../updates.ts'
 import type { PrefStore } from '../prefs.ts'
 import { ChoiceRow, ConnBanner, Glyph, IconButton, ProgramIcon, SpaceBadge, StatusMark, useRev } from './kit.tsx'
-import { AgentRow, agentWords } from './agent-row.tsx'
+import { AgentName, AgentRow, agentWords } from './agent-row.tsx'
 import { t } from '../strings/index.ts'
 import icon from '../../assets/brand/herdr-anywhere.png'
 
@@ -78,6 +78,7 @@ function WaitingRow(props: { store: Store; a: AgentInfo; now: number; actions: H
   const s = props.store
   const rev = useRev(s)
   const addr = props.a.address
+  const words = agentWords(s)
   const status = () => { rev(); return s.term(addr)?.status }
   const menu = () => { rev(); return s.menuFor(addr) }
   const since = () => s.agentList.since(props.a)
@@ -97,10 +98,10 @@ function WaitingRow(props: { store: Store; a: AgentInfo; now: number; actions: H
       <View class="flex-1 min-w-0 gap-[2px]">
         <View role="button" accessibilityLabel={t('waitingOpen', { program: props.a.programName, place: s.place(props.a), age: wait() })} onPress={open} class="active:opacity-70 gap-[2px]">
           <View class="flex-row items-center gap-2">
-            <Text class="flex-1 text-[14px] font-semibold text-foreground" numberOfLines={1}>{(rev(), s.paneName(addr))}</Text>
+            <View class="flex-1 flex-row min-w-0"><AgentName store={s} a={props.a} class="text-[14px] font-semibold text-foreground" /></View>
             <If when={wait()}><Text class="text-[11px] text-sidebar-foreground">{wait()}</Text></If>
           </View>
-          <Text class="text-[12px] text-sidebar-foreground" numberOfLines={1}>{(rev(), s.place(props.a))}</Text>
+          <Text class="text-[12px] text-sidebar-foreground" numberOfLines={1}>{(rev(), words.where(props.a))}</Text>
           <If when={asks(status())}><Text testID={`asks-${addr}`} class="text-[12.5px] text-muted-foreground" numberOfLines={2}>{asks(status())}</Text></If>
         </View>
         <View class="flex-row items-center gap-1.5 mt-1.5">

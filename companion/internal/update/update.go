@@ -31,6 +31,10 @@ const (
 	MacAsset = "herdr-anywhere-macos-arm64"
 	// WindowsAsset is a release's companion for Windows: x64, which Windows on Arm runs under its emulation.
 	WindowsAsset = "herdr-anywhere-windows-amd64.exe"
+	// LinuxAsset and LinuxArmAsset are a release's companions for Linux on x64 and on Arm: static programs, so any
+	// C library will do.
+	LinuxAsset    = "herdr-anywhere-linux-amd64"
+	LinuxArmAsset = "herdr-anywhere-linux-arm64"
 	// AppAsset is the Android app in a release.
 	AppAsset = "Herdr-Anywhere.apk"
 
@@ -42,6 +46,9 @@ const (
 	maxBinary = 256 << 20
 	stateFile = "update.json"
 )
+
+// ReleaseFiles are the files a release's latest.json lists: each computer's companion, and the Android app.
+var ReleaseFiles = []string{MacAsset, WindowsAsset, LinuxAsset, LinuxArmAsset, AppAsset}
 
 // ErrNoUpdate says there is nothing newer to install.
 var ErrNoUpdate = errors.New("already the latest version")
@@ -60,6 +67,10 @@ func AssetFor(goos, goarch string) string {
 		return MacAsset
 	case "windows/amd64":
 		return WindowsAsset
+	case "linux/amd64":
+		return LinuxAsset
+	case "linux/arm64":
+		return LinuxArmAsset
 	}
 	return ""
 }

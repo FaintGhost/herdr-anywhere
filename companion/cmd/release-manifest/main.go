@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"herdr-anywhere/companion/internal/update"
@@ -100,6 +101,11 @@ func sign(args []string, stdout io.Writer) error {
 		return errors.New("this key isn't the one built into the companion; computers would refuse the release")
 	}
 	m := update.Manifest{Version: *version}
+	for _, p := range fs.Args() {
+		if !slices.Contains(update.ReleaseFiles, filepath.Base(p)) {
+			return fmt.Errorf("no computer looks for %s; a release's files are named %s", filepath.Base(p), strings.Join(update.ReleaseFiles, ", "))
+		}
+	}
 	for _, p := range fs.Args() {
 		b, err := os.ReadFile(p)
 		if err != nil {

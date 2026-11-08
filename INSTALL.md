@@ -1,13 +1,13 @@
 # Installing Herdr Anywhere (for AI agents)
 
-Run these steps in order on the user's computer: the shell commands on a Mac, the PowerShell ones on Windows. They
+Run these steps in order on the user's computer: the shell commands on a Mac or Linux, the PowerShell ones on Windows. They
 only download files from the latest release; nothing is cloned or built. Each step ends with a check; stop and tell the
 user what failed if a check does not pass.
 
 ## 1. herdr-core is installed
 
 ```sh
-hc --version || ~/.local/bin/hc --version
+herdr-core --version || ~/.local/bin/herdr-core --version
 ```
 
 ```powershell
@@ -29,8 +29,21 @@ chmod +x ~/.local/bin/herdr-anywhere
 ```
 
 Passes when `uname -m` prints `arm64` and the last command prints `herdr-anywhere <version>`. On an Intel Mac (`x86_64`)
-or Linux stop before downloading: there is no ready-made companion for it, and the user has to build one (see the
-README's Build from source). If `~/.local/bin` is not on the user's PATH, call it by its full path below.
+stop before downloading: there is no ready-made companion for it, and the user has to build one (see the README's
+Build from source). If `~/.local/bin` is not on the user's PATH, call it by its full path below.
+
+On Linux, the file for the machine `uname -m` names, `x86_64` or `aarch64`:
+
+```sh
+uname -m
+mkdir -p ~/.local/bin
+curl -fsSL -o ~/.local/bin/herdr-anywhere https://github.com/jt-wang/herdr-anywhere/releases/latest/download/herdr-anywhere-linux-$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+chmod +x ~/.local/bin/herdr-anywhere
+~/.local/bin/herdr-anywhere --version
+```
+
+Passes when the last command prints `herdr-anywhere <version>`. For another machine the download fails: there is no
+ready-made companion for it, and the user has to build one.
 
 On Windows it goes next to Herdr's own programs:
 
@@ -52,8 +65,12 @@ Tell the user first: the dialog is a Herdr mod that runs `herdr-anywhere` on thi
 ~/.local/bin/herdr-anywhere install-dialog
 ```
 
+```powershell
+& "$env:LOCALAPPDATA\Programs\herdr-anywhere\herdr-anywhere.exe" install-dialog
+```
+
 Passes when it prints `Add phone is installed`. It says which key opens the dialog (`cmd-shift-m` on a Mac,
-`ctrl-shift-m` on Windows, or the key to bind yourself if that one is taken). If it says to open Herdr once, do that and run it again. Run it again after moving the
+`ctrl-shift-m` on Windows and Linux, or the key to bind yourself if that one is taken). If it says to open Herdr once, do that and run it again. Run it again after moving the
 `herdr-anywhere` binary: the dialog keeps its full path.
 
 ## 4. Pair the phone

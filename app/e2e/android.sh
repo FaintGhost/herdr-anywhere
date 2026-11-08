@@ -96,15 +96,27 @@ typed() {
   "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1
   "$adb" shell cat /sdcard/hm.xml | tr '>' '\n' | sed -n '/resource-id="pair-link"/,$p' | grep -oE 'text="[^"]+"' | head -1 | sed -E 's/^text="(.*)"$/\1/'
 }
-# adb's input text drops a character now and then on a slow emulator (in one CI run it typed 21 of the code's 22
-# characters, and the companion said the code was wrong), so the link is typed until the field holds all of it.
-for _ in 1 2 3; do
-  tap pair-link
-  "$adb" shell input keyevent KEYCODE_MOVE_END $(printf 'KEYCODE_DEL %.0s' $(seq 1 80))
-  "$adb" shell input text "'$link'"
+# adb's input text drops characters on a slow emulator: one CI run typed 21 of the code's 22, and under -gpu swangle
+# (run 42471711301) three whole-link tries held 32, 35 and 36 of 49. So the link goes in 10-character pieces, and
+# each round keeps what is right: it deletes from the first wrong character and types the rest (as android-remote.sh).
+send() {
+  rest=$1
+  while [ -n "$rest" ]; do
+    piece=$(printf %s "$rest" | cut -c1-10); rest=$(printf %s "$rest" | cut -c11-)
+    "$adb" shell input text "'$piece'" </dev/null
+  done
+}
+tap pair-link
+send "$link"
+for _ in 1 2 3 4 5 6 7 8; do
   got=$(typed); [ "$got" = "$link" ] && break
-  echo "the link field holds ${#got} of the link's ${#link} characters; typing it again"
+  same=$(python3 -c 'import os,sys; print(len(os.path.commonprefix(sys.argv[1:3])))' "$got" "$link")
+  echo "the link field holds ${#got} of the link's ${#link} characters, the first $same right; typing from there"
+  # The field keeps focus and its cursor stays after the last character typed.
+  [ "${#got}" -gt "$same" ] && "$adb" shell input keyevent KEYCODE_MOVE_END $(printf 'KEYCODE_DEL %.0s' $(seq 1 $((${#got} - same))))
+  send "$(printf %s "$link" | cut -c$((same + 1))-)"
 done
+got=$(typed)
 [ "$got" = "$link" ] || { echo "FAIL: the link field never held the whole link"; exit 1; }
 tap pair # once, with the keyboard up: the tap has to reach the button
 

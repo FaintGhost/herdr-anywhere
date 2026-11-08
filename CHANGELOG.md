@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.16
+
+- The Companion runs on Linux, on x64 and Arm (`herdr-anywhere-linux-amd64`, `herdr-anywhere-linux-arm64`). Install it with the Linux steps in the README, or have your coding agent follow INSTALL.md; in Herdr Desktop App, `ctrl-shift-m` opens Add phone. It updates itself from the phone as on a Mac. It also finds herdr-core when another program named `hc` is installed, as herbstluftwm's is.
+- The top of a pane and the "Needs you" rows on home name an agent the way its row on home does: its tab's name or title is the main text, and "Claude Code" is small and grey (at the top of a pane, on the line under the title, before what it is doing). Settings › Show agent names hides it there too. Before, they read only "Claude Code", and a long name pushed the title out on small phones.
+- Notifications and alerts name an agent the way its row does: “fix login” needs you, with the tab's name or the agent's title in quotes (each language's own: “” in Simplified Chinese, 「」 in Traditional Chinese and Japanese, ‘’ in Korean, «» in Spanish and Russian). An agent with no name or title is still called by its program, as in "Claude Code needs you".
+- On Windows, INSTALL.md's step 3 has its PowerShell line too, so a coding agent there opens Add phone without working out where the Companion was installed.
+
 ## v0.1.15
 
 - The computer's side runs on Windows. Install it with the PowerShell steps in the README, or have your coding agent follow INSTALL.md. It updates itself from the phone as on a Mac, and the same file runs on Windows on Arm.

@@ -445,16 +445,21 @@ export class Store {
     const pane = this.model.paneOf(t.address)
     const space = pane ? this.model.spaceOf(pane) : undefined
     const tab = pane ? this.model.tabOf(pane) : undefined
+    // Named as its row is: its tab's name or title, quoted so it reads as a name; with none, its program's name.
+    const p0 = this.program(t.address)
+    const shown = p0.agent ? this.agentsView().detail.get(t.address) : undefined
+    const title = shown && shown !== p0.name ? shown : undefined
     const name = this.terminalName(t)
     // What it asks or did, in its own words, then where it is: a notification's first line is what shows when folded.
     const place = space && tab ? `${this.spaceName(space)} › ${Model.tabName(space, tab)}` : undefined
     // Any program can report its state; only an agent's title is its summary of the task (a shell's is user@host:path).
     const p = this.program(t.address)
     const said = activity(t.status, p.agent ? cleanTitle(t.title) : '', p.name)
-    const body = [said, place].filter(Boolean).join('\n') || undefined
+    // Not twice: an agent whose title says what it did is named by it already, as its row hides that line too.
+    const body = [said === title ? '' : said, place].filter(Boolean).join('\n') || undefined
     return kind === 'blocked'
-      ? { id: 0, title: tr('nameNeedsYou', { name }), body, level: 'error', action: { terminal: t.address } }
-      : { id: 0, title: tr('nameFinished', { name }), body, level: 'info', action: { terminal: t.address } }
+      ? { id: 0, title: title ? tr('titleNeedsYou', { name: title }) : tr('nameNeedsYou', { name }), body, level: 'error', action: { terminal: t.address } }
+      : { id: 0, title: title ? tr('titleFinished', { name: title }) : tr('nameFinished', { name }), body, level: 'info', action: { terminal: t.address } }
   }
 
   private reconcile(live: Map<string, Term>): boolean {

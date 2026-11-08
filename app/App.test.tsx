@@ -25,7 +25,8 @@ test('home puts Needs you first, oldest wait first: where each agent is, what it
   expect(t[t.indexOf('Needs you') + 1]).toBe('2')
   // The longest wait first, across spaces.
   expect(t.indexOf('Write: /Users/sam/src/api/login.ts') < t.indexOf('Bash: npm test')).toBe(true)
-  expect(t).toContain('api › fix login')
+  // Each row names its agent as home's rows do: the tab's name first, its space under it.
+  expect([app.count('id:needs-t1 >> text:fix login'), app.count('id:needs-t1 >> text:api')]).toEqual([1, 1])
   // Claude Code's own menu, read off its screen, the highlighted option first; Open on every row.
   expect(['id:needs-t1-choice-1', 'id:needs-t1-choice-2', 'id:needs-t1-choice-3', 'id:needs-t1-open', 'id:needs-t2-open'].map((id) => app.count(id))).toEqual([1, 1, 1, 1, 1])
   expect(app.count('label:1. Yes')).toBe(1)
@@ -508,9 +509,15 @@ test('settings change the terminal text size and keep it', async () => {
 test("a blocked pane says Needs you, and its composer row is the agent's own choices off its screen", async () => {
   const app = await busy()
   await app.waitFor('text:Needs you')
+  const red = app.spanStyle('text:Needs you >> nth=0').color
   await app.press('id:space-sp1')
   await app.waitFor('id:answers')
   expect(app.shows('id:header-needs-you')).toBe(true)
+  // A red pill at the start of line 2, apart from the grey words after it (no "·" between), so line 1 is the title alone.
+  expect(app.count('id:header-needs-you >> text:Needs you')).toBe(1)
+  expect(app.spanStyle('id:header-needs-you >> text:Needs you').color).toBe(red)
+  const head = app.texts().slice(0, app.texts().indexOf('Connecting…') >= 0 ? app.texts().indexOf('Connecting…') : undefined)
+  expect(head.slice(head.indexOf('Needs you'), head.indexOf('Needs you') + 2)).toEqual(['Needs you', 'Claude Code'])
   expect(['id:choice-1', 'id:choice-2', 'id:choice-3'].map((id) => app.count(id))).toEqual([1, 1, 1])
   expect(app.count('label:1. Yes')).toBe(1)
   expect(app.count('id:compose-input')).toBe(0)
@@ -711,4 +718,54 @@ test("an agent's menu is titled with its row's main text, its space and program 
   const app = await busy()
   await app.waitFor('id:space-agent-t2')
   expect(await menuOf(app, 'id:space-agent-t2')).toEqual({ title: 'Codex', message: 'api' })
+})
+
+test("a pane's header leads with what home's row does: the tab name or title, the program's name small under it unless Settings hides it", async () => {
+  const twins = (prefs?: object) => open('./fixtures/fake.tsx', { host: { params: { scene: 'twins', ...(prefs ? { prefs: JSON.stringify(prefs) } : {}) } } })
+  const app = await twins()
+  await app.waitFor('id:space-agent-t1')
+  await app.press('id:space-sp1')
+  await app.waitFor('id:pane-header')
+  const head = (x: string) => app.count(`id:switcher >> text:${x}`)
+  expect([head('fix login'), head('Claude Code')]).toEqual([1, 1])
+  // The title is line 1, alone, so a narrow phone has room for it; the name starts line 2, small and grey, then what
+  // it is doing.
+  expect(app.spanStyle('id:switcher >> text:fix login').fontSize).toBe(14.5)
+  // The title sits in a chip, as a tab does, so it reads as this pane's name (and "Needs you" below as its state).
+  expect(app.count('id:pane-title >> text:fix login')).toBe(1)
+  expect([app.count('id:pane-program'), app.count('id:pane-header >> text:Claude Code')]).toEqual([1, 1])
+  expect(app.spanStyle('id:pane-header >> text:Claude Code').fontSize).toBe(11.5)
+  expect(app.count('id:pane-header >> text:Running the login tests')).toBe(1)
+  expect(app.count('id:header-needs-you')).toBe(0)
+  // Show agent names off: the label goes, the title stays.
+  const off = await twins({ showAgentNames: false })
+  await off.waitFor('id:space-agent-t1')
+  await off.press('id:space-sp1')
+  await off.waitFor('id:pane-header')
+  expect([off.count('id:switcher >> text:fix login'), off.count('id:switcher >> text:Claude Code')]).toEqual([1, 0])
+
+  // No title: the program's name is the main text, said once.
+  const busyApp = await busy()
+  await busyApp.waitFor('id:space-agent-t2')
+  await busyApp.press('id:space-agent-t2')
+  await busyApp.waitFor('id:pane-header')
+  expect(busyApp.count('id:switcher >> text:Codex')).toBe(1)
+  expect(busyApp.spanStyle('id:switcher >> text:Codex').fontSize).toBe(14.5)
+})
+
+test("home's Needs you row and a wide pane's header name an agent as its row does", async () => {
+  const app = await busy()
+  await app.waitFor('id:needs-t1')
+  // The tab's name leads, the program's name small before it; under it the space, without saying the name again.
+  expect([app.count('id:needs-t1 >> text:fix login'), app.count('id:needs-t1 >> text:Claude Code'), app.count('id:needs-t1 >> text:api')]).toEqual([1, 1, 1])
+  expect(app.spanStyle('id:needs-t1 >> text:Claude Code').fontSize).toBe(12.5)
+  const off = await open('./fixtures/fake.tsx', { host: { params: { scene: 'busy', prefs: JSON.stringify({ showAgentNames: false }) } } })
+  await off.waitFor('id:needs-t1')
+  expect([off.count('id:needs-t1 >> text:fix login'), off.count('id:needs-t1 >> text:Claude Code')]).toEqual([1, 0])
+
+  const wide = await open('./fixtures/fake.tsx', { width: 1000, host: { params: { scene: 'busy' } } })
+  await wide.waitFor('id:space-sp1')
+  await wide.press('id:space-sp1')
+  await wide.waitFor('id:pane-name-p-tb1')
+  expect([wide.count('id:pane-name-p-tb1 >> text:fix login'), wide.count('id:pane-name-p-tb1 >> text:Claude Code')]).toEqual([1, 1])
 })

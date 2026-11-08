@@ -26,9 +26,27 @@ export function agentWords(s: Store) {
   const subs = (a: AgentInfo) => { rev(); return view().subs.get(a.address) ?? [] }
   // The row's main text: what tells it apart, or with nothing to tell, the program's name.
   const main = (a: AgentInfo) => title(a) ?? a.programName
+  // The program's name goes before the main text unless Settings turned it off, or it already is the main text.
+  const named = (a: AgentInfo) => !!title(a) && s.showNames()
   // A menu on the row: titled with its main text, its space and (when the row shows it) its program under it.
-  const menu = (a: AgentInfo) => ({ title: main(a), description: [a.space_name, ...(title(a) && s.showNames() ? [a.programName] : [])].join(' · ') })
-  return { title, line, subs, main, menu }
+  const menu = (a: AgentInfo) => ({ title: main(a), description: [a.space_name, ...(named(a) ? [a.programName] : [])].join(' · ') })
+  // Where it is ("space › tab"), without the tab when the main text already is the tab's name.
+  const where = (a: AgentInfo) => { const p = s.place(a), tail = ` › ${main(a)}`; return p.endsWith(tail) ? p.slice(0, -tail.length) : p }
+  // The agent in a terminal, if one runs there.
+  const at = (addr: string | undefined) => { rev(); return addr ? s.agents().find((a) => a.address === addr) : undefined }
+  return { title, line, subs, main, named, menu, where, at }
+}
+
+/** An agent's name as its row says it, on one line: the program's name small and grey (unless Settings hides it), then
+ *  the main text in `class`. For headers and rows that lay out the rest themselves. */
+export function AgentName(props: { store: Store; a: AgentInfo; class: string; testID?: string }) {
+  const words = agentWords(props.store)
+  return (
+    <View testID={props.testID} class="flex-row items-center gap-1.5 shrink min-w-0">
+      <If when={words.named(props.a)}><Text class="shrink-0 text-[12.5px] text-sidebar-foreground" numberOfLines={1}>{props.a.programName}</Text></If>
+      <Text class={`shrink ${props.class}`} numberOfLines={1}>{words.main(props.a)}</Text>
+    </View>
+  )
 }
 
 /** An agent's row and its sub-agents' rows under it. The screen gives the row's frame (`class`, which lays out the
@@ -44,7 +62,7 @@ export function AgentRow(props: {
   const size = () => props.iconSize ?? 14
   const idle = () => a().status === 'idle'
   // The program's name before the title, unless Settings turned it off; with no title, the name is the row's main text.
-  const named = () => !!words.title(a()) && s.showNames()
+  const named = () => words.named(a())
   return (
     <View>
       <View role="button" testID={props.testID}

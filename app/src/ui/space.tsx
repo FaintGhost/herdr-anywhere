@@ -2,7 +2,7 @@
 // defaults/mods/tabs, mods/pane, mods/workspace-status). A phone gives the screen to the focused pane: a two-line
 // header (the agent, where it is, Needs you), its terminal edge to edge, and one row under it (ui/pane-bar.tsx); the
 // title opens the switcher, and a flick across the terminal goes to the next or previous tab.
-import { cleanup, computed, effect, keyboardFrame, safeAreaInsets, Scroll, signal, Text, View, windowSize } from 'nsh'
+import { cleanup, computed, effect, fontScale, keyboardFrame, safeAreaInsets, Scroll, signal, Text, View, windowSize } from 'nsh'
 import { AlertDialog, Sheet } from 'nsh/base'
 import { keyboardGone } from './keyboard.ts'
 import type { Store } from '../store.ts'
@@ -13,8 +13,9 @@ import { gitTail } from '../model/marks.ts'
 import { ConnBanner, Glyph, IconButton, ProgramIcon, SpaceBadge, StatusDot, StatusMark, shortPath, useRev } from './kit.tsx'
 import { t } from '../strings/index.ts'
 import { TerminalView, WIDE } from './terminal.tsx'
-import { attachToTerminal, PaneBar } from './pane-bar.tsx'
-import { AgentRow } from './agent-row.tsx'
+import { attachToTerminal, KEY_ROW_MAX_SCALE, PaneBar } from './pane-bar.tsx'
+import { AgentName, AgentRow, agentWords } from './agent-row.tsx'
+import { headerChipTight, showsAWord } from './header-fit.ts'
 import { startable } from '../model/programs.ts'
 import type { TerminalSession } from './terminal-session.ts'
 import type { TypeIn } from '../prefs.ts'
@@ -81,6 +82,7 @@ function TabBar(props: { store: Store; spaceId: string; actions: SpaceActions })
 function PaneHeader(props: { store: Store; node: Node; tab: Tab; focused: boolean; narrow: boolean; split: (pane: string, direction: 'right' | 'down') => void }) {
   const s = props.store
   const rev = useRev(s)
+  const words = agentWords(s)
   const addr = () => terminalOf(props.node)
   const name = () => { rev(); const a = addr(); return a ? s.paneName(a) : (() => { const c = props.node.content; return c && 'mod' in c ? c.mod : t('panel') })() }
   const cwd = () => { rev(); const t = s.term(addr()); return t?.cwd ? shortPath(t.cwd, s.home) : '' }
@@ -90,7 +92,11 @@ function PaneHeader(props: { store: Store; node: Node; tab: Tab; focused: boolea
   return (
     <View class="flex-row items-center h-[34px] pl-2.5 pr-0.5 gap-2 border-b border-border bg-background">
       <ProgramIcon icon={(rev(), s.program(addr()).icon)} size={14} />
-      <Text class="text-[12.5px] font-medium text-foreground shrink-0 max-w-[45%]" numberOfLines={1}>{name()}</Text>
+      <View testID={`pane-name-${props.node.id}`} class="shrink-0 max-w-[45%]">
+        <If when={words.at(addr())} else={<Text class="text-[12.5px] font-medium text-foreground" numberOfLines={1}>{name()}</Text>}>
+          {(a) => <AgentName store={s} a={a()} class="text-[12.5px] font-medium text-foreground" />}
+        </If>
+      </View>
       <Text testID={`cwd-${props.node.id}`} class="flex-1 text-[12.5px] text-sidebar-foreground" numberOfLines={1} ellipsizeMode={doing() ? 'tail' : 'head'} accessibilityLabel={doing() || cwd()}>{props.narrow ? '' : doing() || cwd()}</Text>
       <If when={(rev(), s.statusOf(addr()))}>{(st) => <StatusMark status={st()} size={7} />}</If>
       <If when={!props.narrow}>
@@ -155,36 +161,77 @@ function PhoneSpace(props: { store: Store; spaceId: string; tab: Tab; actions: S
   )
 }
 
+/** The most the header's text grows with the system's text size: it has a fixed height and both lines stay whole at
+ *  1.3, as the key row's labels do (checked at Android's largest size, font scale 2.0, at 360 dp). */
+const HEADER_MAX_SCALE = KEY_ROW_MAX_SCALE
+
 /** Two short lines: the agent and its status (the title opens the switcher), then where it is; +N waiting and ⋯. */
 function PhoneHeader(props: { store: Store; spaceId: string; tab: Tab; node: Node | undefined; actions: SpaceActions; back: () => void; menu: () => void; openSwitcher: () => void }) {
   const s = props.store
   const rev = useRev(s)
   const addr = () => (props.node ? terminalOf(props.node) : undefined)
-  const name = () => { rev(); const a = addr(); return a ? s.paneName(a) : t('panel') }
+  const words = agentWords(s)
+  // An agent by what home's row leads with; anything else by its pane's name.
+  const name = () => { rev(); const a = addr(), ag = words.at(a); return ag ? words.main(ag) : a ? s.paneName(a) : t('panel') }
   const status = () => { rev(); return s.statusOf(addr()) }
-  const place = () => { rev(); const sp = s.model.space(props.spaceId); return sp ? `${s.spaceName(sp)} › ${s.tabLabel(sp, props.tab)}` : '' }
+  const place = () => {
+    rev(); const ag = words.at(addr()); if (ag) return words.where(ag)
+    const sp = s.model.space(props.spaceId); return sp ? `${s.spaceName(sp)} › ${s.tabLabel(sp, props.tab)}` : ''
+  }
   // The others waiting on you, the longest wait first.
   const waiting = () => { rev(); return s.queue().filter((a) => a.address !== addr()) }
+  const activity = () => { rev(); return s.activityOf(addr()) || place() }
+  // Line 2 drops the "·" and what the agent is doing once the platform laid out less than its first word ("· …"). It
+  // tries again when the line's width or the words change; until then the program's name gets the room.
+  const lineWidth = signal(0)
+  const cutFor = signal('')
+  const cut = () => cutFor() === `${lineWidth()}|${activity()}`
+  let activityWidth: number | undefined
+  const tight = () => headerChipTight(fontScale())
   return (
     <View testID="pane-header" class="flex-row items-center h-[46px] pl-0.5 pr-1 gap-0.5 bg-sidebar border-b border-border">
       <IconButton name="chevron-left" label={t('back')} testID="back" onPress={props.back} />
       <View role="button" testID="switcher" accessibilityLabel={t('switchPane', { name: name(), place: place() })} onPress={props.openSwitcher} class="flex-1 min-w-0 justify-center gap-[1px] active:opacity-70">
-        <View class="flex-row items-center gap-1.5">
-          <ProgramIcon icon={(rev(), s.program(addr()).icon)} size={15} />
-          <Text class="text-[14.5px] font-semibold text-foreground shrink" numberOfLines={1}>{name()}</Text>
-          <Glyph name="chevron-down" size={13} />
+        <View class={`flex-row items-center ${tight() ? 'gap-1' : 'gap-1.5'}`}>
+          {/* The title in a chip, as the tab bar draws a tab: it reads as this pane's name, not as words to act on. At the
+              largest text sizes the chip keeps its colour but loses its border and most of its padding, so the title
+              keeps the room it had without one. */}
+          <View testID="pane-title" class={`flex-row items-center shrink min-w-0 rounded-[6px] bg-secondary ${tight() ? 'gap-1 pl-1 pr-0.5' : 'gap-1.5 pl-1.5 pr-1 border border-border'}`}>
+            <ProgramIcon icon={(rev(), s.program(addr()).icon)} size={15} />
+            <Text maxFontSizeMultiplier={HEADER_MAX_SCALE} class="text-[14.5px] font-semibold text-foreground shrink" numberOfLines={1}>{name()}</Text>
+            <Glyph name="chevron-down" size={13} />
+          </View>
           <If when={status() === 'blocked'} else={<If when={status()}>{(st) => <StatusMark status={st()} size={7} />}</If>}>
-            <View testID="header-needs-you" class="px-1.5 h-[18px] justify-center rounded-[5px] bg-chart-2/15">
-              <Text class="text-[11px] font-medium text-chart-2">{t('needsYou')}</Text>
-            </View>
+            <StatusDot status="blocked" size={7} />
           </If>
         </View>
-        <Text testID="pane-activity" class="text-[11.5px] text-sidebar-foreground" numberOfLines={1}>{(rev(), s.activityOf(addr()) || place())}</Text>
+        {/* Line 2: Needs you (a pill), the program's name (unless Settings hides it, as on home's row), then what it is doing, which
+            gives way first when the line is short. Line 1 is the title alone, so a narrow phone has room for it beside
+            +N waiting. */}
+        <View class="flex-row items-center gap-1 min-w-0 overflow-hidden" onLayout={(b) => lineWidth.set(Math.round(b.size.width))}>
+          <If when={status() === 'blocked'}>
+            {/* A pill, as +N waiting is, so it stands apart from the title above and the grey words after it. */}
+            <View testID="header-needs-you" class="shrink-0 mr-1 px-1.5 py-px rounded-[5px] bg-chart-2/15">
+              <Text maxFontSizeMultiplier={HEADER_MAX_SCALE} class="text-[11px] font-medium text-chart-2" numberOfLines={1}>{t('needsYou')}</Text>
+            </View>
+          </If>
+          <If when={(rev(), words.at(addr()) && words.named(words.at(addr())!))}>
+            <Text maxFontSizeMultiplier={HEADER_MAX_SCALE} testID="pane-program" class="shrink text-[11.5px] text-sidebar-foreground" numberOfLines={1}>{(rev(), words.at(addr())?.programName ?? '')}</Text>
+            <If when={!cut()}>
+              <Text maxFontSizeMultiplier={HEADER_MAX_SCALE} class="text-[11.5px] text-sidebar-foreground">·</Text>
+            </If>
+          </If>
+          <If when={!cut()}>
+            <Text maxFontSizeMultiplier={HEADER_MAX_SCALE} testID="pane-activity" class="text-[11.5px] text-sidebar-foreground" style={{ flexShrink: 100 }} numberOfLines={1}
+              onLayout={(b) => { activityWidth = b.size.width; if (!showsAWord(activity(), [{ text: activity() }], activityWidth)) cutFor.set(`${lineWidth()}|${activity()}`) }}
+              onTextLayout={(e) => { if (!showsAWord(activity(), e.lines, activityWidth)) cutFor.set(`${lineWidth()}|${activity()}`) }}>{activity()}</Text>
+          </If>
+        </View>
       </View>
       <If when={waiting().length}>
         <View role="button" testID="next-waiting" accessibilityLabel={t('moreWaitingOpen', { n: waiting().length })} onPress={() => props.actions.open(waiting()[0].address)}
           class="px-2 h-7 justify-center rounded-[6px] bg-chart-2/15 active:opacity-70">
-          <Text class="text-[11.5px] font-medium text-chart-2">{t('plusWaiting', { n: waiting().length })}</Text>
+          <Text maxFontSizeMultiplier={HEADER_MAX_SCALE} class="text-[11.5px] font-medium text-chart-2">{t('plusWaiting', { n: waiting().length })}</Text>
         </View>
       </If>
       <IconButton name="plus" label={t('addAgent')} testID="add-agent" onPress={() => void keyboardGone().then(() => props.actions.addAgent(props.spaceId))} />

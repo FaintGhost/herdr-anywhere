@@ -39,6 +39,15 @@ The connection is encrypted end to end. There is no account to create and no ser
    ~/.local/bin/herdr-anywhere install-dialog
    ```
 
+   On Linux, x64 or Arm:
+
+   ```sh
+   mkdir -p ~/.local/bin
+   curl -fsSL -o ~/.local/bin/herdr-anywhere https://github.com/jt-wang/herdr-anywhere/releases/latest/download/herdr-anywhere-linux-$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+   chmod +x ~/.local/bin/herdr-anywhere
+   ~/.local/bin/herdr-anywhere install-dialog
+   ```
+
    On Windows, in PowerShell:
 
    ```powershell
@@ -51,7 +60,7 @@ The connection is encrypted end to end. There is no account to create and no ser
 
 2. On the phone, download [Herdr-Anywhere.apk](https://github.com/jt-wang/herdr-anywhere/releases/latest/download/Herdr-Anywhere.apk) and open it.
 
-3. In the Herdr desktop app press `cmd-shift-m` (`ctrl-shift-m` on Windows), press Start, and scan the QR code with the phone app.
+3. In the Herdr desktop app press `cmd-shift-m` (`ctrl-shift-m` on Windows and Linux), press Start, and scan the QR code with the phone app.
 
 The phone and the computer can be on different networks from then on. Paired phones are listed under the code, and you can remove them there. After a restart of the computer, press Start in the dialog once.
 

@@ -13,7 +13,7 @@ test('Try it opens the app on sample agents without pairing, the network or the 
   await app.waitFor('id:needs-t1')
   await app.waitFor('id:demo-notice')
   const words = app.texts()
-  for (const s of ['Needs you', 'Spaces', 'api › fix login']) expect(words).toContain(s)
+  for (const s of ['Needs you', 'Spaces', 'fix login']) expect(words).toContain(s)
   // It answers as the computer would: a choice reaches the agent, which goes on working, then finishes.
   await app.press('id:needs-t1-choice-1')
   await app.waitUntil(() => app.count('id:needs-t1') === 0)

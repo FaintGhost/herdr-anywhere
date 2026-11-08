@@ -5,6 +5,7 @@ name: Computers
 # that drive that real core (internal/server/integration_test.go) and the one that pairs a phone over Tailcat's
 # real relays and talks to the core through the tunnel (TestLiveTailcat). Windows Arm runs Herdr's x64 build
 # under Windows' x64 emulation, as Herdr ships no Arm build for Windows yet, and the same for the x64 companion.
+# The Linux and Windows jobs also run the README's and INSTALL.md's install steps for that computer.
 # Runs only in the public repo, where GitHub's runners for public repos are free.
 # It runs on main, on release tags and on the public branch ci, where each release's commit is pushed and
 # must pass before it goes to main.
@@ -114,6 +115,16 @@ jobs:
         run: |
           (cd companion && go build -buildvcs=false -trimpath -ldflags="-s -w" -o "$RUNNER_TEMP/herdr-anywhere-windows-amd64.exe" ./cmd/herdr-anywhere)
           app/e2e/install-docs-windows.sh "$RUNNER_TEMP/herdr-anywhere-windows-amd64.exe" "$HM_TEST_HC"
+      # The README's and INSTALL.md's Linux steps, as written, from a folder holding only this machine's release file.
+      - name: The install steps on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          (cd companion && go build -buildvcs=false -trimpath -ldflags="-s -w" -o "$RUNNER_TEMP/release/herdr-anywhere-linux-$(go env GOARCH)" ./cmd/herdr-anywhere)
+          app/e2e/install-docs-linux.sh "$RUNNER_TEMP/release" "$HM_TEST_HC"
       - run: go vet ./...
         working-directory: companion
       - run: go test -v ./...
@@ -243,7 +254,10 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          # swangle (SwiftShader through ANGLE), not swiftshader_indirect: that one is deprecated since emulator 36.4.9
+          # (https://developer.android.com/studio/run/emulator-acceleration) and drew the terminal's letters with strokes missing
+          # on this runner; swangle drew them whole. app/e2e/android-glyphs.sh shows the difference.
+          emulator-options: -no-window -gpu swangle -noaudio -no-boot-anim -no-snapshot
           working-directory: app
           # This runner's emulator can keep covering the screen with "Pixel Launcher isn't responding" (2026-11-08: back
           # three times after Wait, so the link was never typed). hide_error_dialogs skips error dialogs and goes on as

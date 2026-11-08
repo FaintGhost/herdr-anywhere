@@ -101,6 +101,7 @@ export const es: Table = {
   terminalEnded: 'La terminal terminó ({reason}).',
   terminalPageFailed: 'La terminal no se cargó.', tryAgain: 'Reintentar',
   nameNeedsYou: '{name} te necesita', nameFinished: '{name} terminó',
+  titleNeedsYou: '«{name}» te necesita', titleFinished: '«{name}» terminó',
   layoutChanged: 'La disposición cambió en otro lugar', layoutChangedBody: 'Se muestra la disposición de la otra pantalla.',
   noMachine: 'Herdr no tiene ninguna máquina llamada {machine}', layoutUnavailable: 'La disposición de esta máquina no está disponible. Inténtalo cuando se reconecte.',
   noSpace: 'no existe el espacio {id}', noSpaceYet: 'aún no hay espacios: crea uno primero', noPaneToSplit: 'no hay ningún panel que dividir', noPane: 'no existe el panel {id}',

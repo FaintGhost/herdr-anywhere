@@ -39,13 +39,16 @@ out=$(run "$(block "$root/INSTALL.md" 1)")
 expect "$out" "hc " "INSTALL.md step 1"
 echo "ok INSTALL.md step 1"
 
-# INSTALL.md 2 and 3: download, check the version, then add the dialog by the full path step 2 names.
+# INSTALL.md 2 and 3: download, check the version, then add the dialog, each block as written; step 3 calls the
+# companion by the full path step 2 put it at.
 steps=$(block "$root/INSTALL.md" 2)
 path=$(grep -o '& "[^"]*herdr-anywhere.exe"' <<<"$steps" | head -1)
 [ -n "$path" ] || fail "INSTALL.md step 2 runs no herdr-anywhere.exe"
 grep -qF "\`$path\`" "$root/INSTALL.md" || fail "INSTALL.md doesn't tell the agent to call it by $path"
+dialog=$(block "$root/INSTALL.md" 3)
+grep -qF "$path install-dialog" <<<"$dialog" || fail "INSTALL.md's third PowerShell block isn't $path install-dialog: $dialog"
 out=$(run "$steps
-$path install-dialog")
+$dialog")
 expect "$out" "herdr-anywhere " "INSTALL.md step 2"
 expect "$out" "Add phone is installed. Press ctrl-shift-m in Herdr" "INSTALL.md step 3"
 expect "$out" '"ctrl-shift-m":"mod.open:add-phone"' "INSTALL.md step 3's keys.json"

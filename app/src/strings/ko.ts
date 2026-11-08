@@ -101,6 +101,7 @@ export const ko: Table = {
   terminalEnded: '터미널이 종료되었어요({reason}).',
   terminalPageFailed: '터미널을 불러오지 못했어요.', tryAgain: '다시 시도',
   nameNeedsYou: '{name} 응답 필요', nameFinished: '{name} 완료',
+  titleNeedsYou: '‘{name}’ 응답 필요', titleFinished: '‘{name}’ 완료',
   layoutChanged: '다른 곳에서 레이아웃이 바뀌었어요', layoutChangedBody: '다른 화면의 레이아웃을 표시해요.',
   noMachine: 'Herdr에 {machine}(이)라는 머신이 없어요', layoutUnavailable: '이 머신의 레이아웃을 사용할 수 없어요. 다시 연결되면 시도하세요.',
   noSpace: '스페이스 {id} 없음', noSpaceYet: '아직 스페이스가 없어요. 먼저 만드세요', noPaneToSplit: '분할할 창이 없어요', noPane: '창 {id} 없음',

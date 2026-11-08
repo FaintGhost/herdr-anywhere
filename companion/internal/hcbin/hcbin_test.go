@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"herdr-anywhere/companion/internal/testfake"
@@ -73,6 +74,26 @@ func TestResolveOrder(t *testing.T) {
 	}
 }
 
+// A Linux with herbstluftwm: its hc is on PATH, and Herdr's installer left only ~/.local/bin/herdr-core.
+func TestResolveFindsHerdrCoreBesideAnotherHc(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("TestCandidatesOnWindows covers Windows")
+	}
+	d := t.TempDir()
+	home := filepath.Join(d, "home")
+	core := testfake.HC(t, filepath.Join(home, ".local", "bin"), "herdr-core", testfake.Spec{Version: "hc 0.1.18"})
+	wm := fake(t, filepath.Join(d, "usr", "bin"), "herbstluftwm 0.9.5")
+	look := func(name string) (string, error) {
+		if name == "hc" {
+			return wm, nil
+		}
+		return "", exec.ErrNotFound
+	}
+	if p, v, err := Resolve("", look, home); err != nil || p != core || v != "hc 0.1.18" {
+		t.Fatalf("Resolve = %q, %q, %v; want %q", p, v, err, core)
+	}
+}
+
 func TestResolveExplicitBadPathFails(t *testing.T) {
 	d := t.TempDir()
 	home := filepath.Join(d, "home")
@@ -118,10 +139,24 @@ func TestCandidatesOnWindows(t *testing.T) {
 	}
 }
 
-func TestCandidatesElsewhereUnchanged(t *testing.T) {
-	got := Candidates("darwin", func(string) (string, error) { return "/opt/hc", nil }, "/h", "")
-	want := []string{"/opt/hc", filepath.Join("/h", ".local", "bin", "hc")}
-	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
-		t.Fatalf("Candidates = %q, want %q", got, want)
+// Herdr's installer (releases.herdr.dev/core/install.sh, read 2026-11-08) puts ~/.local/bin/herdr-core on Linux and
+// macOS, and links hc to it only when no hc exists: herbstluftwm ships an hc of its own. So herdr-core, on PATH or in
+// ~/.local/bin, comes after hc.
+func TestCandidatesOnLinuxAndMac(t *testing.T) {
+	for _, goos := range []string{"linux", "darwin"} {
+		look := func(name string) (string, error) {
+			switch name {
+			case "hc":
+				return "/usr/bin/hc", nil
+			case "herdr-core":
+				return "/opt/herdr/herdr-core", nil
+			}
+			return "", exec.ErrNotFound
+		}
+		got := Candidates(goos, look, "/h", "")
+		want := []string{"/usr/bin/hc", "/opt/herdr/herdr-core", filepath.Join("/h", ".local", "bin", "hc"), filepath.Join("/h", ".local", "bin", "herdr-core")}
+		if strings.Join(got, " ") != strings.Join(want, " ") {
+			t.Errorf("%s: Candidates = %q, want %q", goos, got, want)
+		}
 	}
 }

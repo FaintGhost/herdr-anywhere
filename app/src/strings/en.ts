@@ -111,6 +111,8 @@ export const en = {
   terminalPageFailed: "The terminal didn't load.", tryAgain: 'Try again',
   // Alerts and layout
   nameNeedsYou: '{name} needs you', nameFinished: '{name} finished',
+  // A row's title in an alert, quoted as this language quotes a name.
+  titleNeedsYou: '“{name}” needs you', titleFinished: '“{name}” finished',
   layoutChanged: 'Layout changed elsewhere', layoutChangedBody: "The other screen's layout is shown.",
   noMachine: 'Herdr has no machine called {machine}', layoutUnavailable: "This machine's layout is unavailable. Try again when it reconnects.",
   noSpace: 'no space {id}', noSpaceYet: 'no space yet: make one first', noPaneToSplit: 'no pane to split', noPane: 'no pane {id}',

@@ -373,7 +373,8 @@ test("a blocked agent's toast and its agents row say what it asks", async () => 
   await settle()
   core.setStatus(r.terminal, 'blocked', 'claude-code', { kind: 'permission', msg: 'approve Write: /Users/sam/src/demo-app/hello.txt' })
   await settle()
-  expect(toasts).toEqual(['Claude Code needs you | Write: /Users/sam/src/demo-app/hello.txt\ndemo-app › 1'])
+  // Named by its title, as its row is, in quotes.
+  expect(toasts).toEqual(['“Hello.txt file creation” needs you | Write: /Users/sam/src/demo-app/hello.txt\ndemo-app › 1'])
   const a = store.agents()[0]
   expect([a.kind, a.msg, a.named]).toEqual(['permission', 'approve Write: /Users/sam/src/demo-app/hello.txt', false])
   expect(store.agentsView().detail.get(r.terminal)).toBe('Hello.txt file creation')
@@ -395,7 +396,8 @@ test("a finished agent's alert says what it did, then where it is", async () => 
   await settle()
   core.setStatus(r.terminal, 'done', 'claude-code', { msg: 'Wrote hello.txt' })
   await settle()
-  expect(toasts).toEqual(['Claude Code finished | Hello.txt file creation\ndemo-app › 1', 'Claude Code finished | Wrote hello.txt\ndemo-app › 1'])
+  // Named by its title; the body doesn't say the title again.
+  expect(toasts).toEqual(['“Hello.txt file creation” finished | demo-app › 1', '“Hello.txt file creation” finished | Wrote hello.txt\ndemo-app › 1'])
 })
 
 // Claude Code 2.1.319, measured 2026-11-06 in a scratch herdr-core session (hc events): status done with
@@ -416,7 +418,7 @@ test('a finished alert is told again, quietly, when the agent says what it did a
   await settle()
   core.setStatus(r.terminal, 'done', 'claude-code', { msg: "replied 'the sky is blue.'" })
   await settle()
-  expect(rung).toEqual(['done: Sky color reply\ndemo-app › 1', "again done: replied 'the sky is blue.'\ndemo-app › 1"])
+  expect(rung).toEqual(['done: demo-app › 1', "again done: replied 'the sky is blue.'\ndemo-app › 1"])
 })
 
 test('words that come after the agent moved on are not put on the old alert', async () => {

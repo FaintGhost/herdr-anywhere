@@ -101,6 +101,7 @@ export const zhHans: Table = {
   terminalEnded: '终端已结束（{reason}）。',
   terminalPageFailed: '终端没有加载出来。', tryAgain: '重试',
   nameNeedsYou: '{name} 在等你', nameFinished: '{name} 已完成',
+  titleNeedsYou: '“{name}”在等你', titleFinished: '“{name}”已完成',
   layoutChanged: '布局在别处改动了', layoutChangedBody: '现在显示的是另一块屏幕的布局。',
   noMachine: 'Herdr 里没有名为 {machine} 的机器', layoutUnavailable: '这台机器的布局暂时不可用，等它重新连接后再试。',
   noSpace: '没有空间 {id}', noSpaceYet: '还没有空间，请先新建一个', noPaneToSplit: '没有可拆分的窗格', noPane: '没有窗格 {id}',

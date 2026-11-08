@@ -581,15 +581,19 @@ func TestWhatACheckFoundSurvivesARestart(t *testing.T) {
 	}
 }
 
-// Each computer installs the one file of a release built for it: the Mac's, or Windows' .exe, which Windows on Arm runs
-// too, under its x64 emulation, where the program reports amd64. Linux has no released file.
+// Each computer installs the one file of a release built for it: the Mac's, Windows' .exe, which Windows on Arm runs
+// too, under its x64 emulation, where the program reports amd64, or Linux's for x64 or Arm. Herdr ships these four
+// (releases.herdr.dev/app/latest.json 0.1.13, read 2026-11-08) and an Intel Mac core, which has no file here.
 func TestAssetPerComputer(t *testing.T) {
 	for _, c := range []struct{ goos, goarch, want string }{
 		{"darwin", "arm64", "herdr-anywhere-macos-arm64"},
 		{"windows", "amd64", "herdr-anywhere-windows-amd64.exe"},
+		{"linux", "amd64", "herdr-anywhere-linux-amd64"},
+		{"linux", "arm64", "herdr-anywhere-linux-arm64"},
 		{"darwin", "amd64", ""},
 		{"windows", "arm64", ""},
-		{"linux", "amd64", ""},
+		{"linux", "386", ""},
+		{"freebsd", "amd64", ""},
 	} {
 		if got := AssetFor(c.goos, c.goarch); got != c.want {
 			t.Errorf("AssetFor(%s, %s) = %q, want %q", c.goos, c.goarch, got, c.want)
@@ -665,11 +669,11 @@ func TestApplyReplacesARunningProgram(t *testing.T) {
 	}
 }
 
-// A computer releases carry no file for (Linux, Windows on Arm built for Arm) still hears of a new version, so the
-// phone can say so and show how to install it by hand; Apply refuses it.
+// A computer releases carry no file for (an Intel Mac, Windows on Arm built for Arm) still hears of a new version, so
+// the phone can say so and show how to install it by hand; Apply refuses it.
 func TestLatestOnAComputerWithoutAReleaseFile(t *testing.T) {
 	old := Asset
-	Asset = AssetFor("linux", "amd64")
+	Asset = AssetFor("darwin", "amd64")
 	t.Cleanup(func() { Asset = old })
 	bin := []byte("mac file")
 	srv, _ := fakeGitHub(t, "v0.1.6", bin, digestOf(bin))

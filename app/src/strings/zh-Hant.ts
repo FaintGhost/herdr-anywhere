@@ -101,6 +101,7 @@ export const zhHant: Table = {
   terminalEnded: '終端機已結束（{reason}）。',
   terminalPageFailed: '終端機沒有載入。', tryAgain: '重試',
   nameNeedsYou: '{name} 在等你', nameFinished: '{name} 已完成',
+  titleNeedsYou: '「{name}」在等你', titleFinished: '「{name}」已完成',
   layoutChanged: '版面在別處變更了', layoutChangedBody: '現在顯示的是另一個畫面的版面。',
   noMachine: 'Herdr 裡沒有名為 {machine} 的機器', layoutUnavailable: '這台機器的版面暫時無法使用，等它重新連線後再試。',
   noSpace: '沒有空間 {id}', noSpaceYet: '還沒有空間，請先新增一個', noPaneToSplit: '沒有可分割的窗格', noPane: '沒有窗格 {id}',

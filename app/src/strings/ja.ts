@@ -101,6 +101,7 @@ export const ja: Table = {
   terminalEnded: 'ターミナルが終了しました（{reason}）。',
   terminalPageFailed: 'ターミナルを読み込めませんでした。', tryAgain: '再試行',
   nameNeedsYou: '{name} が対応待ちです', nameFinished: '{name} が完了しました',
+  titleNeedsYou: '「{name}」が対応待ちです', titleFinished: '「{name}」が完了しました',
   layoutChanged: '別の場所でレイアウトが変更されました', layoutChangedBody: 'もう一方の画面のレイアウトを表示しています。',
   noMachine: 'Herdr に {machine} というマシンはありません', layoutUnavailable: 'このマシンのレイアウトは利用できません。再接続してからやり直してください。',
   noSpace: 'スペース {id} はありません', noSpaceYet: 'スペースがまだありません。先に作成してください', noPaneToSplit: '分割するペインがありません', noPane: 'ペイン {id} はありません',

@@ -3,6 +3,8 @@
 # it, so the new version moves to new channel ids: the old ones go, the new ones pop up with Herdr's sounds, and what
 # the person chose on an old one stays. Two runs, each from a fresh install of OLD: (a) untouched, (b) "An agent
 # finished" turned off and "An agent needs you" set to silent on Android's channel pages first.
+# OLD may also be 0.1.15 or later, which already has the new ids: then the update keeps them and what was chosen on them
+# (the 0.1.16 run, 2026-11-08, failed with OLD 0.1.15 when (b) still looked for the old ids).
 # Usage: ANDROID_SERIAL=emulator-5554 e2e/android-notify-upgrade.sh OLD.apk NEW.apk OUT
 # NEW.apk must be signed with OLD.apk's key. Needs python3 and the Android SDK.
 set -eu
@@ -44,7 +46,11 @@ tap_node() {
 echo "(a) untouched"
 fresh_old
 channels | tee "$out/a-before.txt"
-grep -q '^finished 2 ' "$out/a-before.txt" || fail "0.1.13 did not make its finished channel at 2"
+# Which ids OLD made: the old ones (0.1.14 and before) or already the new ones.
+if grep -q '^agent-finished ' "$out/a-before.txt"; then fin=agent-finished; need=agent-needs-you; else
+  fin=finished; need=needs-you
+  grep -q '^finished 2 ' "$out/a-before.txt" || fail "0.1.13 did not make its finished channel at 2"
+fi
 update
 channels | tee "$out/a-after.txt"
 grep -qE "^agent-needs-you 4 android.resource://$id/raw/request" "$out/a-after.txt" || fail "(a) agent-needs-you is not 4 with Herdr's request sound"
@@ -53,14 +59,14 @@ grep -qE '^(needs-you|finished) ' "$out/a-after.txt" && fail "(a) the old channe
 
 echo "(b) the person turned finished off and needs-you silent"
 fresh_old
-page finished
+page $fin
 tap_node 'class="android.widget.Switch"' || true
-page needs-you
+page $need
 tap_node 'text="Silent"' || true
 "$adb" exec-out screencap -p > "$out/b-silent.png"
 channels | tee "$out/b-before.txt"
-grep -q '^finished 0 ' "$out/b-before.txt" || fail "(b) could not turn the old finished channel off"
-grep -q '^needs-you 2 ' "$out/b-before.txt" || fail "(b) could not make the old needs-you channel silent"
+grep -q "^$fin 0 " "$out/b-before.txt" || fail "(b) could not turn the old finished channel off"
+grep -q "^$need 2 " "$out/b-before.txt" || fail "(b) could not make the old needs-you channel silent"
 update
 channels | tee "$out/b-after.txt"
 grep -q '^agent-finished 0 ' "$out/b-after.txt" || fail "(b) finished, turned off before, is on after the update"

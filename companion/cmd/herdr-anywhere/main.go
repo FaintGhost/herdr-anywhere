@@ -33,7 +33,7 @@ import (
 )
 
 // A var so a test can build two versions of this program.
-var version = "0.1.15"
+var version = "0.1.16"
 
 const defaultPort = "7681"
 
@@ -215,7 +215,7 @@ func serve(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	withLAN := fs.Bool("lan", false, "also listen on this computer's private LAN IPv4 address(es)")
 	withTailcat := fs.Bool("tailcat", false, "also let paired phones reach this computer through Tailcat, from any network")
 	web := fs.String("web", "", "serve the PWA from this directory")
-	hcFlag := fs.String("hc", "", "path to herdr-core's hc (default: hc on PATH, else ~/.local/bin/hc; on Windows herdr-core on PATH, else %LOCALAPPDATA%\\Programs\\herdr-core)")
+	hcFlag := fs.String("hc", "", "path to herdr-core's hc (default: hc or herdr-core on PATH, else in ~/.local/bin, on Windows in %LOCALAPPDATA%\\Programs\\herdr-core)")
 	releases := releaseFlags(fs)
 	if err := parse(fs, args); err != nil {
 		return err

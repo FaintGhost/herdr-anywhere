@@ -95,3 +95,28 @@ test("with the app's notifications off in Android, System notifications opens th
   await app.waitUntil(() => calls(app, 'page.openChannel').length === 1)
   expect(calls(app, 'page.openChannel')[0]).toEqual({ kind: 'app' })
 })
+
+// The notification's title names the agent as its row does: the tab's name or title, in the language's quotes (src/strings
+// `quotedName`), so it reads as a name; with none, the program's name as before.
+test("a notification is titled with the row's main text in the language's quotes, else the program's name", async () => {
+  const titleOf = async (scene: string, address: string, locale?: string) => {
+    const app = await open('./fixtures/fake.tsx', {
+      platform: 'android', ...(locale ? { locale } : {}),
+      host: { params: { scene }, handlers: { 'page.front': true, 'page.notify': true, 'page.notifications': 'granted', 'page.notifyChannels': () => CHANNELS, 'page.openChannel': true } },
+    })
+    await app.waitFor('id:settings')
+    await app.wait(1000)
+    await app.host.send('page.front', { front: false })
+    await app.host.send('fake.status', { address, state: 'blocked', kind: 'permission', msg: 'approve Bash: npm test' })
+    await app.waitUntil(() => calls(app, 'page.notify').length === 1)
+    return calls(app, 'page.notify')[0].title
+  }
+  expect(await titleOf('twins', 't1')).toBe('“fix login” needs you')
+  // An agent's own title (its tab has no name) the same way.
+  expect(await titleOf('twins', 't4')).toBe('“Checkout page” needs you')
+  // Simplified Chinese quotes with “ ” (GB/T 15834-2011 §4.8.2); Traditional Chinese and Japanese with 「」.
+  expect(await titleOf('twins', 't1', 'zh-Hans')).toBe('“fix login”在等你')
+  expect(await titleOf('twins', 't1', 'zh-Hant')).toBe('「fix login」在等你')
+  expect(await titleOf('twins', 't1', 'ru')).toBe('«fix login» ждёт вас')
+  expect(await titleOf('busy', 't2')).toBe('Codex needs you')
+})

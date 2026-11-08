@@ -101,6 +101,7 @@ export const ru: Table = {
   terminalEnded: 'Терминал завершён ({reason}).',
   terminalPageFailed: 'Терминал не загрузился.', tryAgain: 'Повторить',
   nameNeedsYou: '{name} ждёт вас', nameFinished: '{name}: готово',
+  titleNeedsYou: '«{name}» ждёт вас', titleFinished: '«{name}»: готово',
   layoutChanged: 'Раскладка изменена в другом месте', layoutChangedBody: 'Показана раскладка другого экрана.',
   noMachine: 'В Herdr нет машины {machine}', layoutUnavailable: 'Раскладка этой машины недоступна. Попробуйте после переподключения.',
   noSpace: 'нет пространства {id}', noSpaceYet: 'пространств ещё нет: сначала создайте', noPaneToSplit: 'нет панели для разделения', noPane: 'нет панели {id}',
