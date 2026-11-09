@@ -11,9 +11,9 @@ import { ProgramIcon, StatusMark, statusLabel, useRev } from './kit.tsx'
 export const STATUS_TEXT: Record<string, string> = { working: 'text-chart-1', blocked: 'text-chart-2', done: 'text-chart-3', idle: 'text-chart-4' }
 /** What an agent is doing: the theme's foreground at about 80 % over the sidebar (#eeeeef on #101114, #1b1b1e on
  *  #f1f1ee), a step under the title and well above the greys. NSH has no `text-foreground/80`: it draws black. */
-const DOING = { dark: '#c4c5c7', light: '#3f3f42' }
+export const DOING = { dark: '#c4c5c7', light: '#3f3f42' }
 /** A status word's colour. Idle's grey (chart-4) is too pale to read on the light theme: there it is muted-foreground. */
-const statusText = (st: string | undefined) => (st === 'idle' && colorScheme() !== 'dark' ? 'text-muted-foreground' : STATUS_TEXT[st ?? ''] ?? 'text-sidebar-foreground')
+export const statusText = (st: string | undefined) => (st === 'idle' && colorScheme() !== 'dark' ? 'text-muted-foreground' : STATUS_TEXT[st ?? ''] ?? 'text-sidebar-foreground')
 
 /** What a row says about an agent besides its program: the same words on every screen that lists it. */
 export function agentWords(s: Store) {

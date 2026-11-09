@@ -3,9 +3,11 @@
 # 1.19.0 does, measured), and two panels side by side that each move 3 rows per wheel report (OpenCode's
 # default scroll_speed). Appends each report it gets to OUT as "up|down COL ROW left|right|ignored", and other input as "keys HEX"; writes its size
 # to OUT.layout as "COLS ROWS HALF".
-# Usage: python3 -I tui-panels.py OUT
+# STEP: rows a report moves the panels, 3 by default (OpenCode); 1 stands in for Pi 1.4.0.
+# Usage: python3 -I tui-panels.py OUT [STEP]
 import os, re, select, signal, sys, tty
 out = sys.argv[1]
+STEP = int(sys.argv[2]) if len(sys.argv) > 2 else 3
 BOX = 9
 top = [0, 0]
 def draw(*_):
@@ -37,7 +39,7 @@ while True:
         if y > rows - BOX: where = 'ignored'
         else:
             where = 'left' if x <= cols // 2 else 'right'
-            top[0 if where == 'left' else 1] += -3 if m[1] == b'64' else 3
+            top[0 if where == 'left' else 1] += -STEP if m[1] == b"64" else STEP
         lines.append('%s %d %d %s' % ('up' if m[1] == b'64' else 'down', x, y, where))
     rest = re.sub(rb'\x1b\[<\d+;\d+;\d+[Mm]', b'', buf)
     if rest: lines.append('keys ' + rest.hex())

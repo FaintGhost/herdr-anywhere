@@ -153,3 +153,105 @@ export function paneOf(task: Task): { addr: string; name?: string } | undefined 
   const p = [...task.pane_rows].reverse().find((p) => p.found && p.state === 'live' && !p.handed_on)
   return p?.id ? { addr: p.id, name: p.name } : undefined
 }
+
+/** A paragraph or list item of what an agent said: `mark` is • or the item's number, `depth` its nesting. */
+export type Block = { text: string; mark?: string; depth?: number; head?: boolean }
+
+/** The inline marks of Markdown dropped: bold, italics with _ or *, code, links (their words stay). */
+function inline(s: string): string {
+  return s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/__([^_]+)__/g, '$1')
+    .replace(/`([^`]*)`/g, '$1').replace(/(^|\s)\*([^*\s][^*]*)\*(?=\s|$|[.,;:!?。，；：！？])/g, '$1$2').trim()
+}
+
+/** What an agent said (Markdown, as agents write) as paragraphs and list items. */
+export function blocks(md: string): Block[] {
+  const out: Block[] = []
+  let para: string[] = []
+  const flush = () => { if (para.length) out.push({ text: para.join('\n') }); para = [] }
+  for (const line of md.split('\n')) {
+    if (/^\s*(```|~~~)/.test(line)) continue
+    if (!line.trim()) { flush(); continue }
+    const h = /^\s*#{1,6}\s+(.*)$/.exec(line)
+    const li = /^(\s*)([-*+•]|\d+[.)])\s+(.*)$/.exec(line)
+    if (h) { flush(); out.push({ text: inline(h[1]), head: true }); continue }
+    if (li) {
+      flush()
+      const depth = Math.min(2, Math.floor(li[1].replace(/\t/g, '  ').length / 2))
+      out.push({ mark: /\d/.test(li[2]) ? li[2].replace(')', '.') : '•', text: inline(li[3]), ...(depth ? { depth } : {}) })
+      continue
+    }
+    para.push(inline(line))
+  }
+  flush()
+  return out.filter((b) => b.text)
+}
+
+/** The same on one line, for a card. */
+export function plain(md: string): string {
+  return blocks(md).map((b) => (b.mark ? `${b.mark} ${b.text}` : b.text)).join(' ')
+}
+
+// The home page's structure, after Things 3's lists: loose tasks first, then each bigger task as a heading with its
+// tasks under it; in each list what needs the user first, queued work after, and what finished today last, where it
+// sits. Older finished and dropped work leaves the lists for the "done" entry at the bottom; a heading with nothing
+// left to show is not shown.
+const RANK: Record<string, number> = { waiting: 0, stuck: 0, review: 1, doing: 2, parked: 3, done: 4, dropped: 4 }
+const byRank = (ts: Task[]) => ts.map((t, i) => ({ t, i })).sort((a, b) => (RANK[a.t.group] ?? 2) - (RANK[b.t.group] ?? 2) || a.i - b.i).map((x) => x.t)
+
+/** A row under a heading: `head` when it has tasks of its own to show, which follow it one step in. */
+export type Row = { task: Task; depth: number; head?: boolean }
+/** `loose`: open tasks under no goal, first; `after`: ones under no goal finished today, after the goals. */
+export type Home = { loose: Task[]; groups: { task: Task; rows: Row[] }[]; after: Task[]; done: Task[] }
+
+export function homeOf(tr: Tree): Home {
+  const needs = new Set(tr.needsYou.map((t) => t.id)), today = new Set(tr.justDone.map((t) => t.id))
+  // What shows in the lists: open work, and work finished today; a task under "needs you" shows there only.
+  const shown = (t: Task) => !needs.has(t.id) && (!closed(t.group) || today.has(t.id))
+  const kids = (t: Task) => t.children.filter(shown)
+  const rows = (ts: Task[], depth: number): Row[] => {
+    const leaves = byRank(ts.filter((t) => !kids(t).length)), heads = byRank(ts.filter((t) => kids(t).length))
+    return [
+      ...leaves.map((task) => ({ task, depth })),
+      ...heads.flatMap((task) => [{ task, depth, head: true }, ...rows(kids(task), Math.min(depth + 1, 2))]),
+    ]
+  }
+  const all = [...tr.tasks, ...tr.closed]
+  const top = all.filter(shown)
+  return {
+    loose: byRank(top.filter((t) => !kids(t).length && !closed(t.group))),
+    after: top.filter((t) => !kids(t).length && closed(t.group)),
+    groups: top.filter((t) => kids(t).length).map((task) => ({ task, rows: rows(kids(task), 0) })),
+    done: all.filter((t) => closed(t.group) && !today.has(t.id)),
+  }
+}
+
+/** The goal a task under "needs you" belongs to, named when the page shows more than one goal; else "". */
+export function goalOf(tr: Tree, task: Task): string {
+  return tr.tasks.filter((t) => !closed(t.group)).length > 1 ? task.path?.[0] ?? '' : ''
+}
+
+/** A pane on a task's page, by its name (the number only when two share a name): working on it (`live`), handed
+ *  other work since (`moved`), or gone (`missing`). A closed task lists none. */
+export type PaneLine = { label: string; kind: 'live' | 'moved' | 'missing'; addr?: string; row: PaneRow }
+
+export function panesOf(task: Task): PaneLine[] {
+  if (closed(task.group)) return []
+  const name = (p: PaneRow) => p.name || p.id || '?'
+  const twice = (p: PaneRow) => !!p.name && task.pane_rows.filter((q) => q.name === p.name).length > 1
+  return task.pane_rows.map((p) => ({
+    label: twice(p) && p.id ? `${name(p)} · ${p.id}` : name(p), addr: p.id, row: p,
+    kind: p.handed_on ? 'moved' : p.found && p.state === 'live' ? 'live' : 'missing',
+  }))
+}
+
+/** The rows left showing once the user folded some headings: a folded heading stays, the rows under it go. */
+export function visibleRows(rows: Row[], folded: Set<string>): Row[] {
+  const out: Row[] = []
+  let hideBelow = -1
+  for (const r of rows) {
+    if (hideBelow >= 0 && r.depth > hideBelow) continue
+    hideBelow = r.head && folded.has(r.task.id) ? r.depth : -1
+    out.push(r)
+  }
+  return out
+}

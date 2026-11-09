@@ -4,52 +4,52 @@
  "languages": {
   "en": {
    "stops": "8/8",
-   "sessions": "2/3",
+   "sessions": "3/3",
    "messages": "4/4",
-   "new_tasks": 3,
-   "seconds": 47
+   "new_tasks": 11,
+   "seconds": 77
   },
   "zh-Hans": {
    "stops": "8/8",
-   "sessions": "2/3",
+   "sessions": "3/3",
    "messages": "4/4",
-   "new_tasks": 3,
-   "seconds": 46
+   "new_tasks": 11,
+   "seconds": 77
   },
   "zh-Hant": {
    "stops": "8/8",
    "sessions": "3/3",
    "messages": "4/4",
-   "new_tasks": 4,
-   "seconds": 46
+   "new_tasks": 12,
+   "seconds": 77
   },
   "es": {
    "stops": "8/8",
-   "sessions": "3/3",
+   "sessions": "2/3",
    "messages": "4/4",
-   "new_tasks": 4,
-   "seconds": 46
+   "new_tasks": 10,
+   "seconds": 88
   },
   "ja": {
    "stops": "8/8",
    "sessions": "3/3",
    "messages": "4/4",
-   "new_tasks": 4,
-   "seconds": 46
+   "new_tasks": 12,
+   "seconds": 87
   },
   "ko": {
    "stops": "8/8",
    "sessions": "3/3",
-   "messages": "3/4",
-   "new_tasks": 5,
-   "seconds": 37
+   "messages": "4/4",
+   "new_tasks": 11,
+   "seconds": 77
   },
   "ru": {
    "stops": "8/8",
    "sessions": "3/3",
-   "messages": "4/4",
-   "new_tasks": 4,
-   "seconds": 36
+   "messages": "3/4",
+   "new_tasks": 12,
+   "seconds": 67
   }
  },
  "rules": {
@@ -57,6 +57,26 @@
    "pass": true,
    "failed": [],
    "checked": 28
+  },
+  "R10": {
+   "pass": true,
+   "failed": [],
+   "checked": 7
+  },
+  "R11": {
+   "pass": true,
+   "failed": [],
+   "checked": 7
+  },
+  "R12": {
+   "pass": true,
+   "failed": [],
+   "checked": 7
+  },
+  "R13": {
+   "pass": true,
+   "failed": [],
+   "checked": 7
   },
   "R2": {
    "pass": true,
@@ -66,7 +86,7 @@
   "R3": {
    "pass": true,
    "failed": [],
-   "checked": 54
+   "checked": 99
   },
   "R4": {
    "pass": true,
@@ -87,14 +107,9 @@
    "pass": true,
    "failed": [
     {
-     "lang": "en",
+     "lang": "es",
      "ok": false,
-     "detail": "v2: want 2, got Update the CHANGELOG [doing]"
-    },
-    {
-     "lang": "zh-Hans",
-     "ok": false,
-     "detail": "v2: want 2, got 更新 CHANGELOG [doing]"
+     "detail": "v2: want 2, got Cambiar el puerto a 8080 en la documentación [waiting]"
     }
    ],
    "checked": 21
@@ -103,9 +118,9 @@
    "pass": true,
    "failed": [
     {
-     "lang": "ko",
+     "lang": "ru",
      "ok": false,
-     "detail": "m4: want T3, on T17 비밀번호 재설정 FAQ 항목 추가"
+     "detail": "m4: want T3, on T25 Добавить в FAQ пункт о сбросе пароля"
     }
    ],
    "checked": 28
@@ -116,6 +131,6 @@
    "checked": 7
   }
  },
- "inputs": "59f88ebd683bc781ace419e759a151e3fa39d14fd4bed45d41600da9585bcb5a",
+ "inputs": "cd01df05561824b213d4a5c2ed107506b310d2c5147d93e13f0f404db1640a3d",
  "pass": true
 }

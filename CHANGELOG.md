@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.1.19
+
+- In Pi and other programs that move one line per scroll step, a drag moves the text as far as your finger; since 0.1.15 it moved about a third as far. OpenCode scrolls as before.
+- Progress page (experimental, Settings › Experimental): each bigger goal is a heading with one row per task under it, the way the agent list reads, and a goal folds away with a tap; the phone remembers which. Tasks finished today stay under their goal with a ✓ instead of a separate "Just done" list. Only a task that needs you gets a second line.
+- The sorting agent now reads each agent's answers, not only what you typed, so finished work no longer sits in progress, and tasks that serve the same outcome go under one goal. Type a correction in its pane ("2.1 shipped weeks ago") and it fixes the page. After this update it sorts your open panes once more.
+- A quick flick goes as far when the phone is busy for a moment after you lift your finger; a late frame used to carry it further.
+- Each release now has `THIRD-PARTY-NOTICES.txt`, the licenses of the code, fonts and icons inside the app and Companion.
+
+Android: `Herdr-Anywhere.apk`; an installed 0.1.6 or later can update to it from home.
+
 ## v0.1.18
 
 - With many agents, a tap on home or in a pane reaches its button right away. The app no longer redraws rows that didn't change, and the key row keeps the button under your finger while the list updates. Before, a tap could do nothing for a moment, while scrolling still worked.

@@ -28,7 +28,22 @@ def right(run):
                 t["waiting"] = PRICE[run["lang"]] if it["other"] else it["text"]
             things[t["id"]] = t
         elif it["kind"] == "session":
-            titles = {1: [it["said"][0]], 2: it["said"][:2], 3: []}[int(it["id"][1:])]
+            said = [u for u, _ in it["turns"]]
+            if it.get("group"):  # under one goal made for the group
+                things.setdefault("G-" + it["group"], {"id": "G-" + it["group"], "outcome": "Move the docs", "stage": "doing", "parent": "P1"})
+                n_new += 1
+                things[f"T{50 + n_new}"] = {"id": f"T{50 + n_new}", "outcome": said[0], "stage": "doing", "parent": "G-" + it["group"], "panes": [{"side": "hc", "addr": it["id"]}]}
+                continue
+            if it.get("stages"):
+                for (u, a), want in zip(it["turns"], it["want"]):
+                    if want["keep"] == "Nimbus":  # already in the tree: it keeps its id
+                        things["T4"]["stage"] = want["stage"]
+                        continue
+                    n_new += 1
+                    things[f"T{50 + n_new}"] = {"id": f"T{50 + n_new}", "outcome": u, "stage": want["stage"], "parent": "P1", "panes": [{"side": "hc", "addr": it["id"]}],
+                                                **({"waiting": a} if want["stage"] == "waiting" else {})}
+                continue
+            titles = {1: said[:1], 2: said[:2], 3: []}[int(it["id"][1:])]
             for i, title in enumerate(titles):
                 n_new += 1
                 done = it["want"][i].get("done", False)
@@ -40,6 +55,7 @@ def right(run):
                 things[f"T{50 + n_new}"] = {"id": f"T{50 + n_new}", "outcome": it["text"], "stage": "doing", "parent": "P1", "panes": [ref]}
             else:
                 things[it["want"]]["panes"].append(ref)
+    things[run["correction"]["task"]]["stage"] = run["correction"]["want"]
     return {"version": 2, "things": list(things.values()), "queue": []}
 
 def write(files, agent="claude --model claude-haiku-5-5", tools=None):
@@ -96,10 +112,29 @@ def two_wrong(f):  # two of four messages on the wrong task
         t = thing(f, m); t["panes"] = [p for p in t["panes"] if p.get("at", 0) < 1000]
         thing(f, "T3")["panes"].append({"side": "hc", "addr": "a" + m[1:], "at": 1013 + int(m[1:])})
 assert broken("en", two_wrong) == ["R8"], broken("en", two_wrong)
+def stages_wrong(f):  # two things of the long session judged by where they sit in it: the still-going one done, the question doing
+    for t in f["things"]:
+        if "Quasar" in t["outcome"]:
+            t["stage"] = "done"
+        if "Zephyr" in t["outcome"]:
+            t["stage"] = "doing"; t.pop("waiting", None)
+assert broken("en", stages_wrong) == ["R10"], broken("en", stages_wrong)
+def flat(f):  # the docs move's tasks left at the top, each on its own
+    for t in f["things"]:
+        if t.get("parent") == "G-docs":
+            t.pop("parent")
+assert broken("ja", flat) == ["R11"], broken("ja", flat)
+def twice(f):  # the task an earlier scan left made again instead of found
+    f["things"].append({"id": "T98", "outcome": "Проверять email в Nimbus", "stage": "done", "panes": [{"side": "hc", "addr": "v4"}]})
+    thing(f, "T4")["stage"] = "doing"
+assert broken("ru", twice) == ["R13"], broken("ru", twice)
+def not_corrected(f):  # the user said the release email is finished; it still says doing
+    thing(f, "T2")["stage"] = "doing"
+assert broken("ko", not_corrected) == ["R12"], broken("ko", not_corrected)
 code, rep = score(write(good, tools=[("Bash", {"command": "herdr-anywhere track queue --json | python3 -c 'print(1)'"}), ("Edit", {"file_path": "x"})]))
 assert failed(rep) == ["R6"], failed(rep)
 print("a question filed as done, the wrong language or script, a dropped name, items left, a task from small talk,")
-print("messages on the wrong task, and other commands each fail their rule")
+print("messages on the wrong task, stages judged by place, tasks left flat, a task made twice, a correction not made, and other commands each fail their rule")
 
 from score import in_lang
 yes = {"en": "Change the README port to 8080", "zh-Hans": "改 README 的端口说明", "zh-Hant": "改 README 的埠說明", "es": "Cambiar el puerto del README",
@@ -130,7 +165,7 @@ for c in ['H=$(command -v herdr-anywhere)\n$H track place Q5 --stage waiting --w
           'run(){ echo "\\$ $*"; herdr-anywhere track place "$@"; }\nrun Q1 --stage done',
           "herdr-anywhere track place Q2 --waiting 'it'\\''s $29'", "herdr-anywhere track --help",
           "B=herdr-anywhere; \\\n$B track place Q1 --stage done && \\\n$B track place Q2 --stage doing",
-          "cat CLAUDE.md", "sed -n '1,80p' AGENTS.md",
+          "cat CLAUDE.md", "sed -n '1,80p' AGENTS.md", "herdr-anywhere track set T2 --stage done", "herdr-anywhere track move T5 P1",
           "cd /tmp/x && (herdr-anywhere track place --batch - <<'END'\n{}\nEND\n) 2>&1 || herdr-anywhere track queue --json",
           "herdr-anywhere track place --batch - <<'END'\n{\"places\": [{\"id\": \"Q1\", \"waiting\": \"rm -rf $x; ok?\"}]}\nEND"]:
     assert not bad_segments(c), (c, bad_segments(c))
@@ -168,6 +203,7 @@ rules = rules[rules.index("const organizerRules"):]
 rules = rules[:rules.index("\n`\n")]
 for r in cases["runs"]:
     for it in r["items"]:
-        for text in [it.get("text"), it.get("title"), it.get("last"), it.get("agent_said"), *it.get("said", [])]:
+        for text in [it.get("text"), it.get("title"), it.get("agent_said"), *[x for turn in it.get("turns", []) for x in turn]]:
             assert not (isinstance(text, str) and len(text) > 12 and text in rules), (r["lang"], text)
+    assert len(r["correction"]["text"]) <= 12 or r["correction"]["text"] not in rules
 print("the filing rules quote no case")

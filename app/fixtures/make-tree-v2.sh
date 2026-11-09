@@ -4,6 +4,7 @@
 #   P1 the Acme shop's new checkout › T1 (in a pane, with ✓/· items), T5 waits its turn, T6 asks the user in pane mobile
 #   P2 comparing payment providers: just finished, with what the agent said
 #   T7: a message the filing pane wasn't sure of, filed where it guessed (version one asks nothing)
+#   P3 a second goal, the Acme website's new look: T10 in progress, T11 waits its turn
 # Each pane is put on its task as the filing pane does it (file, then place). Times start at 1700000000000 (2023),
 # so the files don't say when they were made.
 set -eu
@@ -48,6 +49,9 @@ scene() { # out, then the scene's words
   t set T6 --stage waiting --waiting "$6" >/dev/null
   t file --pane hc:checkout "$7" >/dev/null
   t place Q1 --task new --under P1 --title "$8" --why "$9" >/dev/null
+  t add P3 "${10}" >/dev/null
+  t add --under P3 --stage doing T10 "${11}" >/dev/null
+  t add --under P3 --stage parked T11 "${12}" >/dev/null
   t tree --json | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
@@ -69,9 +73,11 @@ scene tree-v2.json "对比写好了，等你看" "比较几家支付服务商" "
   "上线 Acme 商店的新结账流程" "让顾客能保存银行卡" "先做银行卡表单" "加上银行卡表单" \
   "输入时就校验卡号" "让顾客能删掉存过的卡" "等银行卡的活做完再跑 · 你说过：跑完告诉我" \
   "在 Android 手机上测一遍结账" "按顾客的币种显示价格" "每个价格按顾客自己的币种显示" \
-  "价格取整，还是保留到分？" "顺便在付款后发一封收据邮件" "付款后发收据邮件" "可能是一件新的事"
+  "价格取整，还是保留到分？" "顺便在付款后发一封收据邮件" "付款后发收据邮件" "可能是一件新的事" \
+  "给 Acme 官网换新版" "重写首页文案" "换上新的产品截图"
 scene tree-en.json "The comparison is ready for you to read" "Compare payment providers" "Compare three payment providers and write it up" "Customers can pay in two steps" \
   "Ship the new checkout for the Acme shop" "Let customers save their card" "Start with the card form" "Add the card form" \
   "Check the card number as it is typed" "Let customers remove a saved card" "Waits for the card work · you said: tell me when it's done" \
   "Test the checkout on an Android phone" "Show prices in the customer's currency" "Show each price in the customer's own currency" \
-  "Round prices to whole numbers, or keep the cents?" "Also send a receipt email after payment" "Send a receipt email after payment" "Looks like a new task"
+  "Round prices to whole numbers, or keep the cents?" "Also send a receipt email after payment" "Send a receipt email after payment" "Looks like a new task" \
+  "Give the Acme website its new look" "Rewrite the home page copy" "Put in the new product screenshots"

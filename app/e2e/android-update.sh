@@ -156,8 +156,13 @@ echo "--- the app: the system must allow this app to install first"
 wait_for "Version $new_version is available" 30
 tap update-now
 tap_text "Download"
-sleep 2
-"$adb" shell dumpsys window | grep -E 'mCurrentFocus' | grep -qi 'settings' || { echo "FAIL: the system's screen did not open"; "$adb" shell dumpsys window | grep mCurrentFocus; exit 1; }
+# Up to 10 s for the system's screen to take the focus: while windows change it reads mCurrentFocus=null, and a loaded
+# machine was still changing 2 s after the tap.
+end=$(($(date +%s) + 10)); focus=""
+until echo "$focus" | grep -qi 'settings'; do
+  [ "$(date +%s)" -lt "$end" ] || { echo "FAIL: the system's screen did not open"; echo "$focus"; exit 1; }
+  sleep 0.5; focus=$("$adb" shell dumpsys window | grep -E 'mCurrentFocus' || true)
+done
 snap permission
 echo "ok: the system's permission screen opened"
 "$adb" shell appops set "$id" REQUEST_INSTALL_PACKAGES allow

@@ -164,6 +164,8 @@ function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: 
   const pactions = {
     open: (v: { name: 'task'; id: string } | { name: 'home' }) => { if (v.name === 'home') nav.popToRoot(); else nav.push(v) },
     back: () => nav.pop(), openPane: (a: string) => openTerminal(a), view: () => view() ?? { current: 'progress' as const, switchTo: () => {} }, settings: () => nav.push({ name: 'settings' }),
+    folded: () => prefs().progressFolded,
+    fold: (id: string) => { const f = prefs().progressFolded; deps.prefs.set({ progressFolded: f.includes(id) ? f.filter((x) => x !== id) : [...f, id] }) },
   }
   const progressPage = (r: Route, body: any) => (
     <NavPage headerVisible={false} class="bg-sidebar">
@@ -194,7 +196,7 @@ function Connected(props: { deps: RootDeps; store: Store; link: Link; unpaired: 
             openSpace, openAgent: (a) => openTerminal(a.address), peek: (addr) => peeking.set(addr),
             addAgent: (space) => newTarget.set({ kind: 'tab', space, agent: true }), newMenu: () => newTarget.set({ kind: 'space' }), settings: () => nav.push({ name: 'settings' }),
             rename: (kind, id, current) => renaming.set({ kind, id, current }), leaveDemo: props.leaveDemo,
-            doing: (addr) => (deps.prefs.prefs.get().progressFirst ? progress.taskOn(addr) : undefined), openTask: (id) => nav.push({ name: 'task', id }),
+            doing: (addr) => (deps.prefs.prefs.get().progressFirst ? progress.taskOn(addr) : undefined),
             view,
           }} />
         </NavPage>

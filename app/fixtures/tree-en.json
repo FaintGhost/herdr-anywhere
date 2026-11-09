@@ -11,18 +11,18 @@
           "addr": "t4",
           "name": "mobile",
           "turn_at": 2,
-          "at": 1700000000137
+          "at": 1700000000288
         }
       ],
       "log": [
         {
-          "at": 1700000000137,
+          "at": 1700000000288,
           "to": "hc:t4",
           "text": "Show each price in the customer's own currency"
         }
       ],
-      "created": 1700000000131,
-      "updated": 1700000000184,
+      "created": 1700000000274,
+      "updated": 1700000000364,
       "parent": "P1",
       "group": "waiting",
       "pane_rows": [
@@ -32,7 +32,7 @@
             "addr": "t4",
             "name": "mobile",
             "turn_at": 2,
-            "at": 1700000000137
+            "at": 1700000000288
           },
           "id": "t4",
           "found": true,
@@ -55,8 +55,8 @@
       "id": "P1",
       "outcome": "Ship the new checkout for the Acme shop",
       "stage": "doing",
-      "created": 1700000000056,
-      "updated": 1700000000056,
+      "created": 1700000000089,
+      "updated": 1700000000089,
       "std": "Customers can pay in two steps",
       "group": "waiting",
       "pane_rows": null,
@@ -71,19 +71,19 @@
               "addr": "t2",
               "name": "checkout",
               "turn_at": 7,
-              "at": 1700000000066,
+              "at": 1700000000104,
               "ended": "unknown"
             }
           ],
           "log": [
             {
-              "at": 1700000000066,
+              "at": 1700000000104,
               "to": "hc:t2",
               "text": "Start with the card form"
             }
           ],
-          "created": 1700000000061,
-          "updated": 1700000000066,
+          "created": 1700000000096,
+          "updated": 1700000000104,
           "parent": "P1",
           "group": "doing",
           "pane_rows": [
@@ -93,7 +93,7 @@
                 "addr": "t2",
                 "name": "checkout",
                 "turn_at": 7,
-                "at": 1700000000066,
+                "at": 1700000000104,
                 "ended": "unknown"
               },
               "id": "t2",
@@ -113,8 +113,8 @@
               "id": "T2",
               "outcome": "Add the card form",
               "stage": "done",
-              "created": 1700000000111,
-              "updated": 1700000000111,
+              "created": 1700000000221,
+              "updated": 1700000000221,
               "parent": "T1",
               "group": "done",
               "pane_rows": null,
@@ -126,8 +126,8 @@
               "id": "T3",
               "outcome": "Check the card number as it is typed",
               "stage": "parked",
-              "created": 1700000000116,
-              "updated": 1700000000116,
+              "created": 1700000000230,
+              "updated": 1700000000230,
               "parent": "T1",
               "group": "parked",
               "pane_rows": null,
@@ -139,8 +139,8 @@
               "id": "T4",
               "outcome": "Let customers remove a saved card",
               "stage": "parked",
-              "created": 1700000000121,
-              "updated": 1700000000121,
+              "created": 1700000000242,
+              "updated": 1700000000242,
               "parent": "T1",
               "group": "parked",
               "pane_rows": null,
@@ -157,8 +157,8 @@
           "outcome": "Test the checkout on an Android phone",
           "stage": "parked",
           "next": "Waits for the card work · you said: tell me when it's done",
-          "created": 1700000000127,
-          "updated": 1700000000127,
+          "created": 1700000000252,
+          "updated": 1700000000252,
           "parent": "P1",
           "group": "parked",
           "pane_rows": null,
@@ -177,18 +177,18 @@
               "addr": "t4",
               "name": "mobile",
               "turn_at": 2,
-              "at": 1700000000137
+              "at": 1700000000288
             }
           ],
           "log": [
             {
-              "at": 1700000000137,
+              "at": 1700000000288,
               "to": "hc:t4",
               "text": "Show each price in the customer's own currency"
             }
           ],
-          "created": 1700000000131,
-          "updated": 1700000000184,
+          "created": 1700000000274,
+          "updated": 1700000000364,
           "parent": "P1",
           "group": "waiting",
           "pane_rows": [
@@ -198,7 +198,7 @@
                 "addr": "t4",
                 "name": "mobile",
                 "turn_at": 2,
-                "at": 1700000000137
+                "at": 1700000000288
               },
               "id": "t4",
               "found": true,
@@ -225,18 +225,18 @@
               "addr": "t2",
               "name": "checkout",
               "turn_at": 7,
-              "at": 1700000000189
+              "at": 1700000000372
             }
           ],
           "log": [
             {
-              "at": 1700000000189,
+              "at": 1700000000372,
               "to": "hc:t2",
               "text": "Also send a receipt email after payment"
             }
           ],
-          "created": 1700000000212,
-          "updated": 1700000000212,
+          "created": 1700000000412,
+          "updated": 1700000000412,
           "parent": "P1",
           "auto": true,
           "group": "doing",
@@ -247,7 +247,7 @@
                 "addr": "t2",
                 "name": "checkout",
                 "turn_at": 7,
-                "at": 1700000000189
+                "at": 1700000000372
               },
               "id": "t2",
               "found": true,
@@ -267,6 +267,45 @@
       ],
       "done": 1,
       "total": 6
+    },
+    {
+      "id": "P3",
+      "outcome": "Give the Acme website its new look",
+      "stage": "doing",
+      "created": 1700000000448,
+      "updated": 1700000000448,
+      "group": "doing",
+      "pane_rows": null,
+      "children": [
+        {
+          "id": "T10",
+          "outcome": "Rewrite the home page copy",
+          "stage": "doing",
+          "created": 1700000000456,
+          "updated": 1700000000456,
+          "parent": "P3",
+          "group": "doing",
+          "pane_rows": null,
+          "children": [],
+          "done": 0,
+          "total": 1
+        },
+        {
+          "id": "T11",
+          "outcome": "Put in the new product screenshots",
+          "stage": "parked",
+          "created": 1700000000465,
+          "updated": 1700000000465,
+          "parent": "P3",
+          "group": "parked",
+          "pane_rows": null,
+          "children": [],
+          "done": 0,
+          "total": 1
+        }
+      ],
+      "done": 0,
+      "total": 2
     }
   ],
   "closed": [
@@ -280,18 +319,18 @@
           "addr": "t3",
           "name": "payments",
           "turn_at": 4,
-          "at": 1700000000005
+          "at": 1700000000012
         }
       ],
       "log": [
         {
-          "at": 1700000000005,
+          "at": 1700000000012,
           "to": "hc:t3",
           "text": "Compare three payment providers and write it up"
         }
       ],
       "created": 1700000000000,
-      "updated": 1700000000050,
+      "updated": 1700000000082,
       "group": "done",
       "pane_rows": [
         {
@@ -300,7 +339,7 @@
             "addr": "t3",
             "name": "payments",
             "turn_at": 4,
-            "at": 1700000000005
+            "at": 1700000000012
           },
           "id": "t3",
           "found": true,
@@ -325,8 +364,8 @@
       "id": "T2",
       "outcome": "Add the card form",
       "stage": "done",
-      "created": 1700000000111,
-      "updated": 1700000000111,
+      "created": 1700000000221,
+      "updated": 1700000000221,
       "parent": "T1",
       "group": "done",
       "pane_rows": null,
@@ -345,18 +384,18 @@
           "addr": "t3",
           "name": "payments",
           "turn_at": 4,
-          "at": 1700000000005
+          "at": 1700000000012
         }
       ],
       "log": [
         {
-          "at": 1700000000005,
+          "at": 1700000000012,
           "to": "hc:t3",
           "text": "Compare three payment providers and write it up"
         }
       ],
       "created": 1700000000000,
-      "updated": 1700000000050,
+      "updated": 1700000000082,
       "group": "done",
       "pane_rows": [
         {
@@ -365,7 +404,7 @@
             "addr": "t3",
             "name": "payments",
             "turn_at": 4,
-            "at": 1700000000005
+            "at": 1700000000012
           },
           "id": "t3",
           "found": true,

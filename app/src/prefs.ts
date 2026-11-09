@@ -15,9 +15,11 @@ export type Prefs = { appearance: Appearance; typeIn: TypeIn; fontSize: number; 
   progressLang: string
   /** With the progress page on: which of the two the home page shows, the agent list or the progress page; the last one switched to. */
   homeView: 'progress' | 'agents'
+  /** The progress page's headings the user folded, by task id. */
+  progressFolded: string[]
   /** How many times the app has opened: the question about checking for new versions waits for the second. */
   opened: number }
-export const DEFAULTS: Prefs = { appearance: 'system', typeIn: 'composer', fontSize: 13, alertBlocked: true, alertDone: true, stayConnected: true, dismissedUpdate: '', askedNotifications: false, showAgentNames: true, progressFirst: false, progressAgent: '', progressLang: '', homeView: 'progress', opened: 0 }
+export const DEFAULTS: Prefs = { appearance: 'system', typeIn: 'composer', fontSize: 13, alertBlocked: true, alertDone: true, stayConnected: true, dismissedUpdate: '', askedNotifications: false, showAgentNames: true, progressFirst: false, progressAgent: '', progressLang: '', homeView: 'progress', progressFolded: [], opened: 0 }
 import { FONT_MAX, FONT_MIN } from './ui/terminal-page.ts'
 export { FONT_MAX, FONT_MIN }
 
@@ -55,6 +57,7 @@ function clean(p: Prefs): Prefs {
     progressAgent: typeof p.progressAgent === 'string' ? p.progressAgent : '',
     progressLang: typeof p.progressLang === 'string' ? p.progressLang : '',
     homeView: p.homeView === 'agents' ? 'agents' : 'progress',
+    progressFolded: Array.isArray(p.progressFolded) ? p.progressFolded.filter((x): x is string => typeof x === 'string') : [],
     dismissedUpdate: typeof p.dismissedUpdate === 'string' ? p.dismissedUpdate : '',
     opened: Math.max(0, Math.floor(Number(p.opened) || 0)),
   }

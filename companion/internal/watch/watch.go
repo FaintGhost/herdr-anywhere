@@ -198,19 +198,27 @@ func contentText(raw json.RawMessage) string {
 	return strings.TrimSpace(strings.Join(ts, "\n"))
 }
 
-// ReadSession reads a whole transcript: what the person typed, in order, and
-// the agent's last finished reply.
-func ReadSession(path string) ([]string, string, error) {
+// A Turn is one message the person typed and how the agent answered it: its
+// last words before the person typed again ("" while it is still at it).
+type Turn struct {
+	Typed string
+	Reply string
+}
+
+// ReadSession reads a whole transcript as the person's messages, in order,
+// each with the agent's answer to it.
+func ReadSession(path string) ([]Turn, error) {
 	msgs, _, tail, err := ReadNew(path, 0, Tail{})
-	var typed []string
-	last := tail.Said
-	for _, m := range msgs {
-		typed = append(typed, m.Text)
+	turns := make([]Turn, len(msgs))
+	for i, m := range msgs {
+		turns[i].Typed = m.Text
+		if i+1 < len(msgs) {
+			turns[i].Reply = msgs[i+1].AgentSaid
+		} else {
+			turns[i].Reply = tail.Said
+		}
 	}
-	if last == "" && len(msgs) > 0 {
-		last = msgs[len(msgs)-1].AgentSaid
-	}
-	return typed, last, err
+	return turns, err
 }
 
 // Current is each live Claude Code terminal's session transcript right now.

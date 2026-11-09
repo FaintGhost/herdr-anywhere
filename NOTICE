@@ -4,13 +4,15 @@ Herdr Anywhere's own code is under the MIT License (see LICENSE). This product i
 under their licenses.
 
 Herdr desktop app (https://github.com/herdrdev/herdr-app), Apache License 2.0
-  - the program icons in app/assets/icons (from defaults/icons)
+  - the program icons in app/assets/icons (from defaults/icons), with that folder's notices LICENSES.md,
+    LICENSE-Lucide.txt and LICENSE-LobeHub.txt
   - the UI icons in app/assets/ui (from defaults/frame and defaults/mods)
   - the program table in app/src/data/programs.json (from defaults/programs.json),
     and the files app/scripts/gen-assets.mjs generates from it and from the icons in app/src/data
   - the alert sounds in app/assets/sounds (from assets/sounds)
   - the space colours, status marks and layout the screens follow (from defaults/mods and src/settings.rs)
-  The copied files are unchanged.
+  app/assets/icons/kimi-light.svg is a changed copy of defaults/icons/kimi.svg: the letter's fill is #1b1b1e instead
+  of #fff, so it shows on the light theme. The other copied files are unchanged.
 
 NSH (https://nsh.dev), Apache License 2.0
   - the runtime that the Android, iOS and web builds embed
@@ -57,7 +59,7 @@ The companion (companion/) is built with these Go modules:
   - github.com/mdp/qrterminal/v3, MIT License, Copyright 2019 Mark Percival
   - rsc.io/qr, BSD 3-Clause License, Copyright (c) 2009 The Go Authors
   - golang.org/x/sys and golang.org/x/term, BSD 3-Clause License, Copyright 2009 The Go Authors
-  - TailPocket at commit 8ae23dd, MIT License, Copyright (c) 2026 the tailpocket authors;
+  - TailPocket at commit 8ae23dd, MIT License, Copyright (c) 2026 Jingtao Wang;
     its Go packages are copied into third_party/tailpocket-8ae23dd with its LICENSE and NOTICE
   - for serve --tailcat, tailscale.com and github.com/tailscale/tailcat (BSD 3-Clause License, Copyright (c) 2020
     Tailscale Inc & contributors), github.com/tailscale/wireguard-go (MIT License) and gvisor.dev/gvisor

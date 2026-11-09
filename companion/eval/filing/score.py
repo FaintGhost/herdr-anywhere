@@ -115,7 +115,7 @@ def segments(cmd):
     return [x.strip() for x in segs if x.strip() and not x.strip().startswith("#")]
 
 def bad_segments(cmd):
-    """Parts of a shell command that do more than herdr-anywhere track queue/place/tree and harmless shell:
+    """Parts of a shell command that do more than herdr-anywhere track queue/place/tree/set/move and harmless shell:
     any other program or herdr-anywhere command, or writing to a file."""
     bad, funcs = [], set(re.findall(r"(?:^|[\s;{])(?:function\s+)?([A-Za-z_]\w*)\s*\(\s*\)", cmd))
     for seg in segments(cmd):
@@ -140,7 +140,7 @@ def bad_segments(cmd):
             prog = words[0]
             if (prog.endswith("herdr-anywhere") or prog.startswith("$")) and words[-1:] in (["--help"], ["-h"]):  # reads its own help
                 continue
-            if (prog.endswith("herdr-anywhere") or prog.startswith("$")) and words[1:2] == ["track"] and words[2:3] and words[2] in ("queue", "place", "tree"):
+            if (prog.endswith("herdr-anywhere") or prog.startswith("$")) and words[1:2] == ["track"] and words[2:3] and words[2] in ("queue", "place", "tree", "set", "move"):
                 continue
             if prog.startswith("$") and len(words) == 1:  # the end of H=$(command -v herdr-anywhere)
                 continue
@@ -195,8 +195,9 @@ def main():
         new = [t for t in things.values() if t["id"] not in seed]
         lines = []  # every line the agent wrote for the user: (what, text, keep)
         stops_ok = stops_n = 0
-        sessions_ok = 0
+        sessions_ok = sessions_n = 0
         messages_ok = 0
+        groups = {}  # a group of sessions -> the tasks found in them
         for n, it in enumerate(r["items"], 1):
             at = 1000 + n
             if it["kind"] == "stop":
@@ -214,6 +215,18 @@ def main():
                 got = [t for t in new if any(q.get("addr") == it["id"] for q in t.get("panes") or [])]
                 for t in got:
                     lines.append((f"{it['id']} title", t["outcome"], [w.get("keep", "") for w in it["want"] if w.get("keep")]))
+                if it.get("group"):
+                    groups.setdefault(it["group"], []).extend(got)
+                    continue
+                if it.get("stages"):
+                    right = 0
+                    for want in it["want"]:
+                        m = [t for t in got + [things.get("T4", {"outcome": ""})] if want["keep"] in t["outcome"]]
+                        right += bool(m) and m[0].get("stage") == want["stage"]
+                    check("R10", lang, right >= len(it["want"]) - 1, f"{it['id']}: {right}/{len(it['want'])} stages right; got " +
+                          "; ".join(f"{t['outcome']} [{t.get('stage')}]" for t in got))
+                    continue
+                sessions_n += 1
                 ok = len(got) == len(it["want"])
                 for want in it["want"]:
                     m = [t for t in got if not want.get("keep") or want["keep"] in t["outcome"]]
@@ -235,6 +248,20 @@ def main():
                     good = [t["id"] for t in on] == [it["want"]]
                 messages_ok += good
                 check("R8", lang, good, f"{it['id']}: want {it['want']}, on " + ", ".join(f"{t['id']} {t['outcome']}" for t in on))
+        # A task an earlier scan left is found again: it keeps its id and takes the stage, no second task (R13).
+        if "T4" in things:
+            again = [t for t in new if "Nimbus" in t["outcome"]]
+            check("R13", lang, things["T4"].get("stage") == "done" and not again,
+                  f"T4 is {things['T4'].get('stage')}; new tasks for it: {[t['outcome'] for t in again]}")
+        for g, ts in groups.items():  # one parent for all of them, not the top
+            parents = {t.get("parent", "") for t in ts}
+            check("R11", lang, len(ts) >= 2 and len(parents) == 1 and "" not in parents,
+                  f"{g}: " + "; ".join(f"{t['outcome']} under {t.get('parent') or 'the top'}" for t in ts) +
+                  "".join(f" ({p} = {things[p]['outcome']})" for p in parents if p in things))
+        c = r.get("correction")
+        if c:
+            t = things.get(c["task"], {})
+            check("R12", lang, t.get("stage") == c["want"], f"{c['task']} {t.get('outcome')!r} is {t.get('stage')} after {c['text']!r}")
         for what, text, keep in lines:
             check("R3", lang, in_lang(text, lang, keep), f"{what}: {text!r}")
         check("R2", lang, stops_ok >= 0.9 * stops_n, f"{ratio(stops_ok, stops_n)} stages right")
@@ -249,7 +276,7 @@ def main():
                     bad.append(f"{name} {json.dumps(inp, ensure_ascii=False)[:120]}")
             check("R6", lang, tools and not bad, f"{len(tools)} tool calls" + (f"; not allowed: {bad[:5]}" if bad else "") + ("" if tools else "; no session record found"))
         secs = out / lang / "seconds"
-        report["languages"][lang] = {"stops": ratio(stops_ok, stops_n), "sessions": ratio(sessions_ok, 3), "messages": ratio(messages_ok, 4), "new_tasks": len(new),
+        report["languages"][lang] = {"stops": ratio(stops_ok, stops_n), "sessions": ratio(sessions_ok, sessions_n), "messages": ratio(messages_ok, 4), "new_tasks": len(new),
                                      "seconds": int(secs.read_text()) if secs.exists() else None}
 
     # Per-language thresholds for R7 and R8 (README.md): the rest must hold for every item.

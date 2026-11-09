@@ -176,3 +176,69 @@ func TestAScannedSessionBecomesTasks(t *testing.T) {
 		t.Fatalf("none: %v %+v", err, f.Queue)
 	}
 }
+
+// A scanned session's tasks are the pane's in the order the filing pane listed
+// them, oldest first: what the pane says now, and what it said before the next
+// message, is about the last of them, not about whichever comes first in the file.
+func TestThePanesWordsGoToTheLastTaskOfItsScannedSession(t *testing.T) {
+	f, _ := organizerFile()
+	live := hcLive(HCTerm{Address: "t9", Name: "fresh", State: "live", Status: "done", Turn: 2, Agent: "claude-code",
+		StatusMs: ms(t0.Add(30 * time.Second)), Msg: "The posts draft is half written."})
+	ids, _ := f.QueueSessions([]SessionItem{{Pane: PaneRef{Side: "hc", Addr: "t9"}, Session: "s-9", Text: "- User: release 2.1\n- User: write the posts"}}, live, t0)
+	old, _ := f.Place(ids[0], Decision{Task: "new", Title: "Release 2.1", Stage: Done, More: true}, live, t0)
+	last, _ := f.Place(ids[0], Decision{Task: "new", Title: "Write the posts"}, live, t0)
+	said := map[string]string{}
+	for _, r := range Status(f, live, t0.Add(time.Minute), time.Hour) {
+		said[r.ID] = r.Said
+	}
+	if said[old] != "" || said[last] != "The posts draft is half written." {
+		t.Fatalf("the pane's report shows under %q (old) and %q (last)", said[old], said[last])
+	}
+	// The next message is about something new: what the agent said before it
+	// goes on the last task too.
+	m := Message{Pane: PaneRef{Side: "hc", Addr: "t9"}, Text: "now fix the footer", PrevEnded: "done", AgentSaid: "The posts draft is half written."}
+	if _, err := f.Take(Decision{Task: "new", Title: "Fix the footer", Sure: true, By: "organizer"}, m, live, t0.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	o, _ := f.Get(old)
+	l, _ := f.Get(last)
+	if o.Panes[0].Said != "" || l.Panes[0].Said != "The posts draft is half written." {
+		t.Fatalf("said: old %q, last %q", o.Panes[0].Said, l.Panes[0].Said)
+	}
+}
+
+// The task page shows what the agent said in full, lists and all: a report of
+// a thousand characters is not cut; only a very long one is.
+func TestWhatThePaneSaidIsKeptWholeForTheTaskPage(t *testing.T) {
+	f, _ := organizerFile()
+	long := strings.Repeat("步骤做完了。", 170) // 1020 characters
+	live := hcLive(HCTerm{Address: "t9", Name: "fresh", State: "live", Status: "done", Turn: 2, Agent: "claude-code", StatusMs: ms(t0.Add(30 * time.Second)), Msg: long})
+	ids, _ := f.QueueSessions([]SessionItem{{Pane: PaneRef{Side: "hc", Addr: "t9"}, Session: "s-9", Text: "- User: x"}}, live, t0)
+	id, _ := f.Place(ids[0], Decision{Task: "new", Title: "X"}, live, t0)
+	for _, r := range Status(f, live, t0.Add(time.Minute), time.Hour) {
+		if r.ID == id && r.Said != long {
+			t.Fatalf("said cut to %d characters", len([]rune(r.Said)))
+		}
+	}
+}
+
+// Scanning again, the filing pane may put a task already in the tree under the
+// goal it belongs to. That is its filing, not the user's correction: no scope note.
+func TestAScanCanPutAnExistingTaskUnderAGoal(t *testing.T) {
+	f, live := organizerFile()
+	ids, _ := f.QueueSessions([]SessionItem{{Pane: PaneRef{Side: "hc", Addr: "t9"}, Session: "s-9", Text: "- User: x"}}, live, t0)
+	f.Add(Thing{ID: "T40", Outcome: "Release 2.1", Stage: Doing})
+	f.Add(Thing{ID: "T41", Outcome: "Write the posts", Stage: Doing})
+	if _, err := f.Place(ids[0], Decision{Task: "T41", Under: "T40", Stage: Done}, live, t0); err != nil {
+		t.Fatal(err)
+	}
+	t41, _ := f.Get("T41")
+	if t41.Parent != "T40" || t41.Stage != Done {
+		t.Fatalf("T41 = %+v", t41)
+	}
+	for _, th := range f.Things {
+		if len(th.Notes) > 0 && th.ID != "P2" {
+			t.Fatalf("a scope note on %s: %+v", th.ID, th.Notes)
+		}
+	}
+}

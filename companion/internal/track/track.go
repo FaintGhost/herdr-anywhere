@@ -97,9 +97,17 @@ type File struct {
 	Things  []Thing   `json:"things"`
 	Queue   []Pending `json:"queue,omitempty"`   // waiting for the filing pane
 	Scanned []string  `json:"scanned,omitempty"` // session ids already queued by a scan
+	// The scan format the sessions were scanned with: a file scanned with an
+	// older one is scanned once more (ScanFormat).
+	ScanFormat int `json:"scan_format,omitempty"`
 	// The user's answer to sorting the panes' sessions: "", "yes" or "no".
 	ScanAnswer string `json:"scan_answer,omitempty"`
 }
+
+// ScanFormat is what a scan gives the filing pane: 2 is each thing the user
+// said with the agent's answer to it. Raise it when that changes enough that
+// sessions scanned before should be scanned again.
+const ScanFormat = 2
 
 func validStage(s string) bool {
 	_, ok := stages[s]
@@ -416,7 +424,7 @@ func Status(f File, live Live, now time.Time, quietAfter time.Duration) []Row {
 				said = lp.msg
 			}
 			if said != "" && p.At > saidAt {
-				r.Said, saidAt = clip(said, 300), p.At
+				r.Said, saidAt = clip(said, 2000), p.At
 			}
 			r.Panes = append(r.Panes, pr)
 		}

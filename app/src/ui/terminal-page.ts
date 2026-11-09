@@ -290,10 +290,59 @@ const BOOT = `(function () {
   // Back in history by this many steps. A full-screen program has none here: xterm turns a wheel into what that program
   // asked for (its mouse encoding, or arrow keys in its cursor mode).
   function ownScroll() { return term.modes.mouseTrackingMode !== 'none' || term.buffer.active.type === 'alternate'; }
-  // Rows of finger travel per step. A program that follows the mouse gets a wheel report per 3 rows, the rate xterm
-  // sends for a Mac trackpad (small pixel wheels count 0.3 of their rows); OpenCode moves 3 rows on each, so its
-  // content keeps up with the finger. An arrow key moves one row.
-  function rowsPerStep() { return term.modes.mouseTrackingMode !== 'none' ? 3 : 1; }
+  // How many rows one wheel report moves a program that follows the mouse. It is the program's own choice: Pi 1.4.0
+  // moves 1, OpenCode 1.19.0 3 (both measured), and nothing in the protocol tells. So the page looks: a report goes
+  // out alone, and when the program has redrawn, the screen before and after says how far its content moved. After
+  // 3 such looks a drag sends a report per that many rows of finger travel, so the content keeps up with the finger.
+  // Until then, and for a program whose screen gives no answer, it is 1, a report per row as Termux sends. The looks
+  // start over when a program enters or leaves the alternate screen. An arrow key moves one row.
+  var wheel = { seen: [], misses: 0, probe: null };
+  function forgetWheel() { if (wheel.probe) { clearTimeout(wheel.probe.quiet); clearTimeout(wheel.probe.timer); } wheel = { seen: [], misses: 0, probe: null }; }
+  function wheelRows() {
+    var n = {}, best = 1, most = 0;
+    wheel.seen.forEach(function (k) { n[k] = (n[k] || 0) + 1; if (n[k] > most || (n[k] === most && k > best)) { most = n[k]; best = k; } });
+    return best;
+  }
+  function screenRows() { var b = term.buffer.active, out = []; for (var r = 0; r < term.rows; r++) { var l = b.getLine(b.viewportY + r); out.push(l ? l.translateToString(false) : ''); } return out; }
+  // How many rows the content moved from screen a to b, the way a report asked (down: 1, up: -1); 0 when no move
+  // explains most of what changed. Cells are compared, so a panel that moved beside one that stayed still counts.
+  function shifted(a, b, down) {
+    var changed = 0, best = 0, score = 0, i, j, k;
+    for (i = 0; i < b.length; i++) for (j = 0; j < b[i].length; j++) if (b[i][j] !== ' ' && b[i][j] !== a[i][j]) changed++;
+    for (k = 1; k <= b.length / 2; k++) {
+      var hit = 0;
+      for (i = 0; i < b.length; i++) {
+        var from = a[i - down * k];
+        if (from === undefined) continue;
+        for (j = 0; j < b[i].length; j++) { var c = b[i][j]; if (c !== ' ' && c !== a[i][j] && c === from[j]) hit++; }
+      }
+      if (hit > score) { score = hit; best = k; }
+    }
+    return score >= 4 && score * 2 >= changed ? best : 0;
+  }
+  // Sends one report and holds the next until the program's redraw (output quiet for 40 ms) answers: 300 ms with no
+  // output, or 600 ms with no answer, is none. One look per drag, and a program that gives none 5 times gets no more.
+  function look(lines, x, y, then) {
+    var p = wheel.probe = { before: screenRows(), down: lines > 0 ? 1 : -1, then: then };
+    p.done = function (k) {
+      if (wheel.probe !== p) return;
+      clearTimeout(p.quiet); clearTimeout(p.timer); wheel.probe = null;
+      if (k) wheel.seen.push(k); else wheel.misses++;
+      p.then(k);
+    };
+    p.timer = setTimeout(function () { if (!p.wrote) p.done(0); else p.timer = setTimeout(function () { p.done(0); }, 300); }, 300);
+    scrollView(lines > 0 ? 1 : -1, x, y);
+  }
+  function redrawn() {
+    var p = wheel.probe;
+    if (!p) return;
+    p.wrote = true;
+    clearTimeout(p.quiet);
+    p.quiet = setTimeout(function () { var k = shifted(p.before, screenRows(), p.down); if (k) p.done(k); }, 40);
+  }
+  function looking() { return wheel.seen.length < 3 && wheel.misses < 5; }
+  // Rows of finger travel per step.
+  function rowsPerStep() { return term.modes.mouseTrackingMode !== 'none' ? wheelRows() : 1; }
   // x, y: where the finger went down. It picks the panel, and a program can ignore a wheel elsewhere (OpenCode's prompt box).
   function scrollView(lines, x, y) {
     if (!ownScroll()) { term.scrollLines(-lines); if (term.buffer.active.viewportY > live()) term.scrollToLine(live()); return where(); }
@@ -310,26 +359,41 @@ const BOOT = `(function () {
   }
   // After the finger lifts the view keeps its speed (px per ms, down = back in history) and loses it smoothly, the
   // curve native lists use: speed halves about every 225 ms. It moves in whole steps, so what is less than a step waits.
-  // A program that follows the mouse glides as far as the page's own history would.
+  // A program that follows the mouse glides as far as the page's own history would. Each frame goes to where the curve
+  // is at that time since the lift, so a late frame (a busy phone) catches up and goes no further: moving a late
+  // frame's whole gap at the speed before it sent a flick a third further after one 400 ms gap (e2e/page-touch.mjs).
   var gliding = 0;
   function stopGlide() { var was = !!gliding; if (gliding) cancelAnimationFrame(gliding); gliding = 0; return was; }
-  function glide(v, h, x, y) {
-    v = Math.max(-8, Math.min(8, v));
-    if (Math.abs(v) < 0.25) return;
-    var last = performance.now(), carry = 0;
-    h *= rowsPerStep();
+  function glide(v0, h, x, y) {
+    v0 = Math.max(-8, Math.min(8, v0));
+    if (Math.abs(v0) < 0.25) return;
+    var start = performance.now(), sent = 0;
     function step(now) {
-      var dt = Math.max(0, now - last);
-      last = now; carry += v * dt; v *= Math.exp(-dt / 325);
-      var n = Math.trunc(carry / h), from = term.buffer.active.viewportY;
-      if (n) { scrollView(n, x, y); carry -= n * h; }
+      var t = Math.max(0, now - start), u = h * rowsPerStep(), v = v0 * Math.exp(-t / 325);
+      var n = wheel.probe ? 0 : Math.trunc((v0 * 325 - v * 325 - sent) / u), from = term.buffer.active.viewportY;
+      if (n) { scrollView(n, x, y); sent += n * u; }
       var ended = Math.abs(v) < 0.03 || (n && !ownScroll() && term.buffer.active.viewportY === from);
       gliding = ended ? 0 : requestAnimationFrame(step);
     }
     gliding = requestAnimationFrame(step);
   }
   function touches() {
-    var t0 = null, selecting = null, press = 0, scrolled = 0, moved = false, dragging = false, trail = [], stopped = false;
+    var t0 = null, selecting = null, press = 0, scrolled = 0, moved = false, dragging = false, trail = [], stopped = false, drag = null;
+    // Steps for the finger's travel so far. Travel short of a step is kept for the next move, so a finger that goes
+    // back cancels it. While the page looks how far a report goes, the travel waits, and the answer counts.
+    function keepUp() {
+      if (!drag || wheel.probe) return;
+      var u = drag.h * rowsPerStep(), steps = Math.trunc((drag.dy - scrolled) / u);
+      if (!steps) return;
+      if (term.modes.mouseTrackingMode !== 'none' && looking() && !drag.looked) {
+        var g = drag, guess = u;
+        g.looked = true;
+        scrolled += steps > 0 ? guess : -guess;
+        look(steps, g.x, g.y, function (k) { if (g === drag && k) scrolled += (steps > 0 ? 1 : -1) * (k * g.h - guess); keepUp(); });
+        return;
+      }
+      scrollView(steps, drag.x, drag.y); scrolled += steps * u;
+    }
     // touchstart keeps its default: it is what gives the WebView the system's focus, without which focusing the
     // textarea brings no keyboard up (Android, measured). touch-action:none already stops panning and zooming.
     // touchend never does: its default is the mouse events a tap turns into.
@@ -339,7 +403,7 @@ const BOOT = `(function () {
       stopped = stopGlide();
       if (e.touches.length !== 1) { t0 = null; selecting = null; return; }
       var p = e.touches[0];
-      t0 = { x: p.clientX, y: p.clientY, at: Date.now() }; moved = false; scrolled = 0; selecting = null; dragging = false; trail = [];
+      t0 = { x: p.clientX, y: p.clientY, at: Date.now() }; moved = false; scrolled = 0; selecting = null; dragging = false; trail = []; drag = null;
       press = setTimeout(function () { if (!t0 || moved) return; selecting = selectWord(cell(t0.x, t0.y)); }, 450);
     }, { passive: true });
     box.addEventListener('contextmenu', function (e) { e.preventDefault(); });
@@ -350,9 +414,9 @@ const BOOT = `(function () {
       if (Math.abs(dx) > 8 || Math.abs(dy) > 8) { moved = true; clearTimeout(press); }
       if (selecting) { selectSpan(selecting, cell(p.clientX, p.clientY)); return; }
       if (moved && Math.abs(dy) > Math.abs(dx)) {
-        // Travel short of a step is kept for the next move, so a finger that goes back cancels it.
-        var u = cell(p.clientX, p.clientY).h * rowsPerStep(), steps = Math.trunc((dy - scrolled) / u);
-        if (steps) { scrollView(steps, t0.x, t0.y); scrolled += steps * u; }
+        if (!drag) drag = { x: t0.x, y: t0.y, looked: false };
+        drag.dy = dy; drag.h = cell(p.clientX, p.clientY).h;
+        keepUp();
         dragging = true;
         trail.push({ y: p.clientY, at: e.timeStamp });
         while (trail.length > 2 && e.timeStamp - trail[0].at > 100) trail.shift();
@@ -464,7 +528,8 @@ const BOOT = `(function () {
     // Scrolled back or at the bottom again; and, once output settles, the last lines up to the cursor.
     var settle = null;
     term.onScroll(function () { if (!cfg.phone) where(); });
-    term.onWriteParsed(function () { follow(); where(); settled(); lift(); });
+    term.onWriteParsed(function () { follow(); where(); settled(); lift(); redrawn(); });
+    term.buffer.onBufferChange(forgetWheel);
     term.onRender(edges);
     function lines(from, to) { var b = term.buffer.active, out = []; for (var i = from; i < to; i++) { var l = b.getLine(i); out.push(l ? l.translateToString(true) : ''); } return out; }
     function settled() {
@@ -507,7 +572,7 @@ const BOOT = `(function () {
     window.addEventListener('message', function (e) {
       if (typeof e.data !== 'string') return;
       var m; try { m = JSON.parse(e.data); } catch (_) { return; }
-      if (m.t === 'reset') { stopGlide(); term.reset(); kitty = []; span = null; linked = []; linking = null; }
+      if (m.t === 'reset') { stopGlide(); term.reset(); kitty = []; span = null; linked = []; linking = null; forgetWheel(); }
       else if (m.t === 'write') term.write(m.data);
       else if (m.t === 'paste') { forget(); term.paste(m.data); }
       else if (m.t === 'theme') { term.options.theme = cfg.themes[m.dark ? 'dark' : 'light']; edges(); }

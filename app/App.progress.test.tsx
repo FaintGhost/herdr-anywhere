@@ -7,23 +7,38 @@ import { expect, open, test } from 'nsh/test'
 const progress = (locale = 'zh-Hans') => open('./fixtures/fake.tsx', { host: { params: { scene: 'progress' } }, locale })
 const ran = (app: any): string[] => JSON.parse(app.storage()['fake-exec'] ?? '[]')
 
-test('the first screen: what needs the user, what just finished, then each task with the tasks under it', async () => {
+test('the first screen: what needs the user, then each goal over its tasks, then what finished outside a goal', async () => {
   const app = await progress()
   await app.waitFor('text:要你处理')
+  // What needs the user: the task, then which goal it is under (the page shows two) and what it asks; its pane opens.
   expect(app.shows('id:needs-task-T6')).toBe(true)
-  expect(app.shows('text:价格取整，还是保留到分？')).toBe(true)
+  expect(app.shows('text:上线 Acme 商店的新结账流程 · 价格取整，还是保留到分？')).toBe(true)
   expect(app.shows('id:needs-task-T6-open')).toBe(true)
-  expect(app.shows('text:刚做完')).toBe(true)
-  expect(app.shows('id:done-P2')).toBe(true)
-  expect(app.shows('text:对比写好了，等你看')).toBe(true)
-  expect(app.shows('text:进行中')).toBe(true)
-  expect(app.shows('id:top-P1')).toBe(true)
-  for (const id of ['id:task-T1', 'id:task-T5', 'id:task-T9']) expect(app.shows(id)).toBe(true)
-  expect(app.shows('text:✓ 加上银行卡表单')).toBe(true)
-  expect(app.shows('text:排队中')).toBe(true)
   expect(app.shows('id:task-T6')).toBe(false) // shown once, in 要你处理
+  // Each goal a heading with how many of its tasks are done; under it one row per task, the card work a subheading
+  // over its own; what finished today stays where it sits, ticked.
+  expect(app.shows('id:top-P1')).toBe(true)
+  expect(app.shows('id:top-P3')).toBe(true)
+  expect(app.shows('text:1/6')).toBe(true)
+  for (const id of ['id:task-T1', 'id:task-T2', 'id:task-T3', 'id:task-T4', 'id:task-T5', 'id:task-T9', 'id:task-T10', 'id:task-T11']) expect(app.shows(id)).toBe(true)
+  expect(app.shows('text:排队中')).toBe(true)
+  // A task under no goal that finished today comes after the goals; no "just done" list of its own.
+  expect(app.shows('id:task-P2')).toBe(true)
+  const texts = app.texts()
+  expect(texts.indexOf('比较几家支付服务商')).toBeGreaterThan(texts.indexOf('给 Acme 官网换新版'))
+  expect(app.shows('text:刚做完')).toBe(false)
+  // Only what needs the user has a line under its title; the agent's words are on the task's page.
+  expect(app.shows('text:等银行卡的活做完再跑 · 你说过：跑完告诉我')).toBe(false)
   // Nothing to tick, accept, answer or type: the computer keeps the tasks.
   for (const id of ['id:needs-task-T6-accept', 'id:scan-offer', 'id:dock-input', 'text:待确认', 'text:验收']) expect(app.shows(id)).toBe(false)
+}, 60000)
+
+// With one goal on the page, a task that needs the user does not name it.
+test('with one goal, what needs the user does not name it', async () => {
+  const app = await progress()
+  await app.waitFor('text:上线 Acme 商店的新结账流程 · 价格取整，还是保留到分？')
+  await app.host.send('fake.progress', { only: 'P1' })
+  await app.waitFor('text:价格取整，还是保留到分？')
 }, 60000)
 
 test('what needs the user opens the pane that asks', async () => {
@@ -38,10 +53,18 @@ test('a task opens with the titles above it, its own tasks and its pane, and not
   await app.waitFor('id:sub-T3')
   expect(app.shows('text:上线 Acme 商店的新结账流程')).toBe(true)
   expect(app.count('id:task-move') + app.count('id:task-accept') + app.count('id:dock-input')).toBe(0)
-  await app.press('id:progress-back')
-  await app.press('id:done-P2')
-  await app.waitFor('id:task-pane-t3')
-  expect(app.shows('text:payments · t3')).toBe(true)
+  // Its pane, by name and no number, opens that pane, though it went on to other work since.
+  expect(app.shows('text:checkout')).toBe(true)
+  expect(app.shows('text:checkout · t2')).toBe(false)
+  expect(app.texts().some((x) => x.includes('现在在做'))).toBe(false)
+  await app.press('id:task-pane-t2')
+  await app.waitFor('id:terminal-t2')
+  await app.back()
+  // A finished task lists no pane.
+  await app.waitFor('id:task-P2')
+  await app.press('id:task-P2')
+  await app.waitFor('id:said-P2')
+  expect(app.count('id:task-pane-t3')).toBe(0)
 }, 60000)
 
 test('while the computer is still sorting, the page says how many are left', async () => {
@@ -52,15 +75,38 @@ test('while the computer is still sorting, the page says how many are left', asy
   await app.waitFor('text:还有 2 条在整理')
 }, 60000)
 
-test('in the agent list, a pane on a task says 在做 and opens the task', async () => {
+// The agent list says which task a pane is on, and that is all: it does not open the progress page.
+test('in the agent list, a pane on a task says 在做, and nothing more', async () => {
   const app = await progress()
   await app.waitFor('text:要你处理')
   await app.press('id:view-agents')
   await app.waitFor('id:doing-t2')
   expect(app.shows('text:在做：付款后发收据邮件')).toBe(true)
   expect(app.count('id:doing-t3')).toBe(0) // its task is done
-  await app.press('id:doing-t2')
-  await app.waitFor('id:task-pane-t2')
+  await app.press('id:doing-t2').catch(() => {})
+  await app.wait(500)
+  expect(app.count('id:progress-back')).toBe(0)
+  expect(app.count('id:task-pane-t2')).toBe(0)
+}, 60000)
+
+// Goals and the tasks with tasks of their own fold and unfold; the page remembers which are folded.
+test('a heading folds what is under it and unfolds it again, and stays folded next time', async () => {
+  const app = await progress()
+  await app.waitFor('id:task-T3')
+  await app.press('id:fold-T1')
+  await app.waitUntil(() => app.count('id:task-T3') === 0)
+  expect(app.shows('id:task-T1')).toBe(true)
+  expect(app.shows('id:task-T9')).toBe(true)
+  await app.press('id:fold-P1')
+  await app.waitUntil(() => app.count('id:task-T9') === 0)
+  expect(app.shows('id:top-P1')).toBe(true)
+  expect(JSON.parse(app.storage()['fake-prefs']).progressFolded.sort()).toEqual(['P1', 'T1'])
+  await app.press('id:fold-P1')
+  await app.waitFor('id:task-T9')
+  expect(app.count('id:task-T3')).toBe(0) // T1 is still folded
+  const again = await open('./fixtures/fake.tsx', { host: { params: { scene: 'progress', prefs: '{"progressFirst":true,"progressFolded":["T1"]}' } }, locale: 'zh-Hans' })
+  await again.waitFor('id:task-T1')
+  expect(again.count('id:task-T3')).toBe(0)
 }, 60000)
 
 test('turning the page on picks the agent that sorts what you say; off turns filing off', async () => {
@@ -196,13 +242,13 @@ test('in English, picking the agent is in English, the too-old note too', async 
 // Every word of the page in the phone's language; titles and questions are the sorting agent's, written in it too
 // (the English scene, fixtures/tree-en.json). Stages come as codes and are worded here.
 const PAGE: Record<string, string[]> = {
-  en: ['Progress', 'Agents', 'Needs you', 'Just done', 'In progress', 'Waiting on you', 'Doing', 'Open mobile'],
-  'zh-Hans': ['进度', 'Agent', '要你处理', '刚做完', '进行中', '等你', '在做', '打开 mobile'],
-  'zh-Hant': ['進度', 'Agent', '要你處理', '剛做完', '進行中', '等你', '在做', '打開 mobile'],
-  es: ['Progreso', 'Agentes', 'Te necesita', 'Recién terminado', 'En curso', 'Te espera', 'En marcha', 'Abrir mobile'],
-  ja: ['進捗', 'エージェント', '対応待ち', '完了したばかり', '進行中', 'あなた待ち', '作業中', 'mobile を開く'],
-  ko: ['진행 상황', '에이전트', '내가 할 일', '방금 끝남', '진행 중', '내 차례', '하는 중', 'mobile 열기'],
-  ru: ['Прогресс', 'Агенты', 'Ждёт вас', 'Только что готово', 'В работе', 'Ждёт вас', 'Делается', 'Открыть mobile'],
+  en: ['Progress', 'Agents', 'Needs you', 'In progress', 'Doing', 'Open mobile'],
+  'zh-Hans': ['进度', 'Agent', '要你处理', '进行中', '在做', '打开 mobile'],
+  'zh-Hant': ['進度', 'Agent', '要你處理', '進行中', '在做', '打開 mobile'],
+  es: ['Progreso', 'Agentes', 'Te necesita', 'En curso', 'En marcha', 'Abrir mobile'],
+  ja: ['進捗', 'エージェント', '対応待ち', '進行中', '作業中', 'mobile を開く'],
+  ko: ['진행 상황', '에이전트', '내가 할 일', '진행 중', '하는 중', 'mobile 열기'],
+  ru: ['Прогресс', 'Агенты', 'Ждёт вас', 'В работе', 'Делается', 'Открыть mobile'],
 }
 for (const [locale, words] of Object.entries(PAGE)) {
   test(`${locale}: the page is in the phone's language, and the computer is told it`, async () => {
@@ -216,7 +262,7 @@ for (const [locale, words] of Object.entries(PAGE)) {
 test('in English, a task and its panes read in English', async () => {
   const app = await progress('en')
   await app.waitFor('text:Needs you')
-  expect(app.texts()).toContain('Round prices to whole numbers, or keep the cents?')
+  expect(app.texts()).toContain('Ship the new checkout for the Acme shop · Round prices to whole numbers, or keep the cents?')
   await app.press('id:task-T1')
   await app.waitFor('text:Tasks under it')
   expect(app.texts()).toContain('Add the card form')
@@ -224,3 +270,16 @@ test('in English, a task and its panes read in English', async () => {
   expect(app.texts().some((x) => /[一-龥]/.test(x))).toBe(false)
 }, 60000)
 
+
+// Agents answer in Markdown; the task page shows it as paragraphs and list items, without the marks (a real task
+// page showed "- **主打的点：**").
+test('what an agent said shows as paragraphs and list items, without Markdown marks', async () => {
+  const app = await progress()
+  await app.waitFor('id:task-T9')
+  await app.host.send('fake.progress', { said: { id: 'T9', text: '表单做好了。**还差**两步：\n\n- 校验卡号\n- 删卡\n\n## 然后\n跑一遍 `checkout` 测试' } })
+  await app.press('id:task-T9')
+  await app.waitFor('id:said-T9')
+  for (const x of ['表单做好了。还差两步：', '校验卡号', '删卡', '然后', '跑一遍 checkout 测试']) expect(app.texts()).toContain(x)
+  expect(app.texts().filter((x) => x === '•').length).toBe(2)
+  expect(app.texts().some((x) => /\*\*|^- |^## |`/.test(x))).toBe(false)
+}, 60000)

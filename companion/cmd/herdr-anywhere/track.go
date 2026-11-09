@@ -525,7 +525,8 @@ func fileTyped(st *track.Store, hc string, log io.Writer) func(addr string, m wa
 }
 
 // scanPanes queues each live Claude Code pane's current session once, for the
-// filing pane, and marks the scan as done.
+// filing pane, and marks the scan as done; sessions scanned with an older scan
+// format are queued again.
 func scanPanes(w *watch.Watcher, hc string, st *track.Store, now time.Time) (ids []string, panes int, err error) {
 	sessions, err := w.Current()
 	if err != nil {
@@ -534,8 +535,11 @@ func scanPanes(w *watch.Watcher, hc string, st *track.Store, now time.Time) (ids
 	live := readLive(hc, "-")
 	err = st.Update(func(f *track.File) error {
 		var err error
+		if f.ScanFormat < track.ScanFormat {
+			f.Scanned = nil // scanned with less to go on: once more
+		}
 		ids, err = f.QueueSessions(scanItems(sessions), live, now)
-		f.ScanAnswer = "yes"
+		f.ScanAnswer, f.ScanFormat = "yes", track.ScanFormat
 		return err
 	})
 	return ids, len(sessions), err

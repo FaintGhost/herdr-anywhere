@@ -31,11 +31,21 @@ type batchPlace struct {
 	Tasks   *[]batchTask `json:"tasks,omitempty"`
 }
 
-type batchTask struct {
-	Task  string `json:"task,omitempty"` // an existing task the session worked on; "" or new for a new one
-	Title string `json:"title,omitempty"`
+// batchGoal is a bigger outcome the answer makes, so that tasks from several
+// items can go under it: any under in the answer may name its key. It is made
+// only when something goes under it.
+type batchGoal struct {
+	Key   string `json:"key"`
+	Title string `json:"title"`
 	Under string `json:"under,omitempty"`
-	Stage string `json:"stage,omitempty"`
+}
+
+type batchTask struct {
+	Task    string `json:"task,omitempty"` // an existing task the session worked on; "" or new for a new one
+	Title   string `json:"title,omitempty"`
+	Under   string `json:"under,omitempty"`
+	Stage   string `json:"stage,omitempty"`
+	Waiting string `json:"waiting,omitempty"` // stage waiting: what the agent asks the user
 }
 
 // placeBatch places every item of one answer on its own, and names each one it
@@ -53,6 +63,7 @@ func placeBatch(st *track.Store, from string, live track.Live, now time.Time, st
 		return err
 	}
 	var doc struct {
+		Goals  []batchGoal  `json:"goals"`
 		Places []batchPlace `json:"places"`
 	}
 	dec := json.NewDecoder(bytes.NewReader(b))
@@ -67,9 +78,17 @@ func placeBatch(st *track.Store, from string, live track.Live, now time.Time, st
 		for _, q := range f.Queue {
 			queued[q.ID] = true
 		}
+		goals, gerr := newGoals(f, doc.Goals, now)
+		if gerr != nil {
+			problems = append(problems, "goals: "+gerr.Error())
+		}
 		for _, p := range doc.Places {
 			if !queued[p.ID] {
 				problems = append(problems, fmt.Sprintf("%s: not in the queue (placed already, or no such item)", p.ID))
+				continue
+			}
+			if err := goals.resolve(&p); err != nil {
+				problems = append(problems, fmt.Sprintf("%s: %v", p.ID, err))
 				continue
 			}
 			if err := placeOne(f, p, live, now); err != nil {
@@ -118,10 +137,80 @@ func placeOne(f *track.File, p batchPlace, live track.Live, now time.Time) error
 		if task == "new" && strings.TrimSpace(t.Title) == "" {
 			return errors.New("a new task needs a title")
 		}
-		d := track.Decision{Task: task, Under: t.Under, Title: t.Title, Stage: t.Stage, More: i < len(ts)-1, By: "organizer"}
+		d := track.Decision{Task: task, Under: t.Under, Title: t.Title, Stage: t.Stage, Waiting: t.Waiting, More: i < len(ts)-1, By: "organizer"}
 		if _, err := f.Place(p.ID, d, live, now); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// goalSet makes the answer's goals as they are first used.
+type goalSet struct {
+	f     *track.File
+	now   time.Time
+	byKey map[string]batchGoal
+	made  map[string]string // key → task id
+}
+
+func newGoals(f *track.File, gs []batchGoal, now time.Time) (*goalSet, error) {
+	s := &goalSet{f: f, now: now, byKey: map[string]batchGoal{}, made: map[string]string{}}
+	var bad []string
+	for _, g := range gs {
+		switch {
+		case strings.TrimSpace(g.Key) == "" || strings.TrimSpace(g.Title) == "":
+			bad = append(bad, "each goal needs a key and a title")
+		case s.byKey[g.Key].Key != "":
+			bad = append(bad, fmt.Sprintf("two goals have the key %s", g.Key))
+		default:
+			if _, err := f.Get(g.Key); err == nil {
+				bad = append(bad, fmt.Sprintf("%s is a task's id already; give goals keys like G1, G2", g.Key))
+				continue
+			}
+			s.byKey[g.Key] = g
+		}
+	}
+	if len(bad) > 0 {
+		return s, errors.New(strings.Join(bad, "; "))
+	}
+	return s, nil
+}
+
+// id turns a goal's key into its task id, making the goal the first time.
+func (s *goalSet) id(under string) (string, error) {
+	g, ok := s.byKey[under]
+	if !ok {
+		return under, nil
+	}
+	if id, ok := s.made[under]; ok {
+		return id, nil
+	}
+	parent := g.Under
+	if _, isGoal := s.byKey[parent]; isGoal {
+		return "", fmt.Errorf("goal %s: a goal goes under a task, not another goal", g.Key)
+	}
+	d := track.Decision{Task: "new", Title: g.Title, Under: parent, By: "organizer"}
+	id, err := s.f.NewTask(d, s.now)
+	if err != nil {
+		return "", fmt.Errorf("goal %s: %v", g.Key, err)
+	}
+	s.made[under] = id
+	return id, nil
+}
+
+func (s *goalSet) resolve(p *batchPlace) error {
+	var err error
+	if p.Under, err = s.id(p.Under); err != nil {
+		return err
+	}
+	if p.Tasks != nil {
+		ts := append([]batchTask{}, (*p.Tasks)...)
+		for i := range ts {
+			if ts[i].Under, err = s.id(ts[i].Under); err != nil {
+				return err
+			}
+		}
+		p.Tasks = &ts
 	}
 	return nil
 }

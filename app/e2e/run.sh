@@ -13,6 +13,7 @@ work=$(mktemp -d)
 run=$(mktemp -d /tmp/hmXXXX) # the core's sockets must fit macOS's 103-byte path limit
 mkdir -p "$work/home" "$work/state" "$work/config" "$work/data"
 : > "$work/home/.zshrc"
+h="$work/home"; (cd "$app/e2e/fake-claude" && GO111MODULE=off go build -o "$h/bin/claude" main.go) # live-app.tsx's made-up agent
 
 export HC_SESSION="hme2e-$$" HC_SOCKET="" HOME="$work/home" SHELL=/bin/sh
 export XDG_STATE_HOME="$work/state" XDG_CONFIG_HOME="$work/config" XDG_DATA_HOME="$work/data" XDG_RUNTIME_DIR="$run"

@@ -1,6 +1,7 @@
 #!/bin/sh
 # Scrolling a full-screen program that follows the mouse, with real touches on Android. e2e/tui-panels.py stands in
-# for OpenCode: a prompt box that ignores the wheel, and two panels that move 3 rows per wheel report.
+# for OpenCode: a prompt box that ignores the wheel, and two panels that move 3 rows per wheel report; a second copy
+# moves 1 row per report, as Pi does.
 # Up to 0.1.14 a drag sent a report per row of finger travel (OpenCode moved 3 times as far as the finger) at the
 # finger's current cell (a drag or flick that ended over the prompt box stopped there).
 # Usage: ANDROID_SERIAL=emulator-5554 e2e/android-tui-scroll.sh APK COMPANION [folder for screenshots]
@@ -21,6 +22,10 @@ export XDG_STATE_HOME="$work/state" XDG_CONFIG_HOME="$work/config" XDG_DATA_HOME
 events="$work/wheels"; : > "$events"
 "$hc" run --bg --keep --cwd "$work/home/src/acme-api" --label herdr.space=spscroll --label herdr.tab=tbscroll \
   python3 -I "$app/e2e/tui-panels.py" "$events" >/dev/null
+# The same stand-in moving 1 row per report, as Pi 1.4.0 does.
+events1="$work/wheels1"; : > "$events1"
+"$hc" run --bg --keep --cwd "$work/home/src/acme-api" --label herdr.space=spone --label herdr.tab=tbone \
+  python3 -I "$app/e2e/tui-panels.py" "$events1" 1 >/dev/null
 "$bin" serve --listen "127.0.0.1:$port" --hc "$hc" --state "$state" > "$work/serve.log" 2>&1 &
 serve_pid=$!
 cleanup() { kill "$serve_pid" 2>/dev/null; "$hc" server stop >/dev/null 2>&1 || true; chmod -R u+w "$work" 2>/dev/null; rm -rf "$work" "$run" "$state"; }
@@ -113,4 +118,18 @@ i=1; while [ $i -le 8 ]; do "$adb" shell input motionevent MOVE "$x_left" $((a +
 sleep 0.4; "$adb" shell input motionevent UP "$x_left" "$z"; sleep 1.5
 if [ "$(count left)" -ge 1 ] && [ "$(count ignored)" = 0 ]; then say "ok: with the keyboard up a drag from the upper half scrolls ($(count left) reports on row $(awk '{print $3}' "$events" | sort -u | tr '\n' ' '))"
 else say "FAIL: with the keyboard up a drag from the upper half reached: $(tr '\n' ';' < "$events")"; fi
+
+# 5. A program that moves 1 row per report (Pi 1.4.0) gets one per row: 12 rows of finger, 12 reports. Up to 0.1.18
+# the page sent one per 3 rows to every program, and Pi moved a third as far as the finger (issue #1).
+"$adb" shell input keyevent 4; sleep 1; "$adb" shell input keyevent 4; sleep 2
+tap space-spone
+sleep 3
+events=$events1
+drag "$x_left" 3 15
+n=$(reports | grep -c . || true)
+if [ "$n" -ge 11 ] && [ "$n" -le 13 ]; then say "ok: a 12-row drag in a program of 1 row a report sends $n reports"
+else say "FAIL: a 12-row drag in a program of 1 row a report sent $n reports (12 moves it as far as the finger): $(tr '\n' ';' < "$events")"; fi
+drag "$x_left" 3 15
+n=$(reports | grep -c . || true)
+[ "$n" -ge 11 ] && [ "$n" -le 13 ] && say "ok: and again ($n)" || say "FAIL: the second 12-row drag sent $n reports"
 exit $failed

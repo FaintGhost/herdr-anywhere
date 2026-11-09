@@ -120,7 +120,7 @@ func TestTheFilingAgentWritesInThePhonesLanguage(t *testing.T) {
 // double-quoted --waiting turned "is the price really $29?" into "is the price
 // really ?" (companion/eval/filing, rule R4).
 func TestTheFilingRulesAnswerInOneQuotedBatch(t *testing.T) {
-	for _, want := range []string{"herdr-anywhere track place --batch - <<'END'", `{"places": [`, "\n    END\n"} {
+	for _, want := range []string{"herdr-anywhere track place --batch - <<'END'", `"places": [`, "\n    END\n"} {
 		if !strings.Contains(organizerRules, want) {
 			t.Errorf("filing rules lack %q", want)
 		}
@@ -138,5 +138,31 @@ func TestTheFilingRulesAnswerInOneQuotedBatch(t *testing.T) {
 func TestTheFilingRulesSayTheQueueIsAllItNeeds(t *testing.T) {
 	if !strings.Contains(organizerRules, "Run no other command") || !strings.Contains(organizerRules, "do not look for files") {
 		t.Errorf("filing rules lack the line against looking around")
+	}
+}
+
+// When the user tells the filing pane itself that a task's stage or place is
+// wrong ("version 2.1 shipped weeks ago"), it can put it right: its rules say how
+// and Claude Code may run those two commands without asking.
+func TestTheFilingPaneCanApplyWhatTheUserCorrects(t *testing.T) {
+	for _, want := range []string{"Bash(herdr-anywhere track set:*)", "Bash(herdr-anywhere track move:*)"} {
+		if !strings.Contains(organizerSettings, want) {
+			t.Errorf("settings lack %s", want)
+		}
+	}
+	for _, want := range []string{"herdr-anywhere track set <id> --stage", "herdr-anywhere track move <id>"} {
+		if !strings.Contains(organizerRules, want) {
+			t.Errorf("filing rules lack %q", want)
+		}
+	}
+}
+
+// A scan's tasks are judged one by one from what the agent answered to each,
+// and tasks from several panes that serve one bigger outcome go under a goal.
+func TestTheFilingRulesJudgeEachScannedTaskAndGroupThem(t *testing.T) {
+	for _, want := range []string{"Agent:", `"goals": [`, `"key": "G1"`, "keeps its T id, never a new task", "to one already in tasks to put it under"} {
+		if !strings.Contains(organizerRules, want) {
+			t.Errorf("filing rules lack %q", want)
+		}
 	}
 }

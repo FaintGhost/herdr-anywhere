@@ -11,11 +11,14 @@ def w(*t):
     assert len(t) == 7, t
     return dict(zip(LANGS, t))
 
-SEED = {  # the user's tasks before the batch: P1, under it T1–T3, each on its own pane
+SEED = {  # the user's tasks before the batch: P1, under it T1–T4, each on its own pane
     "P1": w("Acme 1.0 launch", "Acme 1.0 发布", "Acme 1.0 發布", "Lanzamiento de Acme 1.0", "Acme 1.0 のリリース", "Acme 1.0 출시", "Выпуск Acme 1.0"),
     "T1": w("Fix the total_items count", "修好 total_items 计数", "修好 total_items 計數", "Arreglar el conteo de total_items", "total_items の件数を直す", "total_items 개수 고치기", "Исправить подсчёт total_items"),
     "T2": w("Write the release email", "写发布邮件", "寫發布郵件", "Escribir el correo del lanzamiento", "リリースのメールを書く", "출시 메일 쓰기", "Написать письмо о выпуске"),
     "T3": w("Update the FAQ", "更新 FAQ", "更新 FAQ", "Actualizar las FAQ", "FAQ を更新する", "FAQ 업데이트", "Обновить FAQ"),
+    # Left by an earlier scan of the long session (v4), still "doing": the scan after an update finds it again (R13).
+    "T4": w("Check emails on the Nimbus signup page", "Nimbus 注册页校验邮箱", "Nimbus 註冊頁檢查電郵", "Validar el correo en el registro de Nimbus",
+            "Nimbus の登録でメールをチェック", "Nimbus 가입에서 이메일 검사", "Проверка email при регистрации в Nimbus"),
 }
 
 # A pane stops on its task; `want` is where the task goes, `keep` what the question must say as it is.
@@ -55,25 +58,83 @@ STOPS = [
                 "The five FAQ entries are written. Is the price in entry 3 really $29?", "The five FAQ entries are written. Is the price in entry 3 really $29?")),
 ]
 
-# A pane's current session, found when the page is turned on: the tasks in it (`keep` tells them apart), or none.
+# A pane's current session, found when the page is turned on: each thing the user said with the agent's answer (None:
+# it had not answered). `want` lists the tasks in it (`keep` tells them apart); R7 checks done or not, `stages` (R10)
+# the exact stage, and `group` (R11) that the tasks of the sessions sharing it go under one task.
 SESSIONS = [
     dict(want=[dict(done=True)],
-         said=w(["Add a check for the cart quantity limit", "and a test", "ok"], ["加一个购物车数量上限的校验", "再加个测试", "好"], ["加一個購物車數量上限的檢查", "再加個測試", "好"],
-                ["Añade una validación del límite de cantidad del carrito", "y una prueba", "vale"], ["カートの数量上限のチェックを追加して", "テストも", "OK"],
-                ["장바구니 수량 한도 검사를 추가해 줘", "테스트도", "좋아"], ["Добавь проверку лимита количества в корзине", "и тест", "ок"]),
-         last=w("The check and the test are in; all pass.", "校验和测试都加好了，全过。", "檢查和測試都加好了，全過。", "La validación y la prueba están; todo pasa.",
-                "チェックとテストを追加しました。すべて通ります。", "검사와 테스트 추가했어요. 모두 통과해요.", "Проверка и тест добавлены, всё проходит.")),
+         turns=w([("Add a check for the cart quantity limit", "Added the limit check to the cart."), ("and a test", "The check and the test are in; all pass.")],
+                 [("加一个购物车数量上限的校验", "购物车加上了数量上限校验。"), ("再加个测试", "校验和测试都加好了，全过。")],
+                 [("加一個購物車數量上限的檢查", "購物車加上了數量上限檢查。"), ("再加個測試", "檢查和測試都加好了，全過。")],
+                 [("Añade una validación del límite de cantidad del carrito", "Añadí la validación del límite al carrito."), ("y una prueba", "La validación y la prueba están; todo pasa.")],
+                 [("カートの数量上限のチェックを追加して", "カートに数量上限のチェックを追加しました。"), ("テストも", "チェックとテストを追加しました。すべて通ります。")],
+                 [("장바구니 수량 한도 검사를 추가해 줘", "장바구니에 수량 한도 검사를 추가했어요."), ("테스트도", "검사와 테스트 추가했어요. 모두 통과해요.")],
+                 [("Добавь проверку лимита количества в корзине", "Добавил проверку лимита в корзину."), ("и тест", "Проверка и тест добавлены, всё проходит.")])),
     dict(want=[dict(keep="8080", done=True), dict(keep="CHANGELOG", done=False)],
-         said=w(["Change the README port to 8080", "also update the CHANGELOG"], ["README 端口改成 8080", "顺便把 CHANGELOG 也更新一下"], ["README 埠改成 8080", "順便把 CHANGELOG 也更新一下"],
-                ["Cambia el puerto del README a 8080", "y actualiza también el CHANGELOG"], ["README のポートを 8080 に変えて", "ついでに CHANGELOG も更新して"],
-                ["README 포트를 8080으로 바꿔 줘", "CHANGELOG도 업데이트해 줘"], ["Поменяй порт в README на 8080", "и обнови CHANGELOG"]),
-         last=w("Port changed. I haven't touched the CHANGELOG yet; shall I?", "端口改好了，CHANGELOG 还没动，要我现在写吗？", "埠改好了，CHANGELOG 還沒動，要我現在寫嗎？",
-                "Puerto cambiado. Aún no toqué el CHANGELOG; ¿lo hago?", "ポートは変えました。CHANGELOG はまだです。今やりますか？",
-                "포트는 바꿨어요. CHANGELOG는 아직이에요. 지금 할까요?", "Порт поменял. CHANGELOG ещё не трогал — сделать?")),
+         turns=w([("Change the README port to 8080", None), ("also update the CHANGELOG", "Port changed. I haven't touched the CHANGELOG yet; shall I?")],
+                 [("README 端口改成 8080", None), ("顺便把 CHANGELOG 也更新一下", "端口改好了，CHANGELOG 还没动，要我现在写吗？")],
+                 [("README 埠改成 8080", None), ("順便把 CHANGELOG 也更新一下", "埠改好了，CHANGELOG 還沒動，要我現在寫嗎？")],
+                 [("Cambia el puerto del README a 8080", None), ("y actualiza también el CHANGELOG", "Puerto cambiado. Aún no toqué el CHANGELOG; ¿lo hago?")],
+                 [("README のポートを 8080 に変えて", None), ("ついでに CHANGELOG も更新して", "ポートは変えました。CHANGELOG はまだです。今やりますか？")],
+                 [("README 포트를 8080으로 바꿔 줘", None), ("CHANGELOG도 업데이트해 줘", "포트는 바꿨어요. CHANGELOG는 아직이에요. 지금 할까요?")],
+                 [("Поменяй порт в README на 8080", None), ("и обнови CHANGELOG", "Порт поменял. CHANGELOG ещё не трогал — сделать?")])),
     dict(want=[],
-         said=w(["hi", "which model are you?"], ["你好", "你是什么模型"], ["你好", "你是什麼模型"], ["hola", "¿qué modelo eres?"], ["こんにちは", "どのモデル？"], ["안녕", "어떤 모델이야?"], ["привет", "какая ты модель?"]),
-         last=w("I'm Claude.", "我是 Claude。", "我是 Claude。", "Soy Claude.", "Claude です。", "저는 Claude예요.", "Я Claude.")),
+         turns=w([("hi", "Hi! What shall we work on?"), ("which model are you?", "I'm Claude.")], [("你好", "你好！今天做什么？"), ("你是什么模型", "我是 Claude。")],
+                 [("你好", "你好！今天做什麼？"), ("你是什麼模型", "我是 Claude。")], [("hola", "¡Hola! ¿En qué trabajamos?"), ("¿qué modelo eres?", "Soy Claude.")],
+                 [("こんにちは", "こんにちは！何をしましょう？"), ("どのモデル？", "Claude です。")], [("안녕", "안녕하세요! 뭘 할까요?"), ("어떤 모델이야?", "저는 Claude예요.")],
+                 [("привет", "Привет! Чем займёмся?"), ("какая ты модель?", "Я Claude.")])),
+    # A long session: three things finished, one still going after the user moved on, the last one asks the user.
+    dict(stages=True, want=[dict(keep="Nimbus", stage="done"), dict(keep="Orbit", stage="done"), dict(keep="Comet", stage="done"),
+                            dict(keep="Quasar", stage="doing"), dict(keep="Zephyr", stage="waiting")],
+         turns=w([("Make the Nimbus signup page check the email address", "Done: Nimbus signup now checks the email; tests pass."),
+                  ("Add dark mode to Orbit", "Dark mode is in Orbit, saved per user."), ("Ship Comet 2.3 to the App Store", "Comet 2.3 is live on the App Store."),
+                  ("Quasar search is slow, make it faster", "Added an index; Quasar queries still take 4 s. I'm still looking."),
+                  ("Translate the Zephyr onboarding into German", "The German texts are in. On the first screen, 'Konto' or 'Account'?")],
+                 [("让 Nimbus 注册页校验邮箱地址", "好了：Nimbus 注册页现在会校验邮箱，测试通过。"), ("给 Orbit 加深色模式", "Orbit 加上深色模式了，按用户保存。"),
+                  ("把 Comet 2.3 发到 App Store", "Comet 2.3 已经在 App Store 上线。"), ("Quasar 搜索太慢，弄快一点", "加了索引，Quasar 查询还是要 4 秒，我还在查。"),
+                  ("把 Zephyr 的引导页翻译成德语", "德语文案放进去了。第一屏用 'Konto' 还是 'Account'？")],
+                 [("讓 Nimbus 註冊頁檢查電郵地址", "好了：Nimbus 註冊頁現在會檢查電郵，測試通過。"), ("給 Orbit 加深色模式", "Orbit 加上深色模式了，按使用者儲存。"),
+                  ("把 Comet 2.3 發到 App Store", "Comet 2.3 已經在 App Store 上架。"), ("Quasar 搜尋太慢，弄快一點", "加了索引，Quasar 查詢還是要 4 秒，我還在查。"),
+                  ("把 Zephyr 的導覽頁翻譯成德文", "德文文案放進去了。第一屏用 'Konto' 還是 'Account'？")],
+                 [("Haz que la página de registro de Nimbus valide el correo", "Hecho: el registro de Nimbus valida el correo; las pruebas pasan."),
+                  ("Añade modo oscuro a Orbit", "El modo oscuro está en Orbit, guardado por usuario."), ("Publica Comet 2.3 en la App Store", "Comet 2.3 ya está en la App Store."),
+                  ("La búsqueda de Quasar es lenta, hazla más rápida", "Añadí un índice; las consultas de Quasar siguen tardando 4 s. Sigo investigando."),
+                  ("Traduce la bienvenida de Zephyr al alemán", "Los textos en alemán están. En la primera pantalla, ¿'Konto' o 'Account'?")],
+                 [("Nimbus の登録ページでメールアドレスをチェックして", "できました。Nimbus の登録でメールをチェックします。テストも通ります。"),
+                  ("Orbit にダークモードを付けて", "Orbit にダークモードを付けました。ユーザーごとに保存されます。"), ("Comet 2.3 を App Store に出して", "Comet 2.3 は App Store で公開されました。"),
+                  ("Quasar の検索が遅いので速くして", "インデックスを足しましたが、Quasar の検索はまだ 4 秒かかります。引き続き調べています。"),
+                  ("Zephyr のオンボーディングをドイツ語に訳して", "ドイツ語の文言を入れました。最初の画面は 'Konto' と 'Account' のどちらにしますか？")],
+                 [("Nimbus 가입 페이지에서 이메일 주소를 검사하게 해 줘", "완료: Nimbus 가입에서 이메일을 검사해요. 테스트 통과했어요."),
+                  ("Orbit에 다크 모드 추가해 줘", "Orbit에 다크 모드 넣었어요. 사용자별로 저장돼요."), ("Comet 2.3을 App Store에 올려 줘", "Comet 2.3이 App Store에 출시됐어요."),
+                  ("Quasar 검색이 느려, 빠르게 해 줘", "인덱스를 추가했지만 Quasar 검색은 아직 4초 걸려요. 계속 보고 있어요."),
+                  ("Zephyr 온보딩을 독일어로 번역해 줘", "독일어 문구 넣었어요. 첫 화면은 'Konto'로 할까요, 'Account'로 할까요?")],
+                 [("Сделай, чтобы страница регистрации Nimbus проверяла email", "Готово: регистрация Nimbus проверяет email, тесты проходят."),
+                  ("Добавь тёмную тему в Orbit", "Тёмная тема в Orbit есть, сохраняется для каждого пользователя."), ("Выложи Comet 2.3 в App Store", "Comet 2.3 уже в App Store."),
+                  ("Поиск в Quasar медленный, ускорь его", "Добавил индекс, но запросы Quasar всё ещё идут 4 с. Продолжаю разбираться."),
+                  ("Переведи онбординг Zephyr на немецкий", "Немецкие тексты на месте. На первом экране 'Konto' или 'Account'?")])),
+    # Two panes working on one move of the docs site that no task names yet: their tasks go under one task (R11).
+    dict(group="docs", want=[dict(keep="docs.acme.dev")],
+         turns=w([("Point docs.acme.dev at the new docs server", "docs.acme.dev now points at the new server."), ("turn on HTTPS for it too", "HTTPS is on for docs.acme.dev.")],
+                 [("把 docs.acme.dev 指向新的文档服务器", "docs.acme.dev 已经指向新服务器了。"), ("也给它开 HTTPS", "docs.acme.dev 的 HTTPS 开好了。")],
+                 [("把 docs.acme.dev 指向新的文件伺服器", "docs.acme.dev 已經指向新伺服器了。"), ("也給它開 HTTPS", "docs.acme.dev 的 HTTPS 開好了。")],
+                 [("Apunta docs.acme.dev al nuevo servidor de documentación", "docs.acme.dev ya apunta al nuevo servidor."), ("activa también HTTPS", "HTTPS está activo en docs.acme.dev.")],
+                 [("docs.acme.dev を新しいドキュメントサーバーに向けて", "docs.acme.dev は新しいサーバーを向いています。"), ("HTTPS も有効にして", "docs.acme.dev で HTTPS を有効にしました。")],
+                 [("docs.acme.dev를 새 문서 서버로 연결해 줘", "docs.acme.dev가 이제 새 서버를 가리켜요."), ("HTTPS도 켜 줘", "docs.acme.dev에 HTTPS를 켰어요.")],
+                 [("Направь docs.acme.dev на новый сервер документации", "docs.acme.dev теперь указывает на новый сервер."), ("и включи для него HTTPS", "HTTPS для docs.acme.dev включён.")])),
+    dict(group="docs", want=[dict(keep="/help")],
+         turns=w([("For the docs move: redirect the old /help links to docs.acme.dev", "The redirects are in; I'm checking them now.")],
+                 [("文档迁移的事：把旧的 /help 链接跳转到 docs.acme.dev", "跳转加好了，我正在逐个检查。")],
+                 [("文件搬遷的事：把舊的 /help 連結轉到 docs.acme.dev", "轉址加好了，我正在逐一檢查。")],
+                 [("Para la mudanza de la documentación: redirige los enlaces antiguos de /help a docs.acme.dev", "Las redirecciones están; las estoy comprobando.")],
+                 [("ドキュメント移行の件：古い /help のリンクを docs.acme.dev にリダイレクトして", "リダイレクトを入れました。今確認しています。")],
+                 [("문서 이전 건: 예전 /help 링크를 docs.acme.dev로 리디렉션해 줘", "리디렉션 넣었어요. 지금 확인하고 있어요.")],
+                 [("Про переезд документации: перенаправь старые ссылки /help на docs.acme.dev", "Перенаправления добавлены, сейчас проверяю.")])),
 ]
+
+# After the batch the user tells the filing pane itself that a task is finished (R12).
+CORRECTION = dict(task="T2", want="done", text=w("The release email went out yesterday, so that task is finished.", "发布邮件昨天已经发出去了，那个任务做完了。",
+    "發布郵件昨天已經寄出去了，那個任務做完了。", "El correo del lanzamiento salió ayer, así que esa tarea está terminada.",
+    "リリースのメールは昨日送りました。あのタスクは終わっています。", "출시 메일은 어제 보냈어요. 그 작업은 끝났어요.", "Письмо о выпуске ушло вчера, так что эта задача готова."))
 
 # What the user types in a pane: the task it goes on (T1–T3) or a new one under P1 (`keep` in its title).
 MESSAGES = [
@@ -98,11 +159,12 @@ for l in LANGS:
     for i, s in enumerate(STOPS, 1):
         items.append({"id": f"s{i}", "kind": "stop", "title": s["title"][l], "text": s["text"][l], "want": s["want"], "keep": s.get("keep", []), "other": s.get("other", False)})
     for i, s in enumerate(SESSIONS, 1):
-        items.append({"id": f"v{i}", "kind": "session", "said": s["said"][l], "last": s["last"][l], "want": s["want"]})
+        items.append({"id": f"v{i}", "kind": "session", "turns": s["turns"][l], "want": s["want"],
+                      **({"stages": True} if s.get("stages") else {}), **({"group": s["group"]} if s.get("group") else {})})
     for i, m in enumerate(MESSAGES, 1):
         items.append({"id": f"m{i}", "kind": "message", "pane": m["pane"], "agent_said": m["said"][l], "text": m["text"][l], "want": m["want"],
                       "keep": [m["keep"]] if m.get("keep") else [], "other": m.get("other", False)})
-    runs.append({"lang": l, "seed": seed, "items": items})
+    runs.append({"lang": l, "seed": seed, "items": items, "correction": {"task": CORRECTION["task"], "want": CORRECTION["want"], "text": CORRECTION["text"][l]}})
 out = pathlib.Path(__file__).resolve().parent / "cases.json"
 out.write_text(json.dumps({"runs": runs}, ensure_ascii=False, indent=1) + "\n")
 print(f"wrote {out.name}: {len(runs)} languages, {sum(len(r['items']) for r in runs)} items")

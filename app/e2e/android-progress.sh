@@ -5,9 +5,9 @@
 # only shows; the computer files and judges. The script pairs, turns on Settings › Experimental › Progress page and picks the agent
 # that sorts (which runs `progress organizer --agent claude-code && progress on` on the computer), then:
 #   turning on scans the open panes; two panes stop on their tasks; the filing pane's answers (this script stands in
-#   for it with `track place`, in English as the agent would for an English phone) show up on their own: Just done
-#   (a finished task, a task found in the scan) and Needs you (a pane asking) → its Open button opens that pane → a
-#   task opens with its own tasks → the agent list says On: and opens that task.
+#   for it with `track place`, in English as the agent would for an English phone) show up on their own: a finished
+#   task and a task found in the scan, ticked under their goal, and Needs you (a pane asking) → its Open button opens that pane → a
+#   task opens with its own tasks → the agent list says On: (only says it; it opens nothing).
 # Usage: ANDROID_SERIAL=emulator-5554 e2e/android-progress.sh [apk] [out-dir]
 #   out-dir gets a screenshot per step and flow.mp4 (adb screenrecord). SETUP_ONLY=1: the computer side alone, no
 #   device: turn on from the command line, one pass, the stand-in answers, check and print the tree.
@@ -149,6 +149,7 @@ pair_failed() { failed pair "$1"; }
 in_file() { python3 -c "import json,sys; d=json.load(open('$file')); t={x['id']:x for x in d.get('things',[])}; sys.exit(0 if $1 else 1)"; }
 wait_file() { for _ in $(seq 1 15); do in_file "$1" && return 0; sleep 1; done; echo "FAIL: $2"; exit 1; }
 swipe_up() { "$adb" shell input swipe 540 1700 540 700 300; sleep 1; }
+swipe_down() { "$adb" shell input swipe 540 700 540 1700 300; sleep 1; }
 
 [ -n "$out" ] && mkdir -p "$out"
 # The page and the stand-in's answers are in English: the device must be too.
@@ -205,12 +206,13 @@ shot 1-home
 switch_top=$(top_of view-switch)
 answer
 wait_screen "Round prices to whole numbers, or keep the cents?" 20 || failed step9 "Needs you does not show what the pane asks"
-wait_screen "Tighten the button spacing on Android" 10 || failed step10 "Just done does not show the task found in the scan"
-screen_has "Just done" || failed step11 "no Just done"
+# The task found in the scan finished today: it stays under its goal, ticked (further down the page).
+wait_screen "Tighten the button spacing on Android" 5 || { swipe_up; wait_screen "Tighten the button spacing on Android" 10; } || failed step10 "the page does not show the task found in the scan"
+swipe_down; swipe_down
 for x in "to check" dock-input; do screen_has "$x" && { echo "FAIL: the page still shows $x"; exit 1; }; done
 sleep 2
 shot 2-judged
-echo "ok: the page shows the asking pane under Needs you and the finished tasks under Just done, with nothing to tick"
+echo "ok: the page shows the asking pane under Needs you and the finished tasks under their goal, with nothing to tick"
 
 tap needs-task-T6-open
 mobile=$("$hc" get mobile --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["address"])')
@@ -238,11 +240,7 @@ checkout=$("$hc" get checkout --json | python3 -c 'import json,sys; print(json.l
 wait_screen "On: Send a receipt email after payment" 15 || failed agents "the agent list does not say what checkout is on ($checkout)"
 sleep 2
 shot 5-agents
-tap "doing-$checkout"
-wait_screen "Send a receipt email after payment" 10 || failed step14 "the On line does not open the task"
-sleep 3
-shot 6-from-agents
-echo "ok: the agent list says what checkout is on, and opens that task"
+echo "ok: the agent list says what checkout is on"
 
 if [ -n "$out" ]; then
   kill -INT "$rec_pid" 2>/dev/null || true; wait "$rec_pid" 2>/dev/null || true; rec_pid=""

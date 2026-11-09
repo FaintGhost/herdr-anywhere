@@ -2,7 +2,7 @@
 # The filing agent's evaluation: the shipped path end to end, with your own agent and its login or key.
 # For each of the app's seven languages it queues the made-up batch in cases.json (stopped panes, scanned sessions,
 # typed messages), sets the phone's language, and lets the companion hand the batch to the filing pane in an
-# isolated herdr-core session, as `serve` does. Then score.py checks what the agent did against the rules in README.md
+# isolated herdr-core session, as `serve` does. Then it types a correction into the filing pane, as the user would. Then score.py checks what the agent did against the rules in README.md
 # and writes report.json.
 #
 # Usage: companion/eval/filing/run.sh [out-dir]          (default: a new folder under /tmp)
@@ -85,6 +85,16 @@ for lang in $LANGS; do
     [ "$left" = 0 ] && [ "$st" != working ] && break
     [ $(( $(date +%s) - start )) -gt 900 ] && { echo "$lang: gave up after 15 minutes"; break; }
     sleep 10
+  done
+  # Then the user tells the filing pane itself that a task is finished (R12), and it puts the page right.
+  "$H" send herdr-organizer "$(python3 -I -c 'import json,sys; print(next(r for r in json.load(open(sys.argv[1]))["runs"] if r["lang"] == sys.argv[2])["correction"]["text"])' "$here/cases.json" "$lang")" >/dev/null
+  sent=$(date +%s)
+  while :; do
+    sleep 10
+    st=$("$H" ls --json | python3 -c 'import json,sys; t=[t for t in json.load(sys.stdin)["terminals"] if t.get("name")=="herdr-organizer"]; print((t[0].get("status") or "none") if t else "-")')
+    echo "$lang correction $(( $(date +%s) - sent ))s organizer=$st"
+    [ "$st" != working ] && [ $(( $(date +%s) - sent )) -ge 20 ] && break
+    [ $(( $(date +%s) - sent )) -gt 300 ] && { echo "$lang: the correction took over 5 minutes"; break; }
   done
   echo $(( $(date +%s) - start )) > "$out/$lang/seconds"
   cp "$S/track.json" "$out/$lang/track.json"

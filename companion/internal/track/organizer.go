@@ -54,6 +54,8 @@ type Pending struct {
 	PrevEnded string  `json:"prev_ended,omitempty"`
 	AgentSaid string  `json:"agent_said,omitempty"`
 	At        int64   `json:"at"`
+	// A scanned session: how many tasks were placed from it so far.
+	Placed int `json:"placed,omitempty"`
 }
 
 // maxNotes is how many of a top-level task's latest scope notes the filing
@@ -159,16 +161,41 @@ func (f *File) placeSession(k int, d Decision, live Live, now time.Time) (string
 	if d.Stage != "" && !validStage(d.Stage) {
 		return "", fmt.Errorf("unknown stage %q (use %s)", d.Stage, stageList())
 	}
+	if d.Stage == WaitingOnYou && strings.TrimSpace(d.Waiting) == "" {
+		return "", errors.New(`a waiting task needs "waiting": the question for the user`)
+	}
 	if err := f.check(d); err != nil {
 		return "", err
 	}
-	// A task found in a past session: linked to the pane, no turn closed.
+	// A task found in a past session: linked to the pane, no turn closed. An
+	// existing one takes the stage the session shows.
 	tid, err := f.addOrGet(d, p.Text, now)
 	if err != nil {
 		return "", err
 	}
 	t, _ := f.Get(tid)
-	t.link(p.Pane, live, "found in a scan")
+	// A task already in the tree may go under the goal it belongs to: the
+	// filing pane's filing, so no scope note as a move by the user leaves.
+	if d.Task != "new" && d.Under != "" && t.Parent != d.Under {
+		if err := f.checkParent(t.ID, d.Under); err != nil {
+			return "", err
+		}
+		t.Parent = d.Under
+	}
+	// The session's things come oldest first: each is handed to the pane 1 ms
+	// after the one before, so the pane's latest hand-off is the last of them
+	// and what the pane says now is that one's.
+	ref := p.Pane
+	ref.At += int64(p.Placed)
+	f.Queue[k].Placed++
+	if d.Stage != "" {
+		t.SetStage(d.Stage)
+		t.Updated = now.UnixMilli()
+	}
+	if d.Stage == WaitingOnYou {
+		t.Waiting = d.Waiting
+	}
+	t.link(ref, live, "found in a scan")
 	if !d.More {
 		f.Queue = append(f.Queue[:k], f.Queue[k+1:]...)
 	}
@@ -260,6 +287,15 @@ func (f *File) applyAt(d Decision, p Pending, live Live, now time.Time) (string,
 }
 
 // addOrGet is the decision's task, made first when it is new (tagged auto).
+// NewTask adds the new task d names (a goal the filing pane makes for others
+// to go under) and returns its id.
+func (f *File) NewTask(d Decision, now time.Time) (string, error) {
+	if err := f.check(d); err != nil {
+		return "", err
+	}
+	return f.addOrGet(d, d.Title, now)
+}
+
 func (f *File) addOrGet(d Decision, text string, now time.Time) (string, error) {
 	if d.Task != "new" {
 		return d.Task, nil

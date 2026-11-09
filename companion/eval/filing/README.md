@@ -20,11 +20,11 @@ The agent you pick in the app needs to report its status to herdr-core, so the c
 
 ## Results
 
-Each agent with the model named, all seven languages, on the filing rules as they are now. The table is a snapshot: run `matrix.sh` for your own.
+Each agent with the model named, all seven languages. Haiku 5.5 ran on the filing rules as they are now, with all thirteen checks; the others ran before R10–R13 were added, on the nine checks there were then. The table is a snapshot: run `matrix.sh` for your own.
 
 | Agent · model | Rules passed | Seconds per language |
 |---|---|---|
-| Claude Code · Haiku 5.5 (the default) | 9 of 9 | 42 |
+| Claude Code · Haiku 5.5 (the default) | 13 of 13 | 79 |
 | Claude Code · Sonnet 5.5 | 9 of 9 | 34 |
 | Codex · GPT-6-Astra | 9 of 9 | 43 |
 | Pi · DeepSeek V4.1 Flash (three runs) | 9 of 9 each time | 38–48 |
@@ -36,7 +36,7 @@ Tried another agent or model? Run it and open an issue with its `report.json`; h
 
 ## What it checks
 
-`cases.json` (made by `make_cases.py`) holds the same made-up scene for each language, with the phone set to that language. In it: 8 panes that stop, 3 sessions found when the page is turned on, and 4 messages typed into panes. Most of what the user and the agents say is in the phone's language. Two items are in another language, English (Chinese for the English phone), and the agent must still write in the phone's.
+`cases.json` (made by `make_cases.py`) holds the same made-up scene for each language, with the phone set to that language. In it: 8 panes that stop, 6 sessions found when the page is turned on (one of them long, two from panes working on one thing), 4 messages typed into panes, and after the batch, a correction the user types into the filing pane. Most of what the user and the agents say is in the phone's language. Two items are in another language, English (Chinese for the English phone), and the agent must still write in the phone's.
 
 | Rule | What it means | Passes when |
 |---|---|---|
@@ -45,10 +45,14 @@ Tried another agent or model? Run it and open an issue with its `report.json`; h
 | R3 | Titles and questions are in the phone's language: Simplified and Traditional Chinese apart, Spanish apart from English | every line it wrote |
 | R4 | Names, numbers, file names and prices stay as they were (`README`, `8080`, `$29`) | every one |
 | R5 | Nothing is left unsorted | the queue is empty in each language |
-| R6 | The agent runs only `herdr-anywhere track queue/place/tree`, reads no more than its own rules, and edits no files (checked for Claude Code, Pi and Codex, from their session records) | every command |
+| R6 | The agent runs only `herdr-anywhere track queue/place/tree/set/move`, reads no more than its own rules, and edits no files (checked for Claude Code, Pi and Codex, from their session records) | every command |
 | R7 | A session found at the start gives the tasks in it, done or not, and no more | 2 of 3 sessions, in each language |
 | R8 | A message goes on the task it is about, or on a new one when it is new | 3 of 4 messages, in each language |
 | R9 | Small talk makes no task | every language |
+| R10 | In a long session, each thing gets the stage the agent's answers show, wherever it sits in the session | 4 of 5, in each language |
+| R11 | Two panes working on one thing no task names yet: their tasks go under one task | every language |
+| R12 | The user tells the filing pane a task is finished, and it marks it done | every language |
+| R13 | Scanning a session again (after an update), a task already in the tree is found, not made twice, and takes the stage | every language |
 
 `test_score.py` checks the scorer itself without a model: a made-up run that does everything right passes, and each way of getting it wrong fails its rule.
 

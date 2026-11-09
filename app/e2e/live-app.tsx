@@ -56,11 +56,20 @@ async function run() {
   await until(() => other.model.spaces.some((s) => s.name === 'e2e'), 'the space on another screen')
   say('other screen: e2e')
   // Pins live on herdr-core as the label herdr.pinned, which the desktop reads and writes too. A made-up `claude`
-  // (sleep under that name) is an agent to pin.
-  await store.exec('mkdir -p "$HOME/bin" && ln -sf /bin/sleep "$HOME/bin/claude"')
+  // (e2e/fake-claude, which run.sh builds into $HOME/bin) is an agent to pin. It is a program of its own: `sleep`
+  // linked under that name exits at once on Ubuntu 26.04, whose coreutils refuse to run under another name.
   const ag = await store.newSpace({ name: 'pins', argv: [`${store.home}/bin/claude`, '600'] })
   const agentOn = (s: Store) => s.agents().find((a) => a.address === ag.terminal)
-  await until(() => !!agentOn(store) && !!agentOn(other), 'the made-up agent on both screens')
+  const why = (s: Store) => {
+    const t = s.terms.get(ag.terminal)
+    return `pane ${s.model.paneOf(ag.terminal) ?? '-'} state ${t?.state ?? '-'} program ${s.program(ag.terminal).key} argv ${JSON.stringify(t?.foreground?.argv ?? t?.argv)}`
+  }
+  // Until herdr-core reports what runs in front, the app knows the agent by the argv it started: the stand-in must
+  // still be running then, or the agent turns into a shell partway through the steps below.
+  await until(() => !!store.terms.get(ag.terminal)?.foreground, 'the program in front of the made-up agent')
+  await until(() => !!agentOn(store) && !!agentOn(other), 'the made-up agent on both screens').catch((e) => {
+    throw new Error(`${e.message}; phone ${agentOn(store) ? 'has it' : why(store)}; other ${agentOn(other) ? 'has it' : why(other)}`)
+  })
   say(`agent: pinned ${agentOn(store)!.pinned}`)
   await store.pin(ag.terminal, true)
   await until(() => !!agentOn(other)?.pinned, 'the pin on the other screen')

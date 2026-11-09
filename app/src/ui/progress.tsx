@@ -1,14 +1,17 @@
-// The progress page (experimental, Settings turns it on), as the sample scene shows it: what needs the
-// user on top, then what just finished, then each task with the tasks under it.
+// The progress page (experimental, Settings turns it on), laid out the way Things 3 lays out its lists, in Herdr's own
+// colours: what needs the user on top, then the tasks, one row each as the agent list shows an agent: loose ones first,
+// then each goal as a heading over its own, which fold (model/progress.ts homeOf). What finished today stays where it
+// sits, ticked; older finished and dropped work waits behind one entry at the bottom.
 // Version one is view only: the computer files what was said and decides when a
 // task is done or asks something; the page shows it and opens the pane that asks.
 // Everything comes from `herdr-anywhere track tree --json` on the computer (model/progress.ts); nothing is kept here.
 import { cleanup, colorScheme, Scroll, signal, Text, View } from 'nsh'
 import type { Store } from '../store.ts'
 import { explain } from '../store.ts'
-import { closed, findTask, flagsOf, flat, items, langLine, paneOf, parseTree, pathOf, stageText, subLine, taskOn, trackLine, type Task, type Tree, type View as PView } from '../model/progress.ts'
+import { blocks, closed, findTask, flagsOf, flat, goalOf, homeOf, visibleRows, langLine, paneOf, panesOf, parseTree, pathOf, plain, stageText, subLine, taskOn, trackLine, type Row, type Task, type Tree, type View as PView } from '../model/progress.ts'
 import { lang, t as w } from '../strings/index.ts'
-import { Glyph, IconButton, statusLabel } from './kit.tsx'
+import { Glyph, IconButton, statusLabel, useRev } from './kit.tsx'
+import { DOING, statusText } from './agent-row.tsx'
 import { ViewSwitch, type ViewSwitchProps } from './view-switch.tsx'
 import { alertsFor, Outcomes, type Alert } from '../model/progress-alerts.ts'
 
@@ -20,6 +23,9 @@ export type ProgressActions = {
   /** The switch at the top, to the agent list and back. */
   view: () => ViewSwitchProps
   settings: () => void
+  /** The headings the user folded, by task id, kept in the phone's settings; `fold` folds or unfolds one. */
+  folded: () => string[]
+  fold: (id: string) => void
 }
 
 /** One reading of the tree for every progress screen, read again every few seconds while one is open. */
@@ -33,7 +39,7 @@ export class ProgressData {
   private outcomes = new Outcomes()
   /** The language the computer was last told, so the sorting agent writes in the phone's (root.tsx keeps it in prefs). */
   told?: { get: () => string; set: (l: string) => void }
-  constructor(private store: Store, private every = 4000, private keep?: { load: () => Promise<string | null>; save: (v: string) => void }) {
+  constructor(readonly store: Store, private every = 4000, private keep?: { load: () => Promise<string | null>; save: (v: string) => void }) {
     void keep?.load().then((v) => { if (v) this.outcomes = Outcomes.from(v) }).catch(() => {})
   }
 
@@ -89,33 +95,30 @@ export class ProgressData {
   }
 }
 
-// Badge colours per stage: yellow for done-and-waiting, blue for doing, orange when it
-// waits on you or is stuck, grey for the rest; a darker shade of each in dark mode.
-const BADGE: Record<string, [string, string]> = {
-  waiting: ['#fde2c8', '#5a3418'], stuck: ['#fde2c8', '#5a3418'], review: ['#fdf0b8', '#4d4113'], doing: ['#dceafe', '#1d3557'],
-}
+// A stage in the agent list's status colours: waiting on you or stuck as "needs you", done-to-check as done, doing as
+// working, the rest (queued, done, dropped) as idle.
+const AS_STATUS: Record<string, string> = { waiting: 'blocked', stuck: 'blocked', review: 'done', doing: 'working' }
 const GROUP_DOT: Record<string, string> = {
   waiting: 'bg-chart-2', stuck: 'bg-chart-2', review: 'bg-chart-5', doing: 'bg-chart-1', parked: 'bg-border', done: 'bg-chart-3', dropped: 'bg-border',
 }
+const quiet = (group: string) => group === 'parked' || closed(group)
 
-function Badge(props: { group: string }) {
-  const bg = () => { const c = BADGE[props.group]; return c ? c[colorScheme() === 'dark' ? 1 : 0] : undefined }
-  return (
-    <View class={`px-2 h-[22px] justify-center rounded-[6px] ${bg() ? '' : 'bg-secondary'}`} style={bg() ? { backgroundColor: bg() } : undefined}>
-      <Text class={`text-[12px] ${props.group === 'dropped' ? 'text-sidebar-foreground' : 'text-foreground'}`}>{stageText(props.group)}</Text>
-    </View>
-  )
+function StageWord(props: { group: string }) {
+  return <Text class={`text-[12px] ${statusText(AS_STATUS[props.group] ?? 'idle')}`}>{stageText(props.group)}</Text>
 }
 
-function Section(props: { label: string; right?: string }) {
+/** A list's label, as the agent list's: small, with a count or note on the right. */
+function Section(props: { label: string; right?: string; tone?: string; rightID?: string }) {
   return (
-    <View class="flex-row items-center px-4 pt-3 pb-1.5">
-      <Text class="text-[12.5px] text-muted-foreground">{props.label}</Text>
+    <View class="flex-row items-center h-9 px-4 mt-1 gap-1.5">
+      <Text class={`text-[11.5px] font-medium ${props.tone ?? 'text-sidebar-foreground'}`}>{props.label}</Text>
       <View class="flex-1" />
-      <If when={props.right}><Text class="text-[11.5px] text-sidebar-foreground">{props.right}</Text></If>
+      <If when={props.right}><Text testID={props.rightID} class="text-[11px] text-sidebar-foreground">{props.right}</Text></If>
     </View>
   )
 }
+
+const Divider = () => <View class="h-px bg-border mx-4 mt-2" />
 
 function SmallButton(props: { label: string; testID: string; onPress: () => void; primary?: boolean }) {
   return (
@@ -140,77 +143,93 @@ function TopBar(props: { title: string; back?: () => void; right?: any }) {
 }
 
 const CARD = 'mx-3 mb-2 px-3.5 py-3 rounded-[12px] bg-background border border-border'
+const ROW = 'mx-2 px-2 min-h-9 py-1.5 justify-center rounded-[8px] active:bg-sidebar-accent'
 
-/** A task as a card: its name and stage, then its own tasks as ✓/· lines, or one line on where it is. */
-function TaskCard(props: { task: Task; actions: ProgressActions; testID: string; children?: any }) {
+/** One task as one row (under a heading, `depth` steps in, lined up with the heading's title), the way the agent list shows an agent: its title, its stage in the status colours, and a line
+ *  under it on what it waits for, what is wrong, or what the agent said last. Queued work is a step dimmer. */
+function TaskRow(props: { task: Task; actions: ProgressActions; testID: string; depth?: number }) {
   const t = () => props.task
+  // Only what needs the user gets a second line: what it waits for, or what is wrong. The rest is on the task's page.
+  const alert = () => (closed(t().group) ? '' : t().waiting || flagsOf(t())[0] || '')
   return (
-    <View class={CARD}>
-      <View role="button" testID={props.testID} onPress={() => props.actions.open({ name: 'task', id: t().id })} class="active:opacity-70 gap-1">
-        <View class="flex-row items-start gap-2">
-          <Text class="flex-1 text-[15px] font-semibold text-foreground">{t().outcome}</Text>
-          <Badge group={t().group} />
-        </View>
-        <If when={items(t()).length}>
-          <View class="h-px bg-border my-1.5" />
-          <Each of={items(t())}>{(i) => <Text class={`text-[13.5px] ${i().done ? 'text-foreground' : 'text-muted-foreground'}`}>{`${i().done ? '✓' : '·'} ${i().text}`}</Text>}</Each>
-        </If>
-        <If when={!items(t()).length && subLine(t())}>
-          <Text class={`text-[13px] ${t().waiting || flagsOf(t()).length ? 'text-chart-2' : 'text-muted-foreground'}`} numberOfLines={2}>{subLine(t())}</Text>
-        </If>
+    <View role="button" testID={props.testID} onPress={() => props.actions.open({ name: 'task', id: t().id })}
+      class={ROW} style={{ marginLeft: props.depth === undefined ? 8 : 24 + props.depth * 16 }}>
+      <View class="flex-row items-center gap-2">
+        <If when={closed(t().group)}><Text class="text-[14px] text-chart-3">{t().group === 'dropped' ? '–' : '✓'}</Text></If>
+        <Text class={`flex-1 text-[14.5px] ${quiet(t().group) ? 'text-muted-foreground' : 'text-foreground'}`} numberOfLines={2}>{t().outcome}</Text>
+        <If when={!closed(t().group)}><StageWord group={t().group} /></If>
       </View>
-      {props.children}
+      <If when={alert()}><Text class="text-[13px] text-chart-2" numberOfLines={2}>{plain(alert())}</Text></If>
     </View>
   )
 }
 
-/** What needs the user: an agent asking something, or stuck. The pane that asks opens from here. */
-function NeedsCard(props: { task: Task; actions: ProgressActions }) {
+/** The arrow before a heading that folds what is under it, or unfolds it: the same › and ▾ as the "done" entry's. */
+function Fold(props: { id: string; actions: ProgressActions }) {
+  const shut = () => props.actions.folded().includes(props.id)
+  return (
+    <View role="button" testID={`fold-${props.id}`} accessibilityLabel={shut() ? w('unfold') : w('fold')} onPress={() => props.actions.fold(props.id)}
+      class="w-7 h-8 items-center justify-center rounded-[6px] active:bg-sidebar-accent">
+      <Text class="text-[16px] text-foreground">{shut() ? '›' : '▾'}</Text>
+    </View>
+  )
+}
+
+/** A task with open tasks of its own, under a heading: its title and how many of its tasks are done. */
+function SubHeading(props: { task: Task; actions: ProgressActions; depth: number }) {
+  const t = () => props.task
+  return (
+    <View class="flex-row items-center mt-1" style={{ marginLeft: 4 + props.depth * 16 }}>
+      <Fold id={t().id} actions={props.actions} />
+      <View role="button" testID={`task-${t().id}`} onPress={() => props.actions.open({ name: 'task', id: t().id })}
+        class="flex-1 flex-row items-center gap-2 min-h-9 py-1.5 pr-2 mr-2 rounded-[8px] active:bg-sidebar-accent">
+        <Text class="flex-1 text-[14.5px] font-semibold text-foreground" numberOfLines={2}>{t().outcome}</Text>
+        <Text class="text-[11.5px] text-sidebar-foreground">{`${t().done}/${t().total}`}</Text>
+      </View>
+    </View>
+  )
+}
+
+/** A bigger task as a heading, the way a project heads its to-dos: its title and how many of its tasks are done, then
+ *  its open tasks. */
+function Group(props: { task: Task; rows: Row[]; actions: ProgressActions }) {
+  const t = () => props.task
+  return (
+    <View class="mt-3">
+      <View class="flex-row items-center pl-1 pb-1">
+        <Fold id={t().id} actions={props.actions} />
+        <View role="button" testID={`top-${t().id}`} onPress={() => props.actions.open({ name: 'task', id: t().id })} class="flex-1 flex-row items-center pr-4 gap-2 active:opacity-70">
+          <Text class="flex-1 text-[15.5px] font-semibold text-foreground" numberOfLines={2}>{t().outcome}</Text>
+          <Text class="text-[12px] text-sidebar-foreground">{`${t().done}/${t().total}`}</Text>
+        </View>
+      </View>
+      <Each of={props.actions.folded().includes(t().id) ? [] : visibleRows(props.rows, new Set(props.actions.folded()))} key={(r) => r.task.id}>{(r) => (
+        <If when={r().head} else={<TaskRow task={r().task} actions={props.actions} testID={`task-${r().task.id}`} depth={r().depth} />}>
+          <SubHeading task={r().task} actions={props.actions} depth={r().depth} />
+        </If>
+      )}</Each>
+    </View>
+  )
+}
+
+/** What needs the user: where it sits, the question, and the pane that asks. */
+function NeedsRow(props: { task: Task; goal: string; actions: ProgressActions }) {
   const t = () => props.task
   const p = () => paneOf(t())
   return (
-    <View>
-      <If when={t().path?.length}><Text class="mx-4 mb-1 text-[11.5px] text-sidebar-foreground" numberOfLines={1}>{(t().path ?? []).join(' › ')}</Text></If>
-      <TaskCard task={t()} actions={props.actions} testID={`needs-task-${t().id}`}>
-        <If when={p()}>
-          <View class="flex-row items-center gap-1.5 mt-2">
-            <SmallButton testID={`needs-task-${t().id}-open`} label={w('openNamed', { name: p()?.name ?? p()?.addr ?? '' })} onPress={() => props.actions.openPane(p()!.addr)} />
-          </View>
-        </If>
-      </TaskCard>
-    </View>
-  )
-}
-
-/** Something that finished in the last day: where it sits, its name, and what the agent said at the end. */
-function DoneRow(props: { task: Task; actions: ProgressActions }) {
-  const t = () => props.task
-  return (
-    <View role="button" testID={`done-${t().id}`} onPress={() => props.actions.open({ name: 'task', id: t().id })} class={`${CARD} active:opacity-70 gap-0.5`}>
-      <If when={t().path?.length}><Text class="text-[11.5px] text-sidebar-foreground" numberOfLines={1}>{(t().path ?? []).join(' › ')}</Text></If>
-      <View class="flex-row items-start gap-2">
-        <Text class="flex-1 text-[15px] font-semibold text-foreground">{`✓ ${t().outcome}`}</Text>
+    <View class="flex-row items-center mx-2 pr-2">
+      <View role="button" testID={`needs-task-${t().id}`} onPress={() => props.actions.open({ name: 'task', id: t().id })}
+        class="flex-1 px-2 py-1.5 rounded-[8px] active:bg-sidebar-accent">
+        <Text class="text-[14.5px] text-foreground" numberOfLines={2}>{t().outcome}</Text>
+        <Text class="text-[13px] text-chart-2" numberOfLines={2}>
+          <If when={props.goal}><Text class="text-sidebar-foreground">{`${props.goal} · `}</Text></If>
+          {plain(subLine(t()))}
+        </Text>
       </View>
-      <If when={t().said}><Text class="text-[13px] text-muted-foreground" numberOfLines={2}>{t().said}</Text></If>
+      <If when={p()}>
+        <SmallButton testID={`needs-task-${t().id}-open`} label={w('openNamed', { name: p()?.name ?? p()?.addr ?? '' })} onPress={() => props.actions.openPane(p()!.addr)} />
+      </If>
     </View>
-  )
-}
-
-/** A top-level task in 进行中: its name, then a card per task under it; one with nothing under it is a card itself. */
-function TopTask(props: { task: Task; actions: ProgressActions; needs: Set<string> }) {
-  const t = () => props.task
-  // A task in 要你处理 shows there only.
-  const kids = () => t().children.filter((c) => !closed(c.group) && !props.needs.has(c.id))
-  return (
-    <If when={t().children.length} else={<TaskCard task={t()} actions={props.actions} testID={`task-${t().id}`} />}>
-      <View>
-        <View role="button" testID={`top-${t().id}`} onPress={() => props.actions.open({ name: 'task', id: t().id })} class="flex-row items-center px-4 pt-1 pb-2 gap-2 active:opacity-70">
-          <Text class="flex-1 text-[15px] font-semibold text-foreground">{t().outcome}</Text>
-          <Text class="text-[12px] text-sidebar-foreground">{`${t().done}/${t().total}`}</Text>
-        </View>
-        <Each of={kids()} key={(c) => c.id}>{(c) => <TaskCard task={c()} actions={props.actions} testID={`task-${c().id}`} />}</Each>
-      </View>
-    </If>
   )
 }
 
@@ -230,10 +249,8 @@ export function ProgressHome(props: { data: ProgressData; actions: ProgressActio
   props.data.use()
   const tree = props.data.tree
   const showDone = signal(false)
-  const needs = () => new Set((tree()?.needsYou ?? []).map((t) => t.id))
-  // A top-level task waiting on the user shows only in 要你处理.
-  const open = () => (tree()?.tasks ?? []).filter((t) => !closed(t.group) && !(needs().has(t.id) && !t.children.length))
-  const done = () => [...(tree()?.tasks ?? []).filter((t) => closed(t.group)), ...(tree()?.closed ?? [])]
+  const home = () => { const t = tree(); return t ? homeOf(t) : undefined }
+  const empty = () => !!home() && !home()!.loose.length && !home()!.groups.length && !home()!.after.length
   return (
     <View class="flex-1">
       <View class="flex-row items-center h-12 pl-3 pr-1.5 gap-2">
@@ -252,29 +269,41 @@ export function ProgressHome(props: { data: ProgressData; actions: ProgressActio
           </View>
         </If>
         <If when={tree()?.needsYou.length}>
-          <Section label={w('secNeedsYou')} />
-          <Each of={tree()!.needsYou} key={(t) => t.id}>{(t) => <NeedsCard task={t()} actions={props.actions} />}</Each>
+          <Section label={w('secNeedsYou')} tone="text-chart-2" right={String(tree()!.needsYou.length)} />
+          <Each of={tree()!.needsYou} key={(t) => t.id}>{(t) => <NeedsRow task={t()} goal={goalOf(tree()!, t())} actions={props.actions} />}</Each>
+          <Divider />
         </If>
-        <If when={tree()?.justDone.length}>
-          <Section label={w('secJustDone')} />
-          <Each of={tree()!.justDone} key={(t) => t.id}>{(t) => <DoneRow task={t()} actions={props.actions} />}</Each>
-        </If>
-        <Section label={w('secInProgress')} />
-        <If when={tree()?.queue}>
-          <Text testID="queue-line" class="mx-4 mb-2 text-[13px] text-muted-foreground">{w('queueLeft', { n: tree()!.queue })}</Text>
-        </If>
-        <Each of={open()} key={(t) => t.id}>{(t) => <TopTask task={t()} actions={props.actions} needs={needs()} />}</Each>
-        <If when={tree() && !open().length}>
+        <Section label={w('secInProgress')} rightID="queue-line" right={tree()?.queue ? w('queueLeft', { n: tree()!.queue }) : undefined} />
+        <Each of={home()?.loose ?? []} key={(t) => t.id}>{(t) => <TaskRow task={t()} actions={props.actions} testID={`task-${t().id}`} />}</Each>
+        <Each of={home()?.groups ?? []} key={(g) => g.task.id}>{(g) => <Group task={g().task} rows={g().rows} actions={props.actions} />}</Each>
+        <If when={home()?.after.length}><View class="mt-3"><Each of={home()!.after} key={(t) => t.id}>{(t) => <TaskRow task={t()} actions={props.actions} testID={`task-${t().id}`} />}</Each></View></If>
+        <If when={empty()}>
           <Text testID="progress-empty" class="mx-4 my-2 text-[13px] text-muted-foreground">{w('progressEmpty')}</Text>
         </If>
-        <If when={done().length}>
-          <View role="button" testID="progress-done-toggle" onPress={() => showDone.set(!showDone())} class="h-9 px-4 justify-center">
-            <Text class="text-[13px] text-muted-foreground">{`${w('doneCount', { n: done().length })} ${showDone() ? '▾' : '›'}`}</Text>
+        <If when={home()?.done.length}>
+          <View role="button" testID="progress-done-toggle" onPress={() => showDone.set(!showDone())} class="h-10 px-4 mt-3 justify-center active:opacity-70">
+            <Text class="text-[13px] text-muted-foreground">{`${w('doneCount', { n: home()!.done.length })} ${showDone() ? '▾' : '›'}`}</Text>
           </View>
-          <If when={showDone()}><Each of={done()} key={(t) => t.id}>{(t) => <TaskCard task={t()} actions={props.actions} testID={`task-${t().id}`} />}</Each></If>
+          <If when={showDone()}><Each of={home()!.done} key={(t) => t.id}>{(t) => <TaskRow task={t()} actions={props.actions} testID={`task-${t().id}`} />}</Each></If>
         </If>
         <View class="h-24" />
       </Scroll>
+    </View>
+  )
+}
+
+/** What the agent said (Markdown, as agents write it) as paragraphs and list items, without the marks. */
+function Said(props: { id: string; text: string }) {
+  return (
+    <View testID={`said-${props.id}`} class="gap-1.5">
+      <Each of={blocks(props.text)}>{(b) => (
+        <If when={b().mark} else={<Text class={`text-[14px] text-foreground ${b().head ? 'font-semibold mt-1' : ''}`}>{b().text}</Text>}>
+          <View class={`flex-row gap-1.5 ${b().depth ? 'pl-4' : ''}`}>
+            <Text class="text-[14px] text-muted-foreground min-w-[14px]">{b().mark ?? ''}</Text>
+            <Text class="flex-1 text-[14px] text-foreground">{b().text}</Text>
+          </View>
+        </If>
+      )}</Each>
     </View>
   )
 }
@@ -284,6 +313,10 @@ export function TaskScreen(props: { data: ProgressData; id: string; actions: Pro
   props.data.opened(props.id)
   const task = () => { const t = props.data.tree(); return t ? findTask(t, props.id) : undefined }
   const path = () => { const t = props.data.tree(); return t ? pathOf(t, props.id) : [] }
+  const panes = () => { const t = task(); return t ? panesOf(t) : [] }
+  // A live pane as the agent list shows it: its status and what it is doing.
+  const rev = useRev(props.data.store)
+  const live = (addr?: string) => { rev(); const a = props.data.store.agents().find((x) => x.address === addr); return { status: a?.status, line: props.data.store.activityOf(addr) } }
   return (
     <View class="flex-1">
       <TopBar title={task()?.outcome ?? ''} back={props.actions.back} />
@@ -292,9 +325,9 @@ export function TaskScreen(props: { data: ProgressData; id: string; actions: Pro
         <If when={task()}>{(t) => (
           <View class="px-4 gap-2">
             <If when={path().length}><Text class="text-[12px] text-sidebar-foreground">{path().join(' › ')}</Text></If>
-            <View class="flex-row items-center gap-2"><Badge group={t().group} /></View>
+            <StageWord group={t().group} />
             <If when={t().std}><Text class="text-[13px] text-muted-foreground">{w('doneWhen', { std: t().std ?? '' })}</Text></If>
-            <If when={subLine(t())}><Text class="text-[14px] text-foreground">{subLine(t())}</Text></If>
+            <If when={subLine(t())}><Said id={t().id} text={subLine(t())} /></If>
             <Each of={flagsOf(t()).slice(subLine(t()) === flagsOf(t())[0] ? 1 : 0)}>{(f) => <Text class="text-[13px] text-chart-2">{f()}</Text>}</Each>
             <If when={t().children.length}>
               <Text class="text-[12.5px] text-muted-foreground mt-1">{w('tasksUnder')}</Text>
@@ -307,12 +340,20 @@ export function TaskScreen(props: { data: ProgressData; id: string; actions: Pro
                 </View>
               )}</Each>
             </If>
-            <Each of={t().pane_rows}>{(p) => (
-              <View role="button" testID={`task-pane-${p().id}`} onPress={() => { if (p().found && p().state === 'live' && p().id) props.actions.openPane(p().id!) }}
-                class="flex-row items-center gap-2 py-1.5 active:opacity-70">
-                <Glyph name="terminal" size={13} />
-                <Text class="flex-1 text-[13.5px] text-foreground" numberOfLines={1}>{[p().name, p().id].filter(Boolean).join(' · ')}</Text>
-                <Text class="text-[12px] text-sidebar-foreground">{p().handed_on ? w('paneMovedOn') : p().found ? w('paneTurns', { status: statusLabel(p().status), n: p().turns_since ?? 0 }) : w('paneMissing')}</Text>
+            <Each of={panes()}>{(p) => (
+              <View role="button" testID={`task-pane-${p().addr ?? p().label}`} onPress={() => {
+                if (p().row.found && p().row.state === 'live' && p().addr) props.actions.openPane(p().addr!)
+              }} class="py-1.5 active:opacity-70">
+                <View class="flex-row items-center gap-2">
+                  <Glyph name="terminal" size={13} />
+                  <Text class="flex-1 text-[13.5px] text-foreground" numberOfLines={1}>{p().label}</Text>
+                  <If when={p().kind === 'live'}><Text class={`text-[12px] ${statusText(live(p().addr).status)}`}>{statusLabel(live(p().addr).status ?? p().row.status)}</Text></If>
+                  <If when={p().kind === 'moved'}><Text class="text-[12px] text-sidebar-foreground">{w('paneMovedOn')}</Text></If>
+                  <If when={p().kind === 'missing'}><Text class="text-[12px] text-sidebar-foreground">{w('paneMissing')}</Text></If>
+                </View>
+                <If when={p().kind === 'live' && live(p().addr).line}>
+                  <Text class="text-[13px] pl-[21px]" style={{ color: DOING[colorScheme() === 'dark' ? 'dark' : 'light'] }} numberOfLines={1}>{live(p().addr).line}</Text>
+                </If>
               </View>
             )}</Each>
             <Each of={t().evidence}>{(e) => <Text class="text-[12.5px] text-muted-foreground font-mono" numberOfLines={1}>{e()}</Text>}</Each>

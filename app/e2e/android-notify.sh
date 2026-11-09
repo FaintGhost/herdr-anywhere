@@ -84,10 +84,16 @@ app_started() { grep -oE "new player piid:[0-9]+ uid/pid:$uid/" "$work/audio.txt
 system_started() { grep -oE "player piid:[0-9]+ new AudioAttributes:AudioAttributes: usage=USAGE_NOTIFICATION " "$work/audio.txt" | grep -oE 'piid:[0-9]+' | while read -r p; do grep -q "player $p event:started" "$work/audio.txt" && echo "$p"; done; }
 fresh() { for p in $1; do case " $2 " in *" $p "*) ;; *) echo "$p" ;; esac; done | grep -c . || true; }
 
-# One alert: the terminal reports it (OSC 7501, as agents do). Then: the record (channel, importance), whether the
-# system and the app started a sound, and a screenshot a second after it was posted (a heads-up shows about 5 s).
+# A heads-up: SystemUI's HeadsUpManagerPhone lists an entry while one shows (checked against a high and a low channel).
+# The entry names no notification, so an alert first waits for the one before to go.
+heads_up() { "$adb" shell dumpsys activity service com.android.systemui/.SystemUIService > "$1" 2>/dev/null || true; grep -q "^ *HeadsUpEntry=" "$1"; }
+# One alert: the terminal reports it (OSC 7501, as agents do). Then: the record (channel, importance), whether it popped
+# up, whether the system and the app started a sound, and a screenshot. A heads-up shows about 5 s, so SystemUI is
+# asked as soon as the record is there, again and again for 8 s; the screenshot comes after. Taken first, a loaded
+# machine's screenshot (about 1.2 MB) once took long enough that the heads-up had gone before SystemUI was asked.
 alert() {
   name=$1; t=$2; osc=$3
+  end=$(($(date +%s) + 15)); while heads_up "$work/before-$name.txt" && [ "$(date +%s)" -lt "$end" ]; do sleep 0.5; done
   players; app0=$(app_started | tr '\n' ' '); sys0=$(system_started | tr '\n' ' ')
   printf '%s\n' "printf '\033]7501;state=working\033\\\\'; sleep 2; printf '\033]7501;$osc\033\\\\'" > "$work/home/src/acme-api/hm-$name.sh"
   "$hc" send --force "$t" "sh hm-$name.sh" >/dev/null
@@ -99,17 +105,16 @@ alert() {
   done
   A_CH=""; A_IMP=""; A_UP=no; A_SYS=0; A_APP=0
   [ -n "$rec" ] || { echo "$name: nothing posted"; return; }
-  sleep 1
+  asked=$(date +%s); end=$((asked + 8))
+  until heads_up "$out/$name-systemui.txt"; do [ "$(date +%s)" -lt "$end" ] || break; sleep 0.5; done
+  grep -q "^ *HeadsUpEntry=" "$out/$name-systemui.txt" && A_UP="yes (seen $(($(date +%s) - asked)) s after the record)"
   "$adb" exec-out screencap -p > "$out/$name.png"
-  "$adb" shell dumpsys activity service com.android.systemui/.SystemUIService > "$out/$name-systemui.txt" 2>/dev/null || true
   sleep 3
   notes > "$out/$name-notification.txt"
   players; cp "$work/audio.txt" "$out/$name-audio.txt"
   app1=$(app_started | tr '\n' ' '); sys1=$(system_started | tr '\n' ' ')
   A_CH=$(echo "$rec" | head -1 | sed -E 's/.*channel=([^ ]+).*/\1/')
   A_IMP=$(echo "$rec" | head -1 | sed -E 's/.*importance=([0-9]+).*/\1/')
-  # A heads-up: SystemUI's HeadsUpManagerPhone lists an entry while one shows (checked against a high and a low channel).
-  grep -q "^ *HeadsUpEntry=" "$out/$name-systemui.txt" && A_UP=yes
   A_SYS=$(fresh "$sys1" "$sys0"); A_APP=$(fresh "$app1" "$app0")
   echo "$name: channel $A_CH, importance $A_IMP; heads-up: $A_UP; system sound players started: $A_SYS; app's own players started: $A_APP; screenshot $name.png"
 }
@@ -119,7 +124,7 @@ fail() { echo "FAIL: $*"; failed=1; }
 expect_alert() {
   [ "$A_CH" = "$2" ] || fail "$1 is on channel '$A_CH', not $2"
   [ "$A_IMP" = 4 ] || fail "$1 has importance $A_IMP, not 4 (sound and pop-up)"
-  [ "$A_UP" = yes ] || fail "$1 did not pop up"
+  case $A_UP in yes*) ;; *) fail "$1 did not pop up" ;; esac
   [ "$A_SYS" -ge 1 ] || fail "$1 played no system sound"
   [ "$A_APP" = 0 ] || fail "$1 also played the app's own sound ($A_APP players)"
 }

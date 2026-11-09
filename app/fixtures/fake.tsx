@@ -15,7 +15,7 @@ import { rowKeys } from '../src/ui/pane-bar.tsx'
 import { Root } from '../src/ui/root.tsx'
 import { CLAUDE_EDIT_MENU, FakeCore, type FakeTab } from '../src/testing/fakecore.ts'
 import { FakeFolders } from '../src/testing/fake-folders.ts'
-import { AGENTS, progressTree, waitOn } from './progress-tree.ts'
+import { AGENTS, progressTree, saidOn, waitOn } from './progress-tree.ts'
 
 // Recorded where a test can read it, as pairLinkUsed below: the test's own Keyboard is another bundle's.
 const putAway = Keyboard.dismiss
@@ -91,7 +91,9 @@ if (scene === 'progress') {
   // A test moves a task to 等你 (`{ wait: 'T4', waiting: '…' }`), leaves messages to sort (`{ queue: 2 }`), or has
   // the filing pane stop before it starts (`{ organizerWaits: 't2' }`).
   host.on('fake.progress', (d: any) => (d.organizerWaits ? Object.assign(tree, { queue: 1, organizer_waits: { addr: d.organizerWaits } })
-    : d.queue ? Object.assign(tree, { queue: d.queue }) : waitOn(tree, d.wait, d.waiting)))
+    : d.queue ? Object.assign(tree, { queue: d.queue }) : d.said ? saidOn(tree, d.said.id, d.said.text)
+    // `only`: the page with that one goal left.
+    : d.only ? Object.assign(tree, { tasks: tree.tasks.filter((t) => t.id === d.only) }) : waitOn(tree, d.wait, d.waiting)))
 }
 // `scene: "twins"`: one space with two Claude Codes, told apart by a tab's name and an agent's title, one with a
 // sub-agent, and a shell; another space with one more Claude Code.

@@ -1,7 +1,7 @@
 // The progress page's model over `herdr-anywhere track tree --json`: one nestable structure, the task.
 // Version one is view only: the page shows, the computer decides.
 import { expect, test } from 'nsh/test'
-import { agentsLine, findTask, flagsOf, items, langLine, parseAgents, pathOf, pickLine, stageText, subLine, taskOn, trackLine, type Task } from './progress.ts'
+import { agentsLine, findTask, flagsOf, goalOf, homeOf, visibleRows, items, langLine, panesOf, parseAgents, pathOf, pickLine, stageText, subLine, taskOn, trackLine, type Task } from './progress.ts'
 import { parseTree } from './progress.ts'
 
 // Real output of `track tree --json` for the sample scene: fixtures/make-tree-v2.sh writes it.
@@ -12,7 +12,7 @@ test('the tree reads: what needs the user, what just finished, and tasks with th
   expect(t.needsYou.map((x) => [x.id, x.group, x.waiting])).toEqual([['T6', 'waiting', '价格取整，还是保留到分？']])
   expect(t.justDone.map((x) => [x.id, x.said ?? '', x.path])).toEqual([
     ['T2', '', ['上线 Acme 商店的新结账流程', '让顾客能保存银行卡']], ['P2', '对比写好了，等你看', []]])
-  expect(t.tasks.map((x) => x.id)).toEqual(['P1'])
+  expect(t.tasks.map((x) => x.id)).toEqual(['P1', 'P3'])
   expect(t.tasks[0].children.map((x) => x.id)).toEqual(['T1', 'T5', 'T6', 'T9'])
   expect(t.tasks[0].children[0].children.map((x) => [x.id, x.group])).toEqual([['T2', 'done'], ['T3', 'parked'], ['T4', 'parked']])
   expect(t.tasks[0].children[1].pane_rows).toEqual([]) // null in the JSON
@@ -75,3 +75,92 @@ test('what is wrong with a task\'s panes is worded on the phone', () => {
   expect(subLine(task([{ id: 't2', name: 'phone', state: 'live', status: 'error' }]))).toBe('phone hit an error')
 })
 
+
+// Agents answer in Markdown. The page shows it as paragraphs and list items, without the marks:
+// a raw "**" or "- " on the phone reads as noise (seen on a real task page).
+test('what an agent said reads as paragraphs and list items, without Markdown marks', async () => {
+  const { blocks, plain } = await import('./progress.ts')
+  const said = '大发布的稿子还没写完。**t27** 定好了方向：\n\n- **主打的点：** 同一张列表里\n- **按顺序排：**\n  1. 每一行认得出是哪个 agent；\n  2. 用 `Gboard` 回车不再吞字\n\n## 下一步\n见 [计划](https://example.com/plan)。'
+  expect(blocks(said)).toEqual([
+    { text: '大发布的稿子还没写完。t27 定好了方向：' },
+    { mark: '•', text: '主打的点： 同一张列表里' },
+    { mark: '•', text: '按顺序排：' },
+    { mark: '1.', text: '每一行认得出是哪个 agent；', depth: 1 },
+    { mark: '2.', text: '用 Gboard 回车不再吞字', depth: 1 },
+    { text: '下一步', head: true },
+    { text: '见 计划。' },
+  ])
+  // On a card, one line of it.
+  expect(plain(said)).toBe('大发布的稿子还没写完。t27 定好了方向： • 主打的点： 同一张列表里 • 按顺序排： 1. 每一行认得出是哪个 agent； 2. 用 Gboard 回车不再吞字 下一步 见 计划。')
+  expect(blocks('Fixed it. All tests pass.')).toEqual([{ text: 'Fixed it. All tests pass.' }])
+  expect(blocks('')).toEqual([])
+})
+
+// The home page takes its structure from Things 3: loose tasks first, then each bigger task as a heading with its
+// tasks under it (loose ones first, then the ones with tasks of their own as subheadings); what needs the user first in
+// each list, queued work after, and what finished today last, where it sits; older finished and dropped work leaves for
+// the "done" entry at the bottom.
+const node = (id: string, group: string, children: any[] = []) => ({ id, outcome: id, stage: group, group, evidence: [], pane_rows: [], notes: [], children, done: 0, total: 0 })
+test('the home page: loose tasks first, then headings with their tasks, ordered by what needs the user, today\'s finished last', async () => {
+  const tr = parseTree(JSON.stringify({
+    needs_you: [{ ...node('A3', 'waiting'), path: ['A'] }],
+    just_done: [{ ...node('A6', 'done'), path: ['A'] }, { ...node('B4', 'done'), path: ['A', 'B'] }, { ...node('G', 'done'), path: [] }],
+    tasks: [
+      node('L1', 'parked'), node('L2', 'doing'),
+      node('A', 'doing', [node('A1', 'parked'), node('A6', 'done'), node('A2', 'doing'), node('A3', 'waiting'), node('A4', 'done'),
+        node('B', 'doing', [node('B1', 'parked'), node('B4', 'done'), node('B2', 'review'), node('B3', 'dropped')]), node('A5', 'stuck')]),
+      // Nothing open under it but itself: a loose task.
+      node('C', 'doing', [node('C1', 'done')]),
+      // Waits on the user with nothing open under it: only under "needs you".
+      node('D', 'waiting', [node('D1', 'done')]),
+      node('E', 'done', [node('E1', 'done')]),
+    ],
+    closed: [node('F', 'dropped'), node('G', 'done')],
+  }))
+  tr.needsYou.push({ ...(findTask(tr, 'D') as Task), path: [] })
+  const h = homeOf(tr)
+  expect(h.loose.map((x) => x.id)).toEqual(['L2', 'C', 'L1'])
+  expect(h.after.map((x) => x.id)).toEqual(['G']) // finished today with no goal: after the goals
+  expect(h.groups.map((g) => [g.task.id, g.rows.map((r) => `${r.task.id}${r.head ? ':head' : ''}@${r.depth}`)])).toEqual([
+    ['A', ['A5@0', 'A2@0', 'A1@0', 'A6@0', 'B:head@0', 'B2@1', 'B1@1', 'B4@1']],
+  ])
+  expect(h.done.map((x) => x.id)).toEqual(['E', 'F'])
+})
+
+test('the sample scene: each goal a heading, the card work a subheading, today\'s finished where it sits', async () => {
+  const h = homeOf(await real())
+  expect(h.loose).toEqual([])
+  expect(h.after.map((x) => x.id)).toEqual(['P2'])
+  expect(h.groups.map((g) => [g.task.id, g.rows.map((r) => `${r.task.id}${r.head ? ':head' : ''}@${r.depth}`)])).toEqual([
+    ['P1', ['T9@0', 'T5@0', 'T1:head@0', 'T3@1', 'T4@1', 'T2@1']],
+    ['P3', ['T10@0', 'T11@0']],
+  ])
+  expect(h.done).toEqual([])
+})
+
+// "Needs you" takes a task out of its goal: with more than one goal on the page, its row names the goal it is under.
+test('a task that needs the user names its goal when the page has more than one', async () => {
+  const t = await real()
+  expect(goalOf(t, t.needsYou[0])).toBe('上线 Acme 商店的新结账流程')
+  t.tasks = t.tasks.filter((x) => x.id === 'P1')
+  expect(goalOf(t, t.needsYou[0])).toBe('')
+})
+
+// A task's panes by name; the number only tells two of the same name apart.
+test('a task\'s panes: by name, and none once the task is closed', async () => {
+  const t = await real()
+  expect(panesOf(findTask(t, 'T1')!).map((p) => [p.label, p.kind, p.addr])).toEqual([['checkout', 'moved', 't2']])
+  expect(panesOf(findTask(t, 'T9')!).map((p) => [p.label, p.kind, p.addr])).toEqual([['checkout', 'live', 't2']])
+  expect(panesOf(findTask(t, 'P2')!)).toEqual([])
+  const two: Task = { ...findTask(t, 'T9')!, pane_rows: [{ id: 't2', name: 'web', found: true, state: 'live' }, { id: 't7', name: 'web', found: true, state: 'live' }, { id: 't8', found: false }] }
+  expect(panesOf(two).map((p) => [p.label, p.kind])).toEqual([['web · t2', 'live'], ['web · t7', 'live'], ['t8', 'missing']])
+})
+
+// A heading the user folded hides what is under it, down to the next row at its own depth or above.
+test('a folded heading hides its own rows, and only those', async () => {
+  const rows = homeOf(await real()).groups[0].rows
+  const ids = (folded: string[]) => visibleRows(rows, new Set(folded)).map((r) => r.task.id)
+  expect(ids([])).toEqual(['T9', 'T5', 'T1', 'T3', 'T4', 'T2'])
+  expect(ids(['T1'])).toEqual(['T9', 'T5', 'T1'])
+  expect(ids(['T9'])).toEqual(['T9', 'T5', 'T1', 'T3', 'T4', 'T2']) // not a heading
+})

@@ -33,7 +33,6 @@ export type HomeActions = {
   rename: (kind: 'space', id: string, current: string) => void
   /** With the progress page on: the task a pane works on, for its 在做 line, and opening that task. */
   doing?: (address: string) => { id: string; outcome: string } | undefined
-  openTask?: (id: string) => void
   /** With the progress page on: the switch at the top, to the progress page and back. */
   view?: () => ViewSwitchProps | undefined
 }
@@ -170,8 +169,7 @@ function AgentRows(props: { store: Store; agents: () => AgentInfo[]; full?: bool
           subPrefix="sub" subClass={`mx-2 ${props.full ? 'pl-7' : 'pl-14'} pr-2`}
           onPress={() => props.actions.openAgent(a())} onLongPress={() => void menu(a())} onSub={props.actions.peek} />
         <If when={props.actions.doing?.(a().address)}>{(d) => (
-          <View role="button" testID={`doing-${a().address}`} onPress={() => props.actions.openTask?.(d().id)}
-            class={`mx-2 ${props.full ? 'pl-[30px]' : 'pl-[58px]'} pr-2 pb-1.5 -mt-1 active:opacity-70`}>
+          <View testID={`doing-${a().address}`} class={`mx-2 ${props.full ? 'pl-[30px]' : 'pl-[58px]'} pr-2 pb-1.5 -mt-1`}>
             <Text class="text-[12px] text-chart-1" numberOfLines={1}>{t('doingLine', { task: d().outcome })}</Text>
           </View>
         )}</If>

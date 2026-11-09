@@ -33,6 +33,12 @@ function find(ts: Node[], id: string, above: Node[] = []): { node: Node; above: 
 }
 
 /** A task's agent asks the user something: the task waits on the user and joins "needs you". */
+/** What the agent said last about task id (Markdown, as agents write). */
+export function saidOn(tree: FakeTree, id: string, said: string) {
+  const f = find(tree.tasks, id)
+  if (f) f.node.said = said
+}
+
 export function waitOn(tree: FakeTree, id: string, waiting: string) {
   const f = find(tree.tasks, id)
   if (!f) return

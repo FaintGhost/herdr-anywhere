@@ -140,11 +140,12 @@ func organizerPane(cfg organizerConfig, state string) rolePane {
 }
 
 // organizerSettings is a project settings file for Claude Code in the pane's
-// folder: it may run the two track commands without asking, nothing else.
+// folder: it may run the track commands its rules name without asking, nothing else.
 // Other harnesses ask the user, which shows up as the pane waiting.
 const organizerSettings = `{
   "permissions": {
-    "allow": ["Bash(herdr-anywhere track queue:*)", "Bash(herdr-anywhere track place:*)", "Bash(herdr-anywhere track tree:*)"]
+    "allow": ["Bash(herdr-anywhere track queue:*)", "Bash(herdr-anywhere track place:*)", "Bash(herdr-anywhere track tree:*)",
+      "Bash(herdr-anywhere track set:*)", "Bash(herdr-anywhere track move:*)"]
   }
 }
 `
@@ -159,28 +160,31 @@ func organizerRulesText() string {
 // Task names say what gets done, in the user's words.
 const organizerRules = `# You are Herdr's filing pane
 
-You do one thing: file what the user says in their panes under their tasks, and when a pane stops, decide what became of its task. You do no project work, send nothing to other panes, and change no files.
+You file what the user says in their panes under their tasks, and when a pane stops, decide what became of its task. When the user talks to you here, you put right what they correct. You do no project work, send nothing to other panes, and change no files.
 
 ## Each batch: two commands
+
+A batch is a message that starts with "Filing queue:".
 
 1. Run ` + "`herdr-anywhere track queue --json`" + `. items are what to file; tasks are all of the user's open tasks (under is the task it sits under; notes are the user's past corrections, "this kind of thing does not belong here").
 2. Answer every item in one command, a JSON document between two END lines (the quotes around the first END keep the text exactly as written):
 
     herdr-anywhere track place --batch - <<'END'
-    {"places": [
+    {"goals": [{"key": "G1", "title": "Release version 2.0", "under": "P1"}],
+     "places": [
       {"id": "Q1", "stage": "done"},
       {"id": "Q2", "stage": "waiting", "waiting": "Keep the Pro plan at $12 a month?"},
       {"id": "Q3", "stage": "doing"},
-      {"id": "Q4", "tasks": [{"title": "Add dark mode to Settings", "under": "P1", "stage": "done"}, {"title": "Write the 2.0 release notes", "under": "P1"}]},
+      {"id": "Q4", "tasks": [{"title": "Add dark mode to Settings", "under": "P1", "stage": "done"}, {"title": "Write the 2.0 release notes", "under": "G1", "stage": "waiting", "waiting": "Mention the new prices?"}]},
       {"id": "Q5", "tasks": []},
       {"id": "Q6", "task": "T2"},
-      {"id": "Q7", "task": "new", "title": "Rate-limit the login API", "under": "P1"}
+      {"id": "Q7", "task": "new", "title": "Fix the login bug before 2.0", "under": "G1"}
     ]}
     END
 
 It prints how many it placed. If it names items it could not place, or items not placed yet, fix just those and answer again the same way. Then reply with one line: how many you placed.
 
-What the queue prints is all you need. Run no other command: do not look for files, read the environment or parse the output with a script.
+For a batch, what the queue prints is all you need. Run no other command: do not look for files, read the environment or parse the output with a script.
 
 ## Language
 
@@ -197,10 +201,14 @@ task is the task this pane works on; text is the last thing its agent said when 
 
 ## A scanned session (kind session)
 
-text is what the user said in this pane's current session, and the agent's last reply. List the things the user wants done in it in ` + "`\"tasks\"`" + `, finished ones too, one entry per thing; ` + "`\"tasks\": []`" + ` when there are none (small talk, questions about the agent).
+text is a pane's current session: each thing the user said (User:), oldest first, with what the agent answered to it (Agent:). List the things the user wants done in it in ` + "`\"tasks\"`" + `, one entry per thing; ` + "`\"tasks\": []`" + ` when there are none (small talk, questions about the agent).
 
 - A thing is one outcome: a test, docs or a fix for it belong to it, not to a new one.
-- Each entry: ` + "`\"title\"`" + ` and ` + "`\"under\"`" + ` for a new task, or ` + "`\"task\": \"<T id>\"`" + ` for one already in tasks. Add ` + "`\"stage\": \"done\"`" + ` to one that looks finished.
+- Each entry: ` + "`\"title\"`" + ` and ` + "`\"under\"`" + ` for a new task, or ` + "`\"task\": \"<T id>\"`" + ` for one already in tasks. A session may have been sorted before: what is already in tasks keeps its T id, never a new task. Add ` + "`\"under\"`" + ` to one already in tasks to put it under the task or goal it belongs to.
+- Give each entry the stage the session shows for that thing, read from what the agent answered to it and to everything the user said after it:
+  - ` + "`\"stage\": \"done\"`" + ` when an answer says it is finished, delivered or released, and nothing later reopens it. Most things early in a long session are finished: the user went on to the next one once it was.
+  - ` + "`\"stage\": \"waiting\"`" + `, with ` + "`\"waiting\"`" + `, when the latest answer about it asks the user something or needs the user to act.
+  - ` + "`\"stage\": \"doing\"`" + ` when it is not finished: no answer yet, the answer says it is still going, or it failed.
 
 ## A message (kind empty)
 
@@ -212,18 +220,51 @@ text is what the user said in a pane; agent_said is the last thing that pane's a
 - Not sure: put it on the most likely task and add ` + "`\"why\": \"<one reason>\"`" + `. The user does not look again, so what you place counts; prefer an existing task to a new one.
 - Small talk unrelated to any task: put it on the task the pane worked on last.
 
+## Goals
+
+The user reads the page as a few bigger outcomes, each with the tasks that serve it. Before you answer, look at the whole batch and the tasks together:
+
+- Tasks that serve an existing task go under it.
+- When two or more tasks, new or already in tasks, from any items, serve one bigger outcome no task names yet (a release, a feature, a launch), make it a goal in ` + "`\"goals\"`" + `: a ` + "`\"key\"`" + ` (G1, G2, …), a ` + "`\"title\"`" + ` and, if it serves an existing task, ` + "`\"under\"`" + `. Then put those tasks under its key. A goal is made only when something goes under it.
+- Do not make a goal for one task, or one that only repeats the task's title.
+
 ## Titles
 
 - Say what gets done, in the user's own terms, e.g. "Add dark mode to the settings page", "Move the docs site to the new domain".
 - No step numbers, module or code names, and no empty words like "step one", "fix", "improve".
 - Short: about 8 words in English, about 15 characters in Chinese or Japanese; keep the technical terms needed.
-- Several things that serve one bigger goal: make the big one first (a new task with the goal as its title), then put the small ones under it.
+
+## The user talks to you
+
+Anything the user types here that is not a batch is the user correcting the page, e.g. "version 2.1 shipped weeks ago", "this belongs under the launch".
+
+1. Run ` + "`herdr-anywhere track tree`" + ` to find the task they mean.
+2. Put it right with one of:
+   - ` + "`herdr-anywhere track set <id> --stage done`" + ` (or doing, parked, dropped) for a stage that is wrong;
+   - ` + "`herdr-anywhere track move <id> <parent id>`" + ` (- for the top) for a task in the wrong place.
+3. Reply with one line saying what you changed. If you can't tell which task they mean, ask in one line and change nothing.
 `
 
 // rolePaneStart starts a labelled helper pane (the filing pane) if no
-// live one carries the label, writing its rules and settings the first time.
+// live one carries the label. Its rules and settings are this companion's:
+// written on every call, so an update reaches a pane that already runs.
 // It runs with this binary's folder on PATH so the rules can say herdr-anywhere.
 func rolePaneStart(hc string, cfg rolePane, role, rules, settings string, env ...string) (string, error) {
+	if err := os.MkdirAll(filepath.Join(cfg.Dir, ".claude"), 0o700); err != nil {
+		return "", err
+	}
+	for name, text := range map[string]string{"CLAUDE.md": rules, "AGENTS.md": rules, filepath.Join(".claude", "settings.json"): settings} {
+		p := filepath.Join(cfg.Dir, name)
+		if text == "" {
+			continue
+		}
+		if b, err := os.ReadFile(p); err == nil && string(b) == text {
+			continue
+		}
+		if err := os.WriteFile(p, []byte(text), 0o600); err != nil {
+			return "", err
+		}
+	}
 	if t, err := roleFind(hc, cfg.Name, role); err != nil || t != nil {
 		if t != nil {
 			return t.Address, nil
@@ -233,20 +274,6 @@ func rolePaneStart(hc string, cfg rolePane, role, rules, settings string, env ..
 	argv, err := cfg.argv()
 	if err != nil {
 		return "", err
-	}
-	if err := os.MkdirAll(filepath.Join(cfg.Dir, ".claude"), 0o700); err != nil {
-		return "", err
-	}
-	for name, text := range map[string]string{"CLAUDE.md": rules, "AGENTS.md": rules, filepath.Join(".claude", "settings.json"): settings} {
-		p := filepath.Join(cfg.Dir, name)
-		if text == "" {
-			continue
-		}
-		if _, err := os.Stat(p); errors.Is(err, os.ErrNotExist) {
-			if err := os.WriteFile(p, []byte(text), 0o600); err != nil {
-				return "", err
-			}
-		}
 	}
 	self, _ := os.Executable()
 	env = append([]string{"env", "PATH=" + filepath.Dir(self) + string(os.PathListSeparator) + os.Getenv("PATH")}, env...)
@@ -312,25 +339,26 @@ func roleFind(hc, name, role string) (*hcLsTerm, error) {
 	return nil, nil
 }
 
-// scanItems sums up each pane's current session for the filing pane: what
-// the person typed (each line cut short, the latest 40) and the last reply.
+// scanItems sums up each pane's current session for the filing pane: each
+// thing the person typed (the latest 30) with what the agent answered to it,
+// both cut short, so it can tell what was finished from what was not.
 func scanItems(sessions map[string]string) []track.SessionItem {
 	var items []track.SessionItem
 	for addr, path := range sessions {
-		typed, last, err := watch.ReadSession(path)
-		if err != nil || len(typed) == 0 {
+		turns, err := watch.ReadSession(path)
+		if err != nil || len(turns) == 0 {
 			continue
 		}
-		if len(typed) > 40 {
-			typed = typed[len(typed)-40:]
+		if len(turns) > 30 {
+			turns = turns[len(turns)-30:]
 		}
 		var b strings.Builder
-		b.WriteString("What the user said in this pane's current session (in order, long ones cut short):\n")
-		for _, t := range typed {
-			fmt.Fprintf(&b, "- %s\n", short(t, 160))
-		}
-		if last != "" {
-			fmt.Fprintf(&b, "The agent's last reply: %s\n", short(last, 300))
+		b.WriteString("What the user said in this pane's current session, oldest first, each with the agent's answer (long ones cut short; no Agent line: it had not answered):\n")
+		for _, t := range turns {
+			fmt.Fprintf(&b, "- User: %s\n", short(t.Typed, 160))
+			if t.Reply != "" {
+				fmt.Fprintf(&b, "  Agent: %s\n", short(t.Reply, 200))
+			}
 		}
 		sid := strings.TrimSuffix(filepath.Base(path), ".jsonl")
 		items = append(items, track.SessionItem{Pane: track.PaneRef{Side: "hc", Addr: addr}, Session: sid, Text: b.String()})
@@ -353,8 +381,9 @@ func progressTick(w *watch.Watcher, hc, state string, st *track.Store, log io.Wr
 	if !progressOn(state) {
 		return
 	}
-	// Turning the page on is the yes to sorting what the open panes hold already.
-	if f, err := st.Load(); err == nil && f.ScanAnswer == "" {
+	// Turning the page on is the yes to sorting what the open panes hold already;
+	// after an update that gives a scan more to go on, they are sorted once more.
+	if f, err := st.Load(); err == nil && (f.ScanAnswer == "" || f.ScanAnswer == "yes" && f.ScanFormat < track.ScanFormat) {
 		if ids, _, err := scanPanes(w, hc, st, time.Now()); err != nil {
 			fmt.Fprintf(log, "progress: scan: %v\n", err)
 		} else {

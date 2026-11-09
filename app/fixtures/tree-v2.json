@@ -11,18 +11,18 @@
           "addr": "t4",
           "name": "mobile",
           "turn_at": 2,
-          "at": 1700000000360
+          "at": 1700000000397
         }
       ],
       "log": [
         {
-          "at": 1700000000360,
+          "at": 1700000000397,
           "to": "hc:t4",
           "text": "每个价格按顾客自己的币种显示"
         }
       ],
-      "created": 1700000000354,
-      "updated": 1700000000405,
+      "created": 1700000000390,
+      "updated": 1700000000457,
       "parent": "P1",
       "group": "waiting",
       "pane_rows": [
@@ -32,7 +32,7 @@
             "addr": "t4",
             "name": "mobile",
             "turn_at": 2,
-            "at": 1700000000360
+            "at": 1700000000397
           },
           "id": "t4",
           "found": true,
@@ -55,8 +55,8 @@
       "id": "P1",
       "outcome": "上线 Acme 商店的新结账流程",
       "stage": "doing",
-      "created": 1700000000278,
-      "updated": 1700000000278,
+      "created": 1700000000288,
+      "updated": 1700000000288,
       "std": "顾客两步就能付完款",
       "group": "waiting",
       "pane_rows": null,
@@ -71,19 +71,19 @@
               "addr": "t2",
               "name": "checkout",
               "turn_at": 7,
-              "at": 1700000000288,
+              "at": 1700000000303,
               "ended": "unknown"
             }
           ],
           "log": [
             {
-              "at": 1700000000288,
+              "at": 1700000000303,
               "to": "hc:t2",
               "text": "先做银行卡表单"
             }
           ],
-          "created": 1700000000283,
-          "updated": 1700000000288,
+          "created": 1700000000296,
+          "updated": 1700000000303,
           "parent": "P1",
           "group": "doing",
           "pane_rows": [
@@ -93,7 +93,7 @@
                 "addr": "t2",
                 "name": "checkout",
                 "turn_at": 7,
-                "at": 1700000000288,
+                "at": 1700000000303,
                 "ended": "unknown"
               },
               "id": "t2",
@@ -113,8 +113,8 @@
               "id": "T2",
               "outcome": "加上银行卡表单",
               "stage": "done",
-              "created": 1700000000334,
-              "updated": 1700000000334,
+              "created": 1700000000362,
+              "updated": 1700000000362,
               "parent": "T1",
               "group": "done",
               "pane_rows": null,
@@ -126,8 +126,8 @@
               "id": "T3",
               "outcome": "输入时就校验卡号",
               "stage": "parked",
-              "created": 1700000000339,
-              "updated": 1700000000339,
+              "created": 1700000000369,
+              "updated": 1700000000369,
               "parent": "T1",
               "group": "parked",
               "pane_rows": null,
@@ -139,8 +139,8 @@
               "id": "T4",
               "outcome": "让顾客能删掉存过的卡",
               "stage": "parked",
-              "created": 1700000000344,
-              "updated": 1700000000344,
+              "created": 1700000000376,
+              "updated": 1700000000376,
               "parent": "T1",
               "group": "parked",
               "pane_rows": null,
@@ -157,8 +157,8 @@
           "outcome": "在 Android 手机上测一遍结账",
           "stage": "parked",
           "next": "等银行卡的活做完再跑 · 你说过：跑完告诉我",
-          "created": 1700000000349,
-          "updated": 1700000000349,
+          "created": 1700000000383,
+          "updated": 1700000000383,
           "parent": "P1",
           "group": "parked",
           "pane_rows": null,
@@ -177,18 +177,18 @@
               "addr": "t4",
               "name": "mobile",
               "turn_at": 2,
-              "at": 1700000000360
+              "at": 1700000000397
             }
           ],
           "log": [
             {
-              "at": 1700000000360,
+              "at": 1700000000397,
               "to": "hc:t4",
               "text": "每个价格按顾客自己的币种显示"
             }
           ],
-          "created": 1700000000354,
-          "updated": 1700000000405,
+          "created": 1700000000390,
+          "updated": 1700000000457,
           "parent": "P1",
           "group": "waiting",
           "pane_rows": [
@@ -198,7 +198,7 @@
                 "addr": "t4",
                 "name": "mobile",
                 "turn_at": 2,
-                "at": 1700000000360
+                "at": 1700000000397
               },
               "id": "t4",
               "found": true,
@@ -225,18 +225,18 @@
               "addr": "t2",
               "name": "checkout",
               "turn_at": 7,
-              "at": 1700000000411
+              "at": 1700000000465
             }
           ],
           "log": [
             {
-              "at": 1700000000411,
+              "at": 1700000000465,
               "to": "hc:t2",
               "text": "顺便在付款后发一封收据邮件"
             }
           ],
-          "created": 1700000000434,
-          "updated": 1700000000434,
+          "created": 1700000000493,
+          "updated": 1700000000493,
           "parent": "P1",
           "auto": true,
           "group": "doing",
@@ -247,7 +247,7 @@
                 "addr": "t2",
                 "name": "checkout",
                 "turn_at": 7,
-                "at": 1700000000411
+                "at": 1700000000465
               },
               "id": "t2",
               "found": true,
@@ -267,6 +267,45 @@
       ],
       "done": 1,
       "total": 6
+    },
+    {
+      "id": "P3",
+      "outcome": "给 Acme 官网换新版",
+      "stage": "doing",
+      "created": 1700000000522,
+      "updated": 1700000000522,
+      "group": "doing",
+      "pane_rows": null,
+      "children": [
+        {
+          "id": "T10",
+          "outcome": "重写首页文案",
+          "stage": "doing",
+          "created": 1700000000532,
+          "updated": 1700000000532,
+          "parent": "P3",
+          "group": "doing",
+          "pane_rows": null,
+          "children": [],
+          "done": 0,
+          "total": 1
+        },
+        {
+          "id": "T11",
+          "outcome": "换上新的产品截图",
+          "stage": "parked",
+          "created": 1700000000539,
+          "updated": 1700000000539,
+          "parent": "P3",
+          "group": "parked",
+          "pane_rows": null,
+          "children": [],
+          "done": 0,
+          "total": 1
+        }
+      ],
+      "done": 0,
+      "total": 2
     }
   ],
   "closed": [
@@ -280,18 +319,18 @@
           "addr": "t3",
           "name": "payments",
           "turn_at": 4,
-          "at": 1700000000008
+          "at": 1700000000007
         }
       ],
       "log": [
         {
-          "at": 1700000000008,
+          "at": 1700000000007,
           "to": "hc:t3",
           "text": "比较三家支付服务商，写个结论"
         }
       ],
       "created": 1700000000000,
-      "updated": 1700000000273,
+      "updated": 1700000000280,
       "group": "done",
       "pane_rows": [
         {
@@ -300,7 +339,7 @@
             "addr": "t3",
             "name": "payments",
             "turn_at": 4,
-            "at": 1700000000008
+            "at": 1700000000007
           },
           "id": "t3",
           "found": true,
@@ -325,8 +364,8 @@
       "id": "T2",
       "outcome": "加上银行卡表单",
       "stage": "done",
-      "created": 1700000000334,
-      "updated": 1700000000334,
+      "created": 1700000000362,
+      "updated": 1700000000362,
       "parent": "T1",
       "group": "done",
       "pane_rows": null,
@@ -345,18 +384,18 @@
           "addr": "t3",
           "name": "payments",
           "turn_at": 4,
-          "at": 1700000000008
+          "at": 1700000000007
         }
       ],
       "log": [
         {
-          "at": 1700000000008,
+          "at": 1700000000007,
           "to": "hc:t3",
           "text": "比较三家支付服务商，写个结论"
         }
       ],
       "created": 1700000000000,
-      "updated": 1700000000273,
+      "updated": 1700000000280,
       "group": "done",
       "pane_rows": [
         {
@@ -365,7 +404,7 @@
             "addr": "t3",
             "name": "payments",
             "turn_at": 4,
-            "at": 1700000000008
+            "at": 1700000000007
           },
           "id": "t3",
           "found": true,

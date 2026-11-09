@@ -180,52 +180,97 @@ async function open(opts) {
   await t.page.context().close()
 }
 
-// A program that follows the mouse gets wheel reports at the rate xterm.js sends them for a Mac trackpad: one per ~3
-// rows of travel (consumeWheelEvent scales small pixel wheels by 0.3). OpenCode 1.19.0 moves 3 rows per report
-// (scroll_speed's default); at one report per row of finger its content ran 3 times as far as the finger (36 rows
-// for a 12.4-row drag, measured). Every report of a gesture goes to the cell where
-// the finger went down: that cell picks the panel, and OpenCode ignores a wheel over its prompt box, so a drag that
-// ended low on the screen used to stop. Touch times are set (CDP timestamps become the events' timeStamp), so a
-// flick's speed is the same on every run.
+// A program that follows the mouse decides how far one wheel report moves it: Pi 1.4.0 moves 1 row, OpenCode 1.19.0
+// 3 (both measured through herdr-core). At 3 rows of finger per report, Pi moved 4 rows for a 16.9-row drag on the
+// Android emulator (0.1.18); at 1, OpenCode moved 36 for 12.4 (0.1.14). So the page sees how far a report goes and
+// sends one per that many rows. The stand-in below moves ROWS rows per report, redraws 30 ms later as a program over
+// the network would, and ignores a wheel over its prompt box (its bottom 9 rows), as OpenCode does. Every report of a
+// gesture goes to the cell where the finger went down: that cell picks the panel, and a drag that ended over the box
+// used to stop. Touch times are set (CDP timestamps become the events' timeStamp), so a flick's speed is the same on
+// every run.
 {
   const at = (t, i, gap) => ({ timestamp: t + (i * gap) / 1000 })
   const timed = (cdp, type, x, y, ts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }], ...ts })
-  // A finger from (x, y): moves of `step` px `gap` ms apart, then held `hold` ms (no glide) or lifted at speed.
+  // A finger from (x, y): moves of `step` px `gap` ms apart (in real time too), then held `hold` ms (no glide) or
+  // lifted at speed.
   async function gesture(t, cdp, x, y, steps, gap, hold) {
     const t0 = Date.now() / 1000
     await timed(cdp, 'touchStart', x, y, at(t0, 0, gap))
     let at_y = y, i = 0
-    for (const s of steps) { i++; at_y += s; await timed(cdp, 'touchMove', x, at_y, at(t0, i, gap)) }
+    for (const s of steps) { i++; at_y += s; await timed(cdp, 'touchMove', x, at_y, at(t0, i, gap)); if (hold) await t.page.waitForTimeout(gap) }
     if (hold) { await t.page.waitForTimeout(hold); await timed(cdp, 'touchEnd', x, at_y, { timestamp: Date.now() / 1000 }) }
     else await timed(cdp, 'touchEnd', x, at_y, at(t0, i, gap))
   }
   const reports = (s) => [...s.matchAll(/\x1b\[<(6[45]);(\d+);(\d+)M/g)].map((m) => ({ up: m[1] === '64', col: +m[2], row: +m[3] }))
+  // A full-screen program of numbered lines, ROWS rows per report. top() is the first line it shows.
+  async function program(rows) {
+    const t = await open({ phone: true })
+    const cdp = await t.page.context().newCDPSession(t.page)
+    await t.page.evaluate((per) => {
+      const term = window.term, BOX = 9
+      let top = 1000
+      const draw = () => {
+        let s = '\x1b[H'
+        for (let r = 1; r <= term.rows - BOX; r++) s += `\x1b[${r};1H\x1b[2Kitem ${top + r - 1} of the list ${'abcdefgh'[(top + r) % 8]}`
+        for (let r = term.rows - BOX + 1; r <= term.rows; r++) s += `\x1b[${r};1H\x1b[2K${r === term.rows - BOX + 2 ? 'prompt box' : ''}`
+        window.postMessage(JSON.stringify({ t: 'write', data: s }), '*')
+      }
+      window.top_ = () => top
+      const post = window.nsh.postMessage
+      window.nsh.postMessage = (m) => {
+        post(m)
+        const o = JSON.parse(m)
+        if (o.t !== 'input') return
+        let moved = false
+        for (const w of o.data.matchAll(/\x1b\[<(6[45]);\d+;(\d+)M/g)) if (+w[2] <= term.rows - BOX) { top += w[1] === '64' ? -per : per; moved = true }
+        if (moved) setTimeout(draw, 30)
+      }
+      window.postMessage(JSON.stringify({ t: 'write', data: '\x1b[?1049h\x1b[?1000h\x1b[?1003h\x1b[?1006h\x1b[2J' }), '*')
+      setTimeout(draw, 50)
+    }, rows)
+    await t.page.waitForTimeout(200)
+    const h = await t.page.evaluate(() => { const r = document.querySelector('.xterm-screen').getBoundingClientRect(); return r.height / window.term.rows })
+    const top = await t.page.evaluate(() => document.querySelector('.xterm-screen').getBoundingClientRect().top)
+    const input = () => t.page.evaluate(() => { const d = window.posts.filter((p) => p.t === 'input').map((p) => p.data).join(''); window.posts = window.posts.filter((p) => p.t !== 'input'); return d })
+    const shown = () => t.page.evaluate(() => window.top_())
+    return { t, cdp, h, rowAt: (y) => Math.floor((y - top) / h) + 1, input, shown }
+  }
+  // A slow drag of 12.5 rows, a move every 30 ms, held before lifting: how far the program's lines moved.
+  async function slow(p, x = 120, y = 150) {
+    const from = await p.shown()
+    await gesture(p.t, p.cdp, x, y, Array(25).fill((12.5 * p.h) / 25), 30, 300)
+    await p.t.page.waitForTimeout(300)
+    return from - (await p.shown())
+  }
 
-  const m = await open({ phone: true })
-  const mcdp = await m.page.context().newCDPSession(m.page)
-  const input = () => m.page.evaluate(() => { const d = window.posts.filter((p) => p.t === 'input').map((p) => p.data).join(''); window.posts = window.posts.filter((p) => p.t !== 'input'); return d })
-  await m.send({ t: 'write', data: '\x1b[?1049h\x1b[?1000h\x1b[?1003h\x1b[?1006h\x1b[2J\x1b[Hfull screen' })
-  await m.page.waitForTimeout(100)
-  const h = await m.page.evaluate(() => { const r = document.querySelector('.xterm-screen').getBoundingClientRect(); return r.height / window.posts.find((p) => p.cols).rows })
-  const top = await m.page.evaluate(() => document.querySelector('.xterm-screen').getBoundingClientRect().top)
-  const rowAt = (y) => Math.floor((y - top) / h) + 1
+  const pi = await program(1)
+  const piRows = await slow(pi)
+  check('a slow drag of 12.5 rows moves a program of 1 row a report about as far', Math.abs(piRows - 12.5) <= 1.5, piRows)
+  check('and again', Math.abs((await slow(pi)) - 12.5) <= 1.5)
+  check('and once more, after the page has looked 3 times', Math.abs((await slow(pi)) - 12.5) <= 1.5)
 
-  // A drag of 12.5 rows, held before lifting.
-  await input()
-  await gesture(m, mcdp, 120, 150, Array(10).fill((12.5 * h) / 10), 16, 300)
-  await m.page.waitForTimeout(100)
-  const drag = reports(await input())
-  check('a drag of 12.5 rows sends a mouse program one report per 3 rows', drag.length >= 3 && drag.length <= 5 && drag.every((r) => r.up), drag.length)
-  check('every report goes to the cell where the finger went down', drag.length > 0 && drag.every((r) => r.row === rowAt(150) && r.col === drag[0].col), drag.map((r) => `${r.col},${r.row}`).join(' '))
+  const oc = await program(3)
+  await oc.input()
+  const ocRows = await slow(oc)
+  const first = reports(await oc.input())
+  check('a slow drag of 12.5 rows moves a program of 3 rows a report about as far', Math.abs(ocRows - 12.5) <= 3, ocRows)
+  check('every report goes to the cell where the finger went down', first.length > 0 && first.every((r) => r.up && r.row === oc.rowAt(150) && r.col === first[0].col), first.map((r) => `${r.col},${r.row}`).join(' '))
+  check('and again', Math.abs((await slow(oc)) - 12.5) <= 3)
+  await oc.input()
+  const third = await slow(oc), thirdReports = reports(await oc.input())
+  check('once it has looked 3 times: one report per 3 rows, the content as far as the finger', Math.abs(third - 12.5) <= 3 && thirdReports.length >= 3 && thirdReports.length <= 5, { rows: third, reports: thirdReports.length })
+  check('a drag from low on the screen still scrolls, above the prompt box', Math.abs((await slow(oc, 120, 60)) - 12.5) <= 3)
+  await oc.t.page.waitForTimeout(300)
+  await oc.input()
 
   // Leftover travel is kept within a gesture, both ways: 2 rows down and back up is no report.
-  await gesture(m, mcdp, 120, 300, [h, h, -h, -h], 16, 300)
-  await m.page.waitForTimeout(100)
-  check('2 rows down and back up sends nothing', reports(await input()).length === 0)
+  await gesture(oc.t, oc.cdp, 120, 300, [oc.h, oc.h, -oc.h, -oc.h], 16, 300)
+  await oc.t.page.waitForTimeout(100)
+  check('2 rows down and back up sends nothing', reports(await oc.input()).length === 0)
   // ...and 2 rows, then 2 more in the same drag, is one report.
-  await gesture(m, mcdp, 120, 300, [h, h, h, h], 16, 300)
-  await m.page.waitForTimeout(100)
-  check('4 rows in small moves send one report', reports(await input()).length === 1)
+  await gesture(oc.t, oc.cdp, 120, 300, [oc.h, oc.h, oc.h, oc.h], 16, 300)
+  await oc.t.page.waitForTimeout(100)
+  check('4 rows in small moves send one report', reports(await oc.input()).length === 1)
 
   // A flick at 2.5 px/ms ending low on the screen: the glide's reports stay at the start cell, and it goes as far
   // as the same flick in a shell's history.
@@ -238,19 +283,51 @@ async function open(opts) {
   await gesture(s, scdp, 195, 150, Array(8).fill(40), 16, 0)
   for (let last = -1, now = await viewY(); now !== last; last = now, now = await viewY()) await s.page.waitForTimeout(400)
   const shellRows = from - (await viewY())
-  await input()
-  await gesture(m, mcdp, 195, 150, Array(8).fill(40), 16, 0)
-  await m.page.waitForTimeout(3000)
-  const flick = reports(await input())
-  const ratio = (flick.length * 3) / shellRows
-  check('a flick in a mouse program goes as far as in a shell (3 rows a report)', ratio >= 0.85 && ratio <= 1.15, { reports: flick.length, shellRows: Math.round(shellRows), ratio: +ratio.toFixed(2) })
-  check('its glide reports stay at the start cell, above the bottom rows', flick.length > 0 && flick.every((r) => r.row === rowAt(150)), [...new Set(flick.map((r) => r.row))])
+  for (const [name, p] of [['1 row', pi], ['3 rows', oc]]) {
+    await p.input()
+    const before = await p.shown()
+    await gesture(p.t, p.cdp, 195, 150, Array(8).fill(40), 16, 0)
+    await p.t.page.waitForTimeout(3000)
+    const flick = reports(await p.input()), ratio = (before - (await p.shown())) / shellRows
+    check(`a flick in a program of ${name} a report goes as far as in a shell`, ratio >= 0.85 && ratio <= 1.15, { reports: flick.length, shellRows: Math.round(shellRows), ratio: +ratio.toFixed(2) })
+    check('its glide reports stay at the start cell, above the bottom rows', flick.length > 0 && flick.every((r) => r.row === p.rowAt(150)), [...new Set(flick.map((r) => r.row))])
+  }
+  // A page busy for 400 ms right after the lift (a slow phone, or a CI runner: 0.1.19's first CI run sent 25 reports
+  // where 19 go as far as the shell) glides as far as one that is not. Before 0.1.19 a late frame moved at the speed
+  // the glide had before it, so the same flick went about a third further.
+  const busy = (page) => page.evaluate(() => { const end = performance.now() + 400; while (performance.now() < end); })
+  await s.page.evaluate(() => window.term.scrollToBottom())
+  const from2 = await viewY()
+  await gesture(s, scdp, 195, 150, Array(8).fill(40), 16, 0)
+  await busy(s.page)
+  for (let last = -1, now = await viewY(); now !== last; last = now, now = await viewY()) await s.page.waitForTimeout(400)
+  const lateRows = from2 - (await viewY())
+  check('a flick on a page busy right after the lift goes as far in a shell', Math.abs(lateRows - shellRows) <= 2, { late: lateRows, shellRows })
+  await oc.input()
+  const before3 = await oc.shown()
+  await gesture(oc.t, oc.cdp, 195, 150, Array(8).fill(40), 16, 0)
+  await busy(oc.t.page)
+  await oc.t.page.waitForTimeout(3000)
+  const lateRatio = (before3 - (await oc.shown())) / shellRows
+  check('and in a program of 3 rows a report', lateRatio >= 0.85 && lateRatio <= 1.15, { reports: reports(await oc.input()).length, ratio: +lateRatio.toFixed(2) })
   // The shell's own flick is as before: 2.5 px/ms halving about every 225 ms carries ~810 px, plus the 320 px drawn.
-  check("the shell's flick is unchanged", Math.abs(shellRows * h - 1130) < 113, Math.round(shellRows * h))
+  check("the shell's flick is unchanged", Math.abs(shellRows * oc.h - 1130) < 113, Math.round(shellRows * oc.h))
   await s.page.context().close()
-  await m.page.context().close()
-}
+  await oc.t.page.context().close()
+  await pi.t.page.context().close()
 
+  // A program whose screen gives no answer gets a report per row, and the drag doesn't wait for long.
+  const still = await open({ phone: true })
+  const stcdp = await still.page.context().newCDPSession(still.page)
+  await still.send({ t: 'write', data: '\x1b[?1049h\x1b[?1000h\x1b[?1006h\x1b[2J\x1b[Hfull screen' })
+  await still.page.waitForTimeout(100)
+  const sh = await still.page.evaluate(() => { const r = document.querySelector('.xterm-screen').getBoundingClientRect(); return r.height / window.term.rows })
+  await gesture(still, stcdp, 120, 150, Array(25).fill((12.5 * sh) / 25), 30, 300)
+  await still.page.waitForTimeout(100)
+  const quiet = await still.page.evaluate(() => window.posts.filter((p) => p.t === 'input').map((p) => p.data).join(''))
+  check('a program that stays still gets a report per row of a slow drag', Math.abs(reports(quiet).length - 12) <= 1, reports(quiet).length)
+  await still.page.context().close()
+}
 // A full-screen program that follows the mouse has buttons only a click reaches: OpenCode's update dialog runs Skip and
 // Update on a mouse release (dialog-update.tsx, onMouseUp; it turns on modes 1000, 1002, 1003 and 1006, measured
 // with OpenCode 1.19.0 through herdr-core 0.1.18). A tap there is a click on the cell under the finger.

@@ -59,12 +59,17 @@ func TestEachMessageCarriesHowThePaneLastTurnEndedAndWhatTheAgentSaid(t *testing
 	}
 }
 
-func TestAWholeSessionReadsAsWhatThePersonTypedAndTheLastReply(t *testing.T) {
+func TestAWholeSessionReadsAsEachMessageAndHowTheAgentAnsweredIt(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "s.jsonl")
-	os.WriteFile(p, []byte(human("修 total_items", "typed")+noise[1]+reply("改好了", "end_turn")+human("README 端口改成 8080", "typed")+reply("端口改好了", "end_turn")), 0o600)
-	typed, last, err := ReadSession(p)
-	if err != nil || !reflect.DeepEqual(typed, []string{"修 total_items", "README 端口改成 8080"}) || last != "端口改好了" {
-		t.Fatalf("typed %q last %q err %v", typed, last, err)
+	body := human("修 total_items", "typed") + noise[1] + reply("改好了", "end_turn") +
+		human("README 端口改成 8080", "typed") + reply("端口改好了", "end_turn") +
+		noise[0] + reply("footer 也改了", "end_turn") + // a turn sent by another pane: its reply still counts
+		human("发版", "typed") + reply("正在跑测试", "tool_use")
+	os.WriteFile(p, []byte(body), 0o600)
+	turns, err := ReadSession(p)
+	want := []Turn{{Typed: "修 total_items", Reply: "改好了"}, {Typed: "README 端口改成 8080", Reply: "footer 也改了"}, {Typed: "发版"}}
+	if err != nil || !reflect.DeepEqual(turns, want) {
+		t.Fatalf("turns %+v err %v", turns, err)
 	}
 }
 

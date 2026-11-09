@@ -186,6 +186,11 @@ func TestTrackScanQueuesEachPanesSessionOnce(t *testing.T) {
 	if len(v.Items) != 1 || v.Items[0].Kind != "session" || !strings.Contains(v.Items[0].Text, "README 端口改成 8080") || !strings.Contains(v.Items[0].Text, "端口改好了") {
 		t.Fatalf("queued: %+v", v.Items)
 	}
+	// Each thing the user asked for comes with what the agent answered to it,
+	// so the filing pane can tell which are finished.
+	if want := "- User: 修 total_items\n  Agent: 改好了\n- User: README 端口改成 8080\n  Agent: 端口改好了\n"; !strings.Contains(v.Items[0].Text, want) {
+		t.Fatalf("session text:\n%s\nwant:\n%s", v.Items[0].Text, want)
+	}
 	if strings.Contains(v.Items[0].Text, "整理队列") {
 		t.Fatal("scanned Herdr's own filing pane")
 	}
@@ -458,5 +463,69 @@ func TestAStoppedPaneIsJudgedByTheFilingPane(t *testing.T) {
 	progressTick(w, hc, state, st, &log)
 	if json.Unmarshal([]byte(ok("queue", "--json")), &v); len(v.Items) != 0 {
 		t.Fatalf("judged twice: %+v", v.Items)
+	}
+}
+
+// The filing pane's rules and settings belong to the companion: after an update
+// the pane gets the new ones, even one already running, or a fix to the rules
+// never reaches anyone who turned the progress page on before it.
+func TestTheFilingPaneGetsTheRulesOfThisCompanion(t *testing.T) {
+	state := t.TempDir()
+	st := track.Open(filepath.Join(state, "track.json"))
+	st.Update(func(f *track.File) error {
+		f.Queue = []track.Pending{{ID: "Q1", Kind: "session", Text: "x", At: 1}}
+		return nil
+	})
+	dir := filepath.Join(state, "organizer")
+	os.MkdirAll(filepath.Join(dir, ".claude"), 0o700)
+	for _, n := range []string{"CLAUDE.md", "AGENTS.md", filepath.Join(".claude", "settings.json")} {
+		os.WriteFile(filepath.Join(dir, n), []byte("an older companion's rules"), 0o600)
+	}
+	d := t.TempDir()
+	live := `{"terminals":[{"address":"t9","name":"herdr-organizer","state":"live","status":"working","turn":0,"agent":"claude-code"}]}`
+	hc := testfake.HC(t, d, "hc", testfake.Spec{Version: "hc 0.1.18", On: map[string][]testfake.Reply{
+		"ls":  {{Print: live}},
+		"get": {{Print: `{"address":"t9","state":"live","labels":{"herdr.role":"organizer"},"status":{"state":"working"}}`}},
+	}})
+	if _, err := organizerKick(hc, state, st, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	for n, want := range map[string]string{"CLAUDE.md": organizerRulesText(), "AGENTS.md": organizerRulesText(), filepath.Join(".claude", "settings.json"): organizerSettings} {
+		if b, _ := os.ReadFile(filepath.Join(dir, n)); string(b) != want {
+			t.Errorf("%s is still %q", n, b)
+		}
+	}
+}
+
+// A progress file scanned by an older companion, whose scan gave the filing
+// pane less to go on, is scanned once more after the update: the open panes'
+// sessions go back to the filing pane, which puts their tasks right.
+func TestAfterAnUpdateTheOpenPanesAreScannedOnceMore(t *testing.T) {
+	home := t.TempDir()
+	setHome(t, home)
+	state := t.TempDir()
+	t.Setenv("HERDR_ANYWHERE_STATE", state)
+	hc, _ := scanHC(t)
+	claudeHome(t, home, "4242", "s1", typedLine("修 total_items"), replyLine("改好了"))
+	st := track.Open(filepath.Join(state, "track.json"))
+	st.Update(func(f *track.File) error {
+		f.ScanAnswer, f.Scanned = "yes", []string{"s1"} // scanned before, by a companion with no scan format
+		f.Things = []track.Thing{{ID: "T1", Outcome: "修 total_items", Stage: "doing"}}
+		return nil
+	})
+	w := &watch.Watcher{Home: home, State: filepath.Join(state, "watch.json"), List: func() ([]watch.Term, error) { return watchTerms(hc) }}
+	var log strings.Builder
+	progressCommand([]string{"on"}, &log, &log)
+	progressTick(w, hc, state, st, &log)
+	f, _ := st.Load()
+	if len(f.Queue) != 1 || f.Queue[0].Kind != "session" || !strings.Contains(f.Queue[0].Text, "Agent: 改好了") {
+		t.Fatalf("not scanned again: %+v\n%s", f.Queue, log.String())
+	}
+	if f.ScanFormat != track.ScanFormat {
+		t.Fatalf("scan format %d, want %d", f.ScanFormat, track.ScanFormat)
+	}
+	progressTick(w, hc, state, st, &log)
+	if f, _ := st.Load(); len(f.Queue) != 1 {
+		t.Fatalf("scanned again on the next pass: %+v", f.Queue)
 	}
 }
