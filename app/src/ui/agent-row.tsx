@@ -18,7 +18,7 @@ const statusText = (st: string | undefined) => (st === 'idle' && colorScheme() !
 /** What a row says about an agent besides its program: the same words on every screen that lists it. */
 export function agentWords(s: Store) {
   const rev = useRev(s)
-  const view = computed(() => { rev(); return s.agentsView() })
+  const view = computed(() => { rev(); return s.shown().view })
   // The tab's name or the agent's title, when it says more than the program's name.
   const title = (a: AgentInfo) => { const d = view().detail.get(a.address); return d && d !== a.programName ? d : null }
   // What it is doing or did. "Needs you" already shows what a blocked one asks.
@@ -33,7 +33,7 @@ export function agentWords(s: Store) {
   // Where it is ("space › tab"), without the tab when the main text already is the tab's name.
   const where = (a: AgentInfo) => { const p = s.place(a), tail = ` › ${main(a)}`; return p.endsWith(tail) ? p.slice(0, -tail.length) : p }
   // The agent in a terminal, if one runs there.
-  const at = (addr: string | undefined) => { rev(); return addr ? s.agents().find((a) => a.address === addr) : undefined }
+  const at = (addr: string | undefined) => { rev(); return addr ? s.shown().agents.find((a) => a.address === addr) : undefined }
   return { title, line, subs, main, named, menu, where, at }
 }
 
@@ -80,7 +80,8 @@ export function AgentRow(props: {
             style={{ paddingLeft: size() + 8, ...(idle() ? {} : { color: DOING[colorScheme() === 'dark' ? 'dark' : 'light'] }) }} numberOfLines={1}>{words.line(a())}</Text>
         </If>
       </View>
-      <Each of={words.subs(a())}>{(k) => (
+      {/* Kept by terminal: each change makes new sub-agent entries, and a row drawn again under the finger lost its press. */}
+      <Each of={words.subs(a())} key={(k) => k.term.address}>{(k) => (
         <View role="button" testID={`${props.subPrefix}-${k().term.address}`} onPress={() => props.onSub(k().term.address)} class={`flex-row items-center gap-2 h-8 rounded-[8px] active:bg-sidebar-accent ${props.subClass}`}>
           <Text class="text-[12px] text-sidebar-foreground font-mono">{k().lines.join(' ')}</Text>
           <ProgramIcon icon={s.program(k().term.address).icon} size={13} />

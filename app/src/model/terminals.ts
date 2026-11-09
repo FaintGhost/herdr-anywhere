@@ -30,9 +30,12 @@ export type Applied = { changed: boolean; rereadDocs?: boolean; doc?: { machine?
 export class Terminals {
   private map = new Map<string, Term>()
   private seq = -1
+  /** Counts the changes applied: what was worked out from the records holds while it stays the same. */
+  version = 0
 
   snapshot(seq: number, list: Term[]) {
     this.seq = seq
+    this.version++
     this.map = new Map(list.map((t) => [t.address, { ...t }]))
   }
 
@@ -88,9 +91,13 @@ export class Terminals {
           case 'turn':
             t.turn = data.turn
             break
-          case 'title':
+          case 'title': {
+            // An agent's spinner turning in front of its title changes nothing shown: no change, so no pass (store.ts).
+            const before = cleanTitle(t.title)
             t.title = data.title
+            if (cleanTitle(t.title) === before) return { changed: false }
             break
+          }
           case 'labels':
             t.labels = data.labels ?? {}
             break
@@ -105,6 +112,7 @@ export class Terminals {
             return { changed: false }
         }
     }
+    this.version++
     return { changed: true, type, terminal }
   }
 }

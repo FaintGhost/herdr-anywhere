@@ -769,3 +769,16 @@ test("home's Needs you row and a wide pane's header name an agent as its row doe
   await wide.waitFor('id:pane-name-p-tb1')
   expect([wide.count('id:pane-name-p-tb1 >> text:fix login'), wide.count('id:pane-name-p-tb1 >> text:Claude Code')]).toEqual([1, 1])
 })
+
+test('a change redraws the home screen working out the agents list once, however many rows show it', async () => {
+  // Each row worked it out again for itself, over every terminal: with 28 agents one redraw took 150 ms on the Android
+  // emulator, and taps waited behind it.
+  const app = await open('./fixtures/fake.tsx', { host: { params: { scene: 'many' } } })
+  await app.waitFor('id:space-agent-t24')
+  await app.wait(1500)
+  const before = Number(app.storage()['fake-views'] ?? 0)
+  await app.host.send('fake.status', { address: 't7', state: 'blocked', kind: 'permission', msg: 'approve Bash: npm test' })
+  await app.waitFor('id:needs-t7')
+  await app.wait(300)
+  expect(Number(app.storage()['fake-views']) - before).toBeLessThan(4)
+})

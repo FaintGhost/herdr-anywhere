@@ -82,3 +82,20 @@ test('held Shift and Ctrl change only their own keys: every other label stays as
   // No label carries a held key's mark (⇧^tab, ⇧^←): only the ⇧ key itself shows ⇧.
   expect(app.texts().filter((t: string) => /^[⇧^⌃]+./.test(t) && !labels.includes(t))).toEqual([])
 })
+
+test('the key row stays as it is while other agents change: a key under the finger is not drawn again, so its press counts', async () => {
+  const app = await open('./fixtures/fake.tsx', { host: { params: { scene: 'busy' } } })
+  await openWeb(app)
+  await app.press('id:to-terminal')
+  await app.waitUntil(() => terminalMode(app))
+  await app.wait(300)
+  const draws = () => Number(app.storage()['fake-row-draws'] ?? 0)
+  const before = draws()
+  expect(before).toBeGreaterThan(0)
+  // An agent in another space stops waiting: the pane's "+1 waiting" goes, so the phone redrew.
+  expect(app.shows('text:+1 waiting ›')).toBe(true)
+  await app.host.send('fake.status', { address: 't1', state: 'working' })
+  await app.waitUntil(() => !app.shows('text:+1 waiting ›'))
+  await app.wait(300)
+  expect(draws() - before).toBe(0)
+})

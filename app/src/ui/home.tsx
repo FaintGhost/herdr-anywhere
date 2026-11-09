@@ -183,14 +183,14 @@ function AgentRows(props: { store: Store; agents: () => AgentInfo[]; full?: bool
 /** A space's agents under it; a pinned one is under Pinned instead, as on the desktop. */
 function SpaceAgents(props: { store: Store; space: Space; actions: HomeActions }) {
   const rev = useRev(props.store)
-  const agents = () => { rev(); return props.store.agents().filter((a) => a.space === props.space.id && !a.pinned) }
+  const agents = () => { rev(); return props.store.shown().agents.filter((a) => a.space === props.space.id && !a.pinned) }
   return <AgentRows store={props.store} agents={agents} idPrefix="space-agent" actions={props.actions} />
 }
 
 /** The agents pinned on the computer (herdr-core's `herdr.pinned` label), on top, as the desktop's Pinned group. */
 function PinnedSection(props: { store: Store; actions: HomeActions }) {
   const rev = useRev(props.store)
-  const pinned = computed(() => { rev(); return props.store.agentsView().groups.find((g) => g.id === 'pinned')?.members ?? [] })
+  const pinned = computed(() => { rev(); return props.store.shown().view.groups.find((g) => g.id === 'pinned')?.members ?? [] })
   return (
     <If when={pinned().length}>
       <View>

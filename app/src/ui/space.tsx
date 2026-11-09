@@ -247,7 +247,7 @@ function Switcher(props: { store: Store; spaceId: string; open: { (): boolean; s
   const rev = useRev(s)
   const space = () => { rev(); return s.model.space(props.spaceId) }
   const active = () => { rev(); const sp = space(); return sp && spaceActiveTab(sp)?.id }
-  const others = () => { rev(); return s.agents().filter((a) => a.space !== props.spaceId) }
+  const others = () => { rev(); return s.shown().agents.filter((a) => a.space !== props.spaceId) }
   const fresh = () => {
     rev()
     const have = s.installed.get('')
@@ -265,7 +265,7 @@ function Switcher(props: { store: Store; spaceId: string; open: { (): boolean; s
   const row = 'flex-row items-center gap-2.5 h-11 px-2 rounded-[8px] active:bg-sidebar-accent'
   // An agent's row is home's (ui/agent-row.tsx), as tall as its second line needs.
   const agentRow = 'min-h-11 py-1.5 px-2 justify-center rounded-[8px] active:bg-sidebar-accent'
-  const agentAt = (addr: string | undefined) => { rev(); return addr ? s.agents().find((a) => a.address === addr) : undefined }
+  const agentAt = (addr: string | undefined) => { rev(); return addr ? s.shown().agents.find((a) => a.address === addr) : undefined }
   // A sub-agent has no pane of its own: open shows what it prints.
   const sub = (addr: string) => { close(); props.actions.open(addr) }
   return (

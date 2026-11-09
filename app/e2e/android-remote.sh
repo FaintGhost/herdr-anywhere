@@ -1,12 +1,13 @@
 #!/bin/sh
-# The Android app on an emulator against a computer somewhere else, over Tailcat's real relays: CI's Windows runner,
-# with the invite decoded from the Herdr dialog's QR code there (windows-add-phone.ps1). Both computers need the
-# internet only.
+# The Android app on an emulator against a computer somewhere else, over Tailcat's real relays: CI's Windows or macOS
+# runner, with the invite decoded from the Herdr dialog's QR code there (windows-add-phone.ps1, mac-add-phone.sh). Both
+# computers need the internet only. HM_REMOTE_SPACE names the computer's space (the herdr.space label of its terminal;
+# default spwin, Windows').
 #
 #   ANDROID_SERIAL=emulator-5554 e2e/android-remote.sh open <apk>
-#       installs the app with no data and opens it on the pairing screen
+#       installs the app with no data, opens it on the pairing screen, and readies the emulator's clipboard (below)
 #   ANDROID_SERIAL=emulator-5554 e2e/android-remote.sh pair <invite file> <screenshot folder>
-#       types the invite, pairs, and passes when home lists acme-api (the computer's terminal), a command sent from the
+#       pastes the invite, pairs, and passes when home lists acme-api (the computer's terminal), a command sent from the
 #       terminal's input box runs there (the computer's job checks), and then, once the computer removes this phone, the app asks to
 #       pair again
 #
@@ -17,6 +18,7 @@ app=$(cd "$(dirname "$0")/.." && pwd)
 adb="${ANDROID_HOME:-$HOME/Library/Android/sdk}/platform-tools/adb"
 id=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$app/nsh.json")
 readonly id
+space=${HM_REMOTE_SPACE:-spwin}
 fail() { echo "FAIL: $*"; exit 1; }
 
 xml() { "$adb" shell uiautomator dump /sdcard/hm.xml >/dev/null 2>&1; "$adb" shell cat /sdcard/hm.xml; }
@@ -31,6 +33,25 @@ tap() {
   "$adb" shell input tap $xy
 }
 screen_has() { xml | grep -qF "$1"; }
+# The invite goes in as a person pastes it: on the phone's clipboard, then Paste in the field. The clipboard is set
+# through the emulator's own gRPC endpoint (setClipboard in $ANDROID_HOME/emulator/lib/emulator_controller.proto), with
+# the port and token the emulator writes to its pid_*.ini. Typing it with `adb shell input text` is no good here: CI's
+# emulator types 4 characters a second and drops some, so the 554-character invite took 5 rounds of 2 minutes and was
+# still wrong, while the code lasts 2 minutes.
+clip_dir=${RUNNER_TEMP:-${TMPDIR:-/tmp}}/hm-clip
+pid_ini() {
+  grep -lx "port.serial=${ANDROID_SERIAL#emulator-}" \
+    "${XDG_RUNTIME_DIR:-/nonexistent}"/avd/running/pid_*.ini /tmp/android-"$(id -un)"/avd/running/pid_*.ini \
+    "$HOME"/Library/Caches/TemporaryItems/avd/running/pid_*.ini "$HOME"/.android/avd/running/pid_*.ini 2>/dev/null | head -1
+}
+clip() { # set <file> | get
+  ini=$(pid_ini)
+  # An emulator without a window writes the file once its gRPC endpoint is on (seen on a Mac); the console turns it on.
+  [ -n "$ini" ] || { "$adb" emu grpc $((${ANDROID_SERIAL#emulator-} + 3000)) >/dev/null; sleep 1; ini=$(pid_ini); }
+  [ -n "$ini" ] || fail "no running emulator's pid_*.ini for $ANDROID_SERIAL"
+  HM_GRPC_PORT=$(sed -n 's/^grpc.port=//p' "$ini") HM_GRPC_TOKEN=$(sed -n 's/^grpc.token=//p' "$ini") \
+    "$clip_dir/py/bin/python" -I "$clip_dir/clip.py" "$clip_dir" "$@"
+}
 # For a failure: the screen's ids and texts, any invite or pairing link masked.
 screen() {
   echo "--- on the phone's screen:"
@@ -47,6 +68,32 @@ case "${1:-}" in
     for _ in $(seq 1 30); do screen_has 'resource-id="pair-link"' && break; sleep 1; done
     screen_has 'resource-id="pair-link"' || { screen; fail "the app did not open on the pairing screen"; }
     echo "ok: the app is open on the pairing screen"
+    rm -rf "$clip_dir"; mkdir -p "$clip_dir"
+    python3 -m venv "$clip_dir/py"
+    "$clip_dir/py/bin/pip" install --disable-pip-version-check -q grpcio==1.84.1 grpcio-tools==1.84.1 protobuf==7.36.2
+    proto="${ANDROID_HOME:-$HOME/Library/Android/sdk}/emulator/lib"
+    "$clip_dir/py/bin/python" -m grpc_tools.protoc -I "$proto" --python_out="$clip_dir" --grpc_python_out="$clip_dir" \
+      "$proto/emulator_controller.proto"
+    cat >"$clip_dir/clip.py" <<'PY'
+import os, sys
+import grpc
+sys.path.insert(0, sys.argv[1])
+import emulator_controller_pb2 as pb, emulator_controller_pb2_grpc as rpc
+from google.protobuf import empty_pb2
+stub = rpc.EmulatorControllerStub(grpc.insecure_channel("localhost:" + os.environ["HM_GRPC_PORT"]))
+auth = [("authorization", "Bearer " + os.environ["HM_GRPC_TOKEN"])]
+if sys.argv[2] == "set":
+    with open(sys.argv[3]) as f:
+        stub.setClipboard(pb.ClipData(text=f.read()), metadata=auth, timeout=10)
+else:
+    print(len(stub.getClipboard(empty_pb2.Empty(), metadata=auth, timeout=10).text))
+PY
+    # The clipboard check, seen working both ways: what is set is read back, and then an empty one.
+    printf 'hm-clip-check' >"$clip_dir/check"
+    clip set "$clip_dir/check"; [ "$(clip get)" = 13 ] || fail "the emulator's clipboard did not take 13 characters"
+    : >"$clip_dir/check"; clip set "$clip_dir/check"; [ "$(clip get)" = 0 ] || fail "the emulator's clipboard did not empty"
+    rm -f "$clip_dir/check"
+    echo "ok: the emulator's clipboard can be set"
     ;;
   pair)
     invite=$(cat "$2")
@@ -58,30 +105,18 @@ case "${1:-}" in
     echo "ok: before pairing, the screen shows no acme-api"
     # What the link field holds: pair-link is the field's wrapper; the text is its child's.
     typed() { xml | tr '>' '\n' | sed -n '/resource-id="pair-link"/,$p' | grep -oE 'text="[^"]+"' | head -1 | sed -E 's/^text="(.*)"$/\1/'; }
-    # One long `adb shell input text` keeps only its first ~200 characters, and CI's emulator types ~11 characters a
-    # second and drops some: in 150-character pieces most (on CI), in 40-character pieces now and then. The
-    # code expires 2 minutes after it shows, so a retry keeps what is right: it deletes from the first wrong character
-    # and types the rest (a CI run that cleared the field first saw the code expire).
-    send() {
-      rest=$1
-      while [ -n "$rest" ]; do
-        piece=$(printf %s "$rest" | cut -c1-40); rest=$(printf %s "$rest" | cut -c41-)
-        "$adb" shell input text "'$piece'" </dev/null
-      done
-    }
     started=$(date +%s)
+    clip set "$2"
+    [ "$(clip get)" = "${#invite}" ] || fail "the clipboard does not hold the invite's ${#invite} characters"
     tap pair-link
-    send "$invite"
-    for _ in 1 2 3 4 5; do
+    for _ in 1 2 3; do
+      "$adb" shell input keyevent KEYCODE_PASTE
       got=$(typed); [ "$got" = "$invite" ] && break
-      same=$(python3 -c 'import os,sys; print(len(os.path.commonprefix(sys.argv[1:3])))' "$got" "$invite")
-      echo "the field holds ${#got} of the invite's ${#invite} characters, the first $same right; typing from there"
-      # The field keeps focus and its cursor stays after the last character typed.
-      [ "${#got}" -gt "$same" ] && "$adb" shell input keyevent $(printf 'KEYCODE_DEL %.0s' $(seq 1 $((${#got} - same))))
-      send "$(printf %s "$invite" | cut -c$((same + 1))-)"
+      echo "after Paste the field holds ${#got} characters, not the invite's ${#invite}; again"
+      "$adb" shell input keyevent KEYCODE_MOVE_END $(printf 'KEYCODE_DEL %.0s' $(seq 1 $((${#got} + 1))))
     done
-    got=$(typed)
-    echo "typed in $(($(date +%s) - started)) s"
+    : >"$clip_dir/empty"; clip set "$clip_dir/empty"
+    echo "pasted in $(($(date +%s) - started)) s"
     [ "$got" = "$invite" ] || fail "the field never held the whole invite"
     started=$(date +%s)
     tap pair
@@ -93,14 +128,24 @@ case "${1:-}" in
       screen; fail "within 120 s of the tap on Pair, home does not list acme-api"
     fi
     "$adb" exec-out screencap -p > "$shots/1-home.png"
-    echo "ok: paired over Tailcat; home lists the Windows computer's acme-api $(($(date +%s) - started)) s after the tap on Pair"
+    echo "ok: paired over Tailcat; home lists the computer's acme-api $(($(date +%s) - started)) s after the tap on Pair"
 
-    tap space-spwin
+    tap "space-$space"
     sleep 3
     tap compose-input
     # Spaces around >: Windows' terminal here is pwsh, which reads `phone>` as a word (on CI's Windows runner); cmd and pwsh
-    # both write the file this way.
-    "$adb" shell input text "'echo phone > hm-typed'"
+    # both write the file this way. adb's input text loses characters on CI's emulator, so Send waits until the box holds
+    # the whole command; until then the box is cleared and the command typed again.
+    cmd='echo phone > hm-typed'
+    boxed() { xml | tr '>' '\n' | sed -n '/resource-id="compose-input"/,$p' | grep -oE 'text="[^"]+"' | head -1 | sed -E 's/^text="(.*)"$/\1/' | sed 's/&gt;/>/g'; }
+    whole=""
+    for _ in 1 2 3 4; do
+      "$adb" shell input text "'$cmd'"
+      got=$(boxed); [ "$got" = "$cmd" ] && { whole=1; break; }
+      echo "the input box holds '$got', not '$cmd'; typing it again"
+      "$adb" shell input keyevent KEYCODE_MOVE_END $(printf 'KEYCODE_DEL %.0s' $(seq 1 $((${#got} + 1))))
+    done
+    [ -n "$whole" ] || { screen; fail "the input box never held the whole command"; }
     tap compose-send
     "$adb" shell input keyevent 4 # the keyboard away, so the terminal's rows show
     sleep 3

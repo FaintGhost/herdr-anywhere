@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.18
+
+- With many agents, a tap on home or in a pane reaches its button right away. The app no longer redraws rows that didn't change, and the key row keeps the button under your finger while the list updates. Before, a tap could do nothing for a moment, while scrolling still worked.
+- Android: a folded notification shows what the agent asks or did; its space and tab show when you unfold it. Before, the two ran together on one line.
+
+Android: `Herdr-Anywhere.apk`; an installed 0.1.6 or later can update to it from home.
+
 ## v0.1.17
 
 - Experimental, off by default: a progress page. Turn it on in Settings › Experimental › Progress page and pick which agent on your computer does the sorting: Claude Code (it runs Haiku), Pi or Kimi Code; Codex from 0.163. That agent works in a pane of its own, on your account: it files what you ask for in each pane under tasks, and when a pane stops it marks the task done, waiting on you, or still going. It writes task names and its questions in your phone's language. A switch at the top of the home page goes between your agents and the progress page in one tap, and the app opens on the one you used last. The progress page lists what needs you, with a button that opens the pane asking, what finished in the last day, and the tasks in progress. Turning it off closes that pane; while it is off, nothing of it runs on the computer or the phone.

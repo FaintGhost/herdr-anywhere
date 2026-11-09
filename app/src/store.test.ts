@@ -761,3 +761,49 @@ test('reconcile asks again only on the next loop when closing a pane or placing 
   for (let i = 0; i < 20; i++) { core.release(); await settle(1) }
   expect([asked(gone.address), asked(stray.address)]).toEqual([2, 2])
 })
+
+test("an agent's spinner frames in its title cost no pass over the terminals; new words in it show at once", async () => {
+  // Claude Code and others put a spinner in front of the title and turn it several times a second. With 28 agents that
+  // was 250 events a second, each running the whole status pass on the phone's one JS thread (60% of it, measured on
+  // the Android emulator), and taps waited behind it.
+  const { core, store } = setup()
+  await store.connect()
+  const r = await store.newSpace({ argv: ['claude'] })
+  core.setStatus(r.terminal, 'working', 'claude-code')
+  core.emit('title', r.terminal, { title: '⠋ Fix the login bug' })
+  await settle()
+  let passes = 0
+  const pass = store.sync.bind(store)
+  store.sync = () => { passes++; pass() }
+  const rev = store.rev.get()
+  // Each frame comes in a message of its own, as over the line.
+  for (const s of '⠙⠹⠸⠼⠴⠦⠧⠇⠏⠋') { core.emit('title', r.terminal, { title: `${s} Fix the login bug` }); await settle() }
+  expect(passes).toBe(0)
+  expect(store.rev.get()).toBe(rev)
+  core.emit('title', r.terminal, { title: '⠙ Run the tests' })
+  await settle()
+  expect(store.activityOf(r.terminal)).toBe('Run the tests')
+  expect(store.rev.get()).toBeGreaterThan(rev)
+})
+
+test('an agent that rang costs nothing on later passes until what it says changes; then its alert is told again', async () => {
+  // Every pass rebuilt the whole agents list again for each agent that had rung, to see whether its words changed:
+  // with many finished agents each pass took 15 ms instead of 2 on the Android emulator.
+  const { core, store } = setup()
+  const told: string[] = []
+  store.onAlert = (k, t, again) => { if (again) told.push(t.body ?? '') }
+  await store.connect()
+  const agents = []
+  for (let i = 0; i < 5; i++) agents.push((await store.newSpace({ argv: ['claude'] })).terminal)
+  await settle()
+  for (const a of agents) { core.setStatus(a, 'working', 'claude-code'); await settle(); core.setStatus(a, 'idle', 'claude-code', { msg: 'ran the tests' }); await settle() }
+  let built = 0
+  const view = store.agentList.view.bind(store.agentList)
+  store.agentList.view = (...a) => { built++; return view(...a) }
+  for (let i = 0; i < 10; i++) store.sync()
+  expect(built).toBe(0)
+  core.setStatus(agents[0], 'idle', 'claude-code', { msg: 'ran the tests and fixed one' })
+  await settle()
+  expect(told.length).toBe(1)
+  expect(told[0].startsWith('ran the tests and fixed one')).toBe(true)
+})

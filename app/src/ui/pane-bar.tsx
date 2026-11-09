@@ -258,13 +258,17 @@ export function KeyRow(props: { keys: { key: RowKey; label: string }[]; session:
   const side = 'w-8 h-8 items-center justify-center rounded-[6px] bg-secondary active:bg-accent'
   return (
     <View testID="key-row" class="flex-row items-center gap-[3px] px-1 pb-1">
-      {props.keys.map((k) => (
-        <View role="button" focusable={false} testID={`row-${k.key}`} accessibilityLabel={k.key === 'ctrl' ? 'ctrl' : k.key === 'ctrlc' ? 'ctrl C' : k.label} onPress={() => press(k.key)}
-          class={`${look.size === 'label' ? 'flex-auto px-1' : 'flex-1'} h-8 items-center justify-center rounded-[6px] ${held(k.key) ? 'bg-primary' : 'bg-secondary active:bg-accent'}`}>
-          <Text maxFontSizeMultiplier={KEY_ROW_MAX_SCALE} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} onTextLayout={laid(k)}
-            class={`${k.key === 'enter' || k.key === 'shift' ? 'text-[16px]' : 'text-[12px]'} font-mono ${held(k.key) ? 'text-primary-foreground' : 'text-foreground'}`}>{label(k)}</Text>
-        </View>
-      ))}
+      {/* Kept by key: the pane redraws whenever any agent changes, and a key drawn again under the finger lost its press. */}
+      <Each of={props.keys} key={(k) => k.key}>{(item) => {
+        const k = item()
+        return (
+          <View role="button" focusable={false} testID={`row-${k.key}`} accessibilityLabel={k.key === 'ctrl' ? 'ctrl' : k.key === 'ctrlc' ? 'ctrl C' : k.label} onPress={() => press(k.key)}
+            class={`${look.size === 'label' ? 'flex-auto px-1' : 'flex-1'} h-8 items-center justify-center rounded-[6px] ${held(k.key) ? 'bg-primary' : 'bg-secondary active:bg-accent'}`}>
+            <Text maxFontSizeMultiplier={KEY_ROW_MAX_SCALE} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} onTextLayout={laid(k)}
+              class={`${k.key === 'enter' || k.key === 'shift' ? 'text-[16px]' : 'text-[12px]'} font-mono ${held(k.key) ? 'text-primary-foreground' : 'text-foreground'}`}>{label(k)}</Text>
+          </View>
+        )
+      }}</Each>
       <If when={props.toBox}>
         <View role="button" focusable={false} testID="to-box" accessibilityLabel={t('typeInBox')} onPress={() => props.toBox?.()} class={side}>
           <Glyph name="square-pen" size={15} class="tint-foreground" />

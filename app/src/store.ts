@@ -96,7 +96,7 @@ export class Store {
   onAlert?: (kind: 'blocked' | 'done', toast: Toast, again?: boolean) => void
   /** Each terminal's last alert while its state stays the one it rang for: Claude Code says what it did a moment after
    *  it reports done (store.test.ts "told again"). */
-  private rung = new Map<string, { kind: 'blocked' | 'done'; state: string; body?: string }>()
+  private rung = new Map<string, { kind: 'blocked' | 'done'; state: string; body?: string; said: string }>()
   /** Which alerts the person wants (Settings › Alerts). */
   wants: (kind: 'blocked' | 'done') => boolean = () => true
   /** Whether agent rows say the program's name (Settings › Look, Show agent names); read where the rows draw. */
@@ -312,7 +312,10 @@ export class Store {
       const slot = this.slots.get(r.doc.machine ?? '')
       if (!slot || slot.version !== r.doc.version) void this.readDoc(r.doc.machine)
     }
-    if (r.changed) this.schedule()
+    if (!r.changed) return
+    // New words in a title show only through a redraw, which the pass makes when something changed.
+    if (r.type === 'title') this.dirty = true
+    this.schedule()
   }
 
   private scheduled = false
@@ -426,7 +429,7 @@ export class Store {
     const tab = pane ? this.model.tabOf(pane) : undefined
     if (tab?.settled !== undefined) this.model.unsettle(tab.id)
     if (!this.wants(kind)) return
-    if (t.status?.state) this.rung.set(t.address, { kind, state: t.status.state, body: toast.body })
+    if (t.status?.state) this.rung.set(t.address, { kind, state: t.status.state, body: toast.body, said: saidBy(t) })
     if (!(this.appActive && this.viewingTab && this.model.visibleAddresses().includes(t.address))) this.toast(toast)
     this.onAlert?.(kind, toast)
   }
@@ -435,6 +438,11 @@ export class Store {
   private ringAgain(t: Term) {
     const r = this.rung.get(t.address)
     if (!r || t.status?.state !== r.state) return
+    // The alert's words come from what the agent reports: unchanged, they are the same words, and working them out
+    // again on every pass for every agent that rang cost a whole agents list each.
+    const said = saidBy(t)
+    if (said === r.said) return
+    r.said = said
     const toast = this.alertToast(r.kind, t)
     if (toast.body === r.body) return
     r.body = toast.body
@@ -450,7 +458,8 @@ export class Store {
     const shown = p0.agent ? this.agentsView().detail.get(t.address) : undefined
     const title = shown && shown !== p0.name ? shown : undefined
     const name = this.terminalName(t)
-    // What it asks or did, in its own words, then where it is: a notification's first line is what shows when folded.
+    // What it asks or did, in its own words, then where it is. Folded, a notification shows the first line alone: on
+    // Android because MainActivity.notify gives it that line only (Android itself would join the lines with spaces).
     const place = space && tab ? `${this.spaceName(space)} › ${Model.tabName(space, tab)}` : undefined
     // Any program can report its state; only an agent's title is its summary of the task (a shell's is user@host:path).
     const p = this.program(t.address)
@@ -635,10 +644,24 @@ export class Store {
     return this.agentList.view(this.agents(), this.terms.list(), this.io.now())
   }
 
+  /** The agents and their view as the screens show them, worked out once per change: every row of a redraw reads this
+   *  one. Each row working it out again, over every terminal, made one redraw of the home screen with 28 agents take
+   *  150 ms on the Android emulator, and taps waited behind it. Every change the screens follow moves `rev` (model
+   *  edits go through changed(), the terminals' records through `terms.version`). */
+  shown(): { agents: AgentInfo[]; view: ReturnType<AgentList['view']> } {
+    const key = `${this.rev.get()} ${this.terms.version} ${this.viewingTab} ${this.agentList.sort} ${this.conn.get()}`
+    const machines = this.machines.get()
+    if (this.shownMemo?.key !== key || this.shownMemo.machines !== machines) {
+      const agents = this.agents()
+      this.shownMemo = { key, machines, agents, view: this.agentList.view(agents, this.terms.list(), this.io.now()) }
+    }
+    return this.shownMemo
+  }
+  private shownMemo?: { key: string; machines: unknown; agents: AgentInfo[]; view: ReturnType<AgentList['view']> }
+
   /** Every agent that waits on you, across the spaces, the longest wait first. */
   queue(): AgentInfo[] {
-    this.agentsView()
-    return this.agents().filter((a) => a.status === 'blocked').sort((x, y) => this.agentList.since(x) - this.agentList.since(y))
+    return this.shown().agents.filter((a) => a.status === 'blocked').sort((x, y) => this.agentList.since(x) - this.agentList.since(y))
   }
 
   /** "space › tab", as the pane's header says it. */
@@ -724,7 +747,7 @@ export class Store {
   }
 
   counts() {
-    const list = this.agents()
+    const list = this.shown().agents
     return { agents: list.length, needsYou: list.filter((a) => a.status === 'blocked').length }
   }
 
@@ -1087,6 +1110,9 @@ export class Store {
     this.bump()
   }
 }
+
+/** What a terminal reports that an alert's words are made of: its status and its title. */
+const saidBy = (t: Term) => `${JSON.stringify(t.status ?? null)}\u0000${t.title ?? ''}`
 
 /** Fractions of the tab each pane takes, from the split tree's weights. */
 export function layoutRects(n: Node, x: number, y: number, w: number, h: number, out = new Map<string, { x: number; y: number; w: number; h: number }>()) {

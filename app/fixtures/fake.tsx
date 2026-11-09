@@ -11,6 +11,7 @@ import { host, Keyboard, mount, Storage } from 'nsh'
 import { Linker, type Route, type Tunnel } from '../src/link.ts'
 import { PrefStore } from '../src/prefs.ts'
 import { Store } from '../src/store.ts'
+import { rowKeys } from '../src/ui/pane-bar.tsx'
 import { Root } from '../src/ui/root.tsx'
 import { CLAUDE_EDIT_MENU, FakeCore, type FakeTab } from '../src/testing/fakecore.ts'
 import { FakeFolders } from '../src/testing/fake-folders.ts'
@@ -51,6 +52,13 @@ if (scene === 'busy' || scene === 'single') {
     { id: 'tb2', argv: ['codex'], status: 'working' },
   ])
   if (scene === 'busy') add('sp2', '/Users/sam/src/clients/northwind/storefront-redesign-2026/web', 'web', [{ id: 'tb3', argv: ['zsh'] }])
+  core.docs.set('', { value: doc, version: 1 })
+}
+// `scene: "many"`: 24 Claude Codes at work in four spaces, as a busy computer has them.
+if (scene === 'many') {
+  const doc = { spaces: [] as any[] }
+  for (const [i, name] of ['api', 'web', 'docs', 'infra'].entries())
+    core.addSpace(doc, `sp${i + 1}`, `/Users/sam/src/${name}`, '', Array.from({ length: 6 }, (_, k) => ({ id: `tb${i * 6 + k + 1}`, name: `${name} ${k + 1}`, argv: ['claude'], status: 'working' })))
   core.docs.set('', { value: doc, version: 1 })
 }
 // `scene: "lab"`: four agents' panes at one moment, one of each state, to set beside `herdr-anywhere track status`.
@@ -163,12 +171,29 @@ const fakeTunnel: Tunnel = {
 }
 if (params.conn === 'lost') setTimeout(() => core.drop('network'), 0)
 
+// How many times the key row's keys were drawn, where a test reads it (`app.storage()['fake-row-draws']`): each draw
+// reads its key's label. A key drawn again while a finger is on it loses that press.
+let rowDraws = 0
+for (const k of rowKeys('keys')) {
+  const label = k.label
+  Object.defineProperty(k, 'label', { get: () => { void Storage.setItem('fake-row-draws', String(++rowDraws)); return label } })
+}
+
+// How many times the agents list was worked out, where a test reads it (`app.storage()['fake-views']`): the screens
+// should share one per change, however many rows show it.
+function counted(store: Store) {
+  let views = 0
+  const view = store.agentList.view.bind(store.agentList)
+  store.agentList.view = (...a) => { void Storage.setItem('fake-views', String(++views)); return view(...a) }
+  return store
+}
+
 mount(() => (
   <Root deps={{
     linker: new Linker(params.via === 'tailpocket' ? { ...io, tunnel: fakeTunnel } : io),
     opensSettings: params.open === 'settings',
     prefs: new PrefStore(io),
-    makeStore: (l) => new Store({ pipe: pipe(l) }),
+    makeStore: (l) => counted(new Store({ pipe: pipe(l) })),
     device: 'Test phone',
     pairLink: opened || scene === 'relaunch-forgotten' ? String((host.params as any)?.link) : undefined,
     // Recorded where a test can read it: the app's own storage.

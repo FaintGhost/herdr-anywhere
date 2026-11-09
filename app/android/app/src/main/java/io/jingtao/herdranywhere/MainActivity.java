@@ -213,10 +213,14 @@ public class MainActivity extends Activity {
     Intent tap = new Intent(this, MainActivity.class).putExtra(TERMINAL, terminal).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
     PendingIntent open = PendingIntent.getActivity(this, terminal.hashCode(), tap,
         PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    // Folded, a notification has one line, and Android joins the body's lines into it with spaces: "Bash: npm test" and
+    // "api › 2" read as one sentence. That line gets the first (what it asks or did, src/store.ts alertToast); unfolded,
+    // BigTextStyle shows them all (e2e/android-notify-folded.sh).
+    String first = body == null ? null : body.split("\n", 2)[0];
     Notification n = new Notification.Builder(this, done ? FINISHED : NEEDS_YOU)
         .setSmallIcon(R.drawable.ic_notify)
         .setContentTitle((String) a.get("title"))
-        .setContentText(body)
+        .setContentText(first)
         .setStyle(new Notification.BigTextStyle().bigText(body))
         .setCategory(done ? Notification.CATEGORY_STATUS : Notification.CATEGORY_MESSAGE)
         .setContentIntent(open)
